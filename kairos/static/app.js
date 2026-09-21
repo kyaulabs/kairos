@@ -2,7 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const form = $('settings');
-  const priceChart = new LiveChart('#chart', '#3de0b1', 'price');
+  const priceChart = new LiveChart('#chart', '#3de0b1', 'price', Number($('timeframe').value) * 60000);
   const equityChart = new LiveChart('#equity-chart', '#74a8ff', 'equity');
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -164,6 +164,7 @@
     if (mode === 'trading' && !confirm('Enable REAL Kraken spot trading with the saved limits? If the engine is running, it will resume in live mode after reconciliation.')) { $('mode').value = state.mode; return; }
     action('mode', {mode, confirmation: mode === 'trading' ? 'ENABLE LIVE TRADING' : ''});
   });
+  $('timeframe').addEventListener('change', () => priceChart.setTimeframe(Number($('timeframe').value) * 60000));
   $('follow').addEventListener('click', () => priceChart.follow());
   setInterval(() => {
     const ticker = tickers[symbol()];
