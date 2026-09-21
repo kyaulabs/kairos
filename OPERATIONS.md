@@ -90,7 +90,7 @@ Recovery happens once per portfolio, persists across restarts, and does not regi
 
 ## Strategies
 
-**Higher-timeframe trend:** uses completed 15-minute, 30-minute, hourly, four-hour, or daily candles. Code calculates 8/21-period averages and historical returns. Jev assesses buy/sell/hold; code enforces trend and cost filters. Each completed candle is assessed at most once. Spot sells only reduce bot-owned inventory. Historical momentum is not a forecast of the next move.
+**Higher-timeframe trend:** uses completed 1-minute, 5-minute, 15-minute, 30-minute, hourly, four-hour, or daily candles. The default is 15 minutes; shorter intervals increase decision frequency, noise, and potential fee costs. Code calculates 8/21-period averages and historical returns. Jev assesses buy/sell/hold; code enforces trend and cost filters. Each completed candle is assessed at most once. Spot sells only reduce bot-owned inventory. Historical momentum is not a forecast of the next move.
 
 **Market making:** asks Jev which side to quote. It places one post-only order, with a fee-aware offset from the midpoint, and reconciles/cancels before replacing it. Quotes expire at Kraken after 30 seconds. The default cycle is 15 seconds; the configurable minimum is 10 seconds. This is rate-limited market making, not exchange-grade HFT. Wide fee-aware quotes may rarely fill, and filled quotes remain exposed to adverse selection.
 

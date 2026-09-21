@@ -91,7 +91,7 @@ Dry-run uses real feeds and real Jev calls. Taker fills are estimated from visib
 
 | Strategy | Behavior |
 | --- | --- |
-| Higher-timeframe trend | Assesses completed 15-minute through daily candles. Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
+| Higher-timeframe trend | Assesses completed candles from 1 minute through 1 day (1m, 5m, 15m, 30m, 1h, 4h, 1d). Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
 | Market making | Posts one fee-aware, post-only quote and reconciles it before replacement. Quotes expire after 30 seconds. This is rate-limited market making, not exchange-grade HFT. |
 | Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
 

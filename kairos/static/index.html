@@ -50,7 +50,7 @@
           <label class="check"><input name="recover_initial" type="checkbox"> Recover original allocation once above 2× equity</label>
           <label>Capital recovery check · seconds<input name="recovery_check_seconds" type="number" min="10" max="86400" step="1" required></label>
           <label>Decision interval · seconds<input name="interval_seconds" type="number" min="10" max="3600" step="1" required></label>
-          <label>HTF candle interval<select name="candle_minutes"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
+          <label>HTF candle interval<select name="candle_minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
           <label>Jev minimum confidence<input name="min_confidence" type="number" min="0" max="1" step="0.01" required></label>
         </div>
         <details><summary>Fees, execution & paper margin</summary><div class="fields advanced">

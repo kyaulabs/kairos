@@ -5,6 +5,7 @@ from decimal import ROUND_DOWN, ROUND_UP, Decimal, InvalidOperation
 ZERO = Decimal(0)
 BPS = Decimal(10000)
 TERMINAL = {"closed", "canceled", "expired", "rejected"}
+CANDLE_INTERVALS = (1, 5, 15, 30, 60, 240, 1440)
 
 
 class SafetyError(Exception):
@@ -166,7 +167,10 @@ def validate_settings(values):
     ):
         if type(values[key]) is not int or not low <= values[key] <= high:
             raise SafetyError(f"{key} must be an integer between {low} and {high}")
-    if values["candle_minutes"] not in (15, 30, 60, 240, 1440):
+    if (
+        type(values["candle_minutes"]) is not int
+        or values["candle_minutes"] not in CANDLE_INTERVALS
+    ):
         raise SafetyError("Unsupported candle interval")
     if any(type(values[key]) is not bool for key in ("reinvest_profits", "recover_initial")):
         raise SafetyError("Reinvestment and recovery switches must be boolean")

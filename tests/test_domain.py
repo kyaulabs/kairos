@@ -20,6 +20,15 @@ class DomainTests(unittest.TestCase):
             with self.subTest(field=field, value=value), self.assertRaises(SafetyError):
                 validate_settings({**DEFAULTS, field: value})
 
+    def test_native_candle_intervals_and_strict_integer_validation(self):
+        for minutes in (1, 5, 15, 30, 60, 240, 1440):
+            with self.subTest(minutes=minutes):
+                settings = validate_settings({**DEFAULTS, "candle_minutes": minutes})
+                self.assertEqual(settings["candle_minutes"], minutes)
+        for invalid in (True, False, 5.0, "5", 0, 10):
+            with self.subTest(invalid=invalid), self.assertRaises(SafetyError):
+                validate_settings({**DEFAULTS, "candle_minutes": invalid})
+
     def test_unknown_settings_rejected(self):
         with self.assertRaises(SafetyError):
             validate_settings({**DEFAULTS, "disable_safety": True})
