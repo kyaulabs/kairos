@@ -2,24 +2,50 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const form = $('settings');
-  const priceChart = new LiveChart('#chart', '#3de0b1', 'price', Number($('timeframe').value) * 60000);
+  const priceChart = new LiveChart('#chart', '#3de0b1', 'price', Number($('candle-interval').value));
   const equityChart = new LiveChart('#equity-chart', '#74a8ff', 'equity');
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
   let state, csrf, pairs = [], initialized = false, busy = false, events = [], lastSymbol, lastPortfolio;
-  let tickers = {}, lastTickRendered = 0, connected = false;
+  let tickers = {}, connected = false;
+  let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
   const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds']);
 
   function message(text) { $('message').textContent = text; }
-  async function request(path, body) {
+  async function request(path, body, signal) {
     const options = body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf}, body: JSON.stringify(body)};
-    const response = await fetch(`/api/${path}`, {...options, credentials: 'same-origin'});
+    const response = await fetch(`/api/${path}`, {...options, credentials: 'same-origin', signal});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
     return data;
   }
   function symbol() { return pairs.find(pair => pair.id === state?.settings.pair)?.symbol; }
+  function restartCandles() {
+    clearTimeout(candleTimer);
+    candleController?.abort();
+    const generation = ++candleGeneration;
+    const pair = state.settings.pair, interval = Number($('candle-interval').value);
+    candleReceived = 0; candleError = '';
+    $('candle-status').textContent = 'Loading candles…';
+    async function refresh() {
+      candleController = new AbortController();
+      try {
+        const data = await request(`candles?${new URLSearchParams({pair, interval})}`, undefined, candleController.signal);
+        if (generation !== candleGeneration) return;
+        if (data.pair !== pair || data.interval !== interval) throw new Error('Candle market or interval mismatch');
+        priceChart.setCandles(data.candles);
+        candleReceived = data.received; candleError = '';
+      } catch (error) {
+        if (generation !== candleGeneration || error.name === 'AbortError') return;
+        candleError = 'Candle feed unavailable — retrying';
+      } finally {
+        // No overlapping polls; obsolete market/interval requests cannot redraw or reschedule.
+        if (generation === candleGeneration) candleTimer = setTimeout(refresh, 5000);
+      }
+    }
+    refresh();
+  }
   function loadForm() {
     for (const [key, value] of Object.entries(state.settings)) {
       const input = form.elements.namedItem(key);
@@ -38,9 +64,11 @@
     if (next.tickers) tickers = next.tickers;
     if (!initialized) { loadForm(); initialized = true; }
     const selected = symbol();
-    if (lastSymbol !== selected) { priceChart.clear(); lastTickRendered = 0; lastSymbol = selected; }
+    if (lastSymbol !== selected) { priceChart.clear(); lastSymbol = selected; restartCandles(); }
     const portfolio = `${state.mode}:${state.settings.product}`;
-    if (lastPortfolio !== portfolio) { equityChart.clear(); lastPortfolio = portfolio; }
+    if (lastPortfolio !== portfolio) {
+      equityChart.clear(); priceChart.fills = []; priceChart.draw(); lastPortfolio = portfolio;
+    }
     $('market-title').textContent = selected || state.settings.pair;
     $('mode').value = state.mode;
     $('mode-badge').textContent = state.mode === 'trading' ? 'LIVE TRADING' : `DRY-RUN · ${state.settings.product.toUpperCase()}`;
@@ -164,18 +192,20 @@
     if (mode === 'trading' && !confirm('Enable REAL Kraken spot trading with the saved limits? If the engine is running, it will resume in live mode after reconciliation.')) { $('mode').value = state.mode; return; }
     action('mode', {mode, confirmation: mode === 'trading' ? 'ENABLE LIVE TRADING' : ''});
   });
-  $('timeframe').addEventListener('change', () => priceChart.setTimeframe(Number($('timeframe').value) * 60000));
+  $('candle-interval').addEventListener('change', () => {
+    priceChart.setCandleInterval(Number($('candle-interval').value));
+    if (state) restartCandles();
+  });
   $('follow').addEventListener('click', () => priceChart.follow());
   setInterval(() => {
+    const candleAge = Math.max(0, Date.now()/1000-candleReceived);
+    $('candle-status').textContent = candleError || (candleReceived ? `${candleAge > 15 ? 'STALE · ' : ''}Candles refreshed ${candleAge.toFixed(0)}s ago · latest candle may be forming` : 'Loading candles…');
     const ticker = tickers[symbol()];
     if (!ticker) { $('price').textContent = '—'; $('feed-age').textContent = 'No market feed'; return; }
     const age = Math.max(0, (Date.now()/1000-ticker.received));
     $('feed-age').textContent = `${age > 15 ? 'STALE · ' : ''}${age.toFixed(0)}s ago`;
     $('price').textContent = number((ticker.bid+ticker.ask)/2);
     $('bid-ask').textContent = `BID ${number(ticker.bid)}  /  ASK ${number(ticker.ask)}`;
-    if (ticker.received !== lastTickRendered) {
-      priceChart.add(ticker.received, (ticker.bid+ticker.ask)/2); lastTickRendered = ticker.received;
-    }
   }, 500);
   async function boot() {
     pairs = await request('pairs');

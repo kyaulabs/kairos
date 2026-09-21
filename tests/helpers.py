@@ -43,6 +43,27 @@ def book(pair=BTC, bid="9990", ask="10000", qty="10"):
     return Book(pair, [[dec(bid), dec(qty)]], [[dec(ask), dec(qty)]], time.time())
 
 
+def candle_rows(minutes=1, count=120):
+    end = int(time.time()) // (minutes * 60) * (minutes * 60)
+    rows = []
+    for i in range(count):
+        opening = 10000 + i
+        close = opening + i % 3 - 1
+        rows.append(
+            [
+                end - (count - 1 - i) * minutes * 60,
+                str(opening),
+                str(max(opening, close) + 2),
+                str(min(opening, close) - 2),
+                str(close),
+                str(close),
+                "10",
+                20,
+            ]
+        )
+    return rows
+
+
 def fake_kraken():
     class Fake:
         pass
@@ -70,6 +91,7 @@ def fake_kraken():
         for i in range(30)
     ]
     fake.candles = AsyncMock(return_value=rows)
+    fake.ohlc = AsyncMock(side_effect=lambda pair, minutes: candle_rows(minutes))
     return fake
 
 

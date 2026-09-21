@@ -49,7 +49,7 @@ jobs:
         run: |
           node --check kairos/static/app.js
           node --check kairos/static/chart.js
-      - name: Test chart windows and history
+      - name: Test chart data and viewport
         run: node --test tests/chart.test.cjs
 
   tests:

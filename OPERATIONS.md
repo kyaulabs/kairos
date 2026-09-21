@@ -1,6 +1,8 @@
 # Kairos
 
-Kairos runs Jev-assisted trading strategies against Kraken market data. The browser shows prices, assessments, orders, fills, and portfolio equity through a live event stream. D3 charts support pan, zoom, crosshairs, and fill markers. Public prices stream over WebSocket; live fills are detected during the order-reconciliation cycle, not through a private execution stream.
+Kairos runs Jev-assisted trading strategies against Kraken market data. The browser shows prices, assessments, orders, fills, and portfolio equity through a live event stream. D3 charts support pan, zoom, crosshairs, and fill markers. Bid/ask quotes stream over WebSocket; live fills are detected during the order-reconciliation cycle, not through a private execution stream.
+
+The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices. The header price remains the live bid/ask midpoint. Portfolio equity remains a separate line chart.
 
 This is an experimental trading application, not evidence of a profitable strategy. Live spot execution is implemented but has not been verified with real orders. Test it with paper funds before installing a trade-capable key.
 
@@ -182,6 +184,7 @@ uv sync --locked --dev
 uv run ruff check kairos tests
 uv run python -m unittest discover -v
 node --check kairos/static/chart.js
+node --test tests/chart.test.cjs
 node --check kairos/static/app.js
 ```
 
