@@ -24,7 +24,7 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 
 - Switch markets and strategies from the dashboard after stopping and reconciling orders.
 - Use real Kraken data and Jev assessments in dry-run, without submitting exchange orders.
-- Monitor prices with self-hosted D3 charts, including pan/zoom, crosshairs, buy/sell markers, and an equity view.
+- Monitor prices with self-hosted D3 candlesticks, including pan/zoom, OHLC crosshairs, buy/sell markers, and a separate equity line chart.
 - Configure starting capital, order and exposure caps, daily loss limits, fee assumptions, and reinvestment.
 - Persist settings, order intents, fills, and portfolio accounting in SQLite.
 - Protect network access with nginx Basic Auth over TLS.
@@ -38,7 +38,7 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 
 Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) for the API limitation.
 
-Public prices stream over WebSocket. Live fills are detected during the order-reconciliation cycle, then sent to the browser; they are not streamed directly from Kraken's private execution channel.
+Bid/ask quotes stream over WebSocket. The candle chart defaults to 1m bars and refreshes native Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Live fills are detected during the order-reconciliation cycle, then sent to the browser; they are not streamed directly from Kraken's private execution channel.
 
 ## Quick start
 
@@ -91,7 +91,7 @@ Dry-run uses real feeds and real Jev calls. Taker fills are estimated from visib
 
 | Strategy | Behavior |
 | --- | --- |
-| Higher-timeframe trend | Assesses completed 15-minute through daily candles. Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
+| Higher-timeframe trend | Assesses completed candles from 1 minute through 1 day (1m, 5m, 15m, 30m, 1h, 4h, 1d). Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
 | Market making | Posts one fee-aware, post-only quote and reconciles it before replacement. Quotes expire after 30 seconds. This is rate-limited market making, not exchange-grade HFT. |
 | Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
 
@@ -141,6 +141,7 @@ uv run --no-sync ruff format --check --output-format concise kairos tests
 uv run --no-sync python -m unittest discover -v
 node --check kairos/static/app.js
 node --check kairos/static/chart.js
+node --test tests/chart.test.cjs
 ```
 
 The tests use mocked exchange/model responses and local HTTP fixtures. They cover execution gates, partial fills, uncertain submissions, risk limits, arbitrage recovery, principal recovery, paper margin, and API security. They do not verify live profitability or real-order execution.

@@ -52,10 +52,25 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.engine.orders()[0]["mode"], "dry-run")
 
     async def test_htf_evaluates_each_completed_candle_once(self):
-        await self.engine.start()
-        await self.engine.tick()
-        await self.engine.tick()
-        self.jev.decide.assert_awaited_once()
+        self.jev.decide.return_value["action"] = "hold"
+        for minutes in (1, 5, 15):
+            with self.subTest(minutes=minutes):
+                await self.engine.stop()
+                await self.engine.configure({**self.engine.settings, "candle_minutes": minutes})
+                self.jev.decide.reset_mock()
+                rows = self.kraken.candles.return_value
+                end = int(time.time()) // (minutes * 60) * (minutes * 60)
+                for i, row in enumerate(rows):
+                    row[0] = end - (len(rows) - i) * minutes * 60
+                await self.engine.start()
+                await self.engine.tick()
+                await self.engine.tick()
+                self.jev.decide.assert_awaited_once()
+                self.kraken.candles.assert_awaited_with(BTC, minutes)
+                self.assertEqual(self.jev.decide.call_args.args[0]["candle_close_time"], end)
+                rows.append([end, *rows[-1][1:]])
+                await self.engine.tick()
+                self.assertEqual(self.jev.decide.await_count, 2)
 
     async def test_stop_during_inference_prevents_later_order(self):
         entered, release = asyncio.Event(), asyncio.Event()

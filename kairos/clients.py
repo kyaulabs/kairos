@@ -126,11 +126,13 @@ class Kraken:
         book.fresh(10)
         return book
 
-    async def candles(self, pair, minutes):
+    async def ohlc(self, pair, minutes):
         result = await self.request("OHLC", {"pair": pair.id, "interval": minutes})
-        rows = next(v for k, v in result.items() if k != "last")
-        # Kraken always includes the still-forming candle as the final row.
-        return rows[:-1]
+        return next(v for k, v in result.items() if k != "last")
+
+    async def candles(self, pair, minutes):
+        # Trading uses only completed candles; the chart also displays the forming candle.
+        return (await self.ohlc(pair, minutes))[:-1]
 
     async def marks(self, pairs):
         if not pairs:

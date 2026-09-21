@@ -1,15 +1,16 @@
 /* D3 charts use local assets only; prices and fills stay in the authenticated session. */
 class LiveChart {
-  constructor(selector, color, prefix, timeframeMs = null) {
+  constructor(selector, color, prefix, intervalMinutes = null) {
     this.node = document.querySelector(selector);
     this.svg = d3.select(this.node);
     this.color = color;
     this.prefix = prefix;
-    this.timeframeMs = timeframeMs;
+    this.intervalMs = intervalMinutes === null ? null : intervalMinutes * 60000;
+    this.anchor = null;
     this.points = [];
     this.fills = [];
     this.transform = d3.zoomIdentity;
-    this.margin = {top: 28, right: 82, bottom: 26, left: 4};
+    this.margin = {top: this.intervalMs ? 58 : 28, right: 82, bottom: 26, left: 4};
     const defs = this.svg.append('defs');
     const gradient = defs.append('linearGradient').attr('id', `${prefix}-gradient`)
       .attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 1);
@@ -20,7 +21,8 @@ class LiveChart {
     this.plot = this.svg.append('g').attr('clip-path', `url(#${prefix}-clip)`);
     this.area = this.plot.append('path').attr('fill', `url(#${prefix}-gradient)`);
     this.line = this.plot.append('path').attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.8);
-    this.fillGroup = this.plot.append('g');
+    this.candleGroup = this.plot.append('g').attr('class', 'candles');
+    this.fillGroup = this.plot.append('g').attr('class', 'fills');
     this.lastLine = this.plot.append('line').attr('stroke', color).attr('stroke-opacity', .45).attr('stroke-dasharray', '3 4');
     this.lastDot = this.plot.append('circle').attr('r', 4).attr('fill', color).attr('stroke', '#101723').attr('stroke-width', 2);
     this.xAxis = this.svg.append('g').attr('class', 'd3-axis');
@@ -32,7 +34,8 @@ class LiveChart {
     this.crossY = this.cross.append('line');
     this.crossDot = this.cross.append('circle').attr('r', 4).attr('fill', color);
     this.tip = this.svg.append('text').attr('class', 'chart-tip');
-    this.zoom = d3.zoom().scaleExtent([1, 40]).on('zoom', event => {
+    this.zoom = d3.zoom().scaleExtent([this.intervalMs ? 1/12 : 1, 40]).on('zoom', event => {
+      if (this.intervalMs && event.sourceEvent && this.anchor === null) this.anchor = this.points.at(-1)?.time ?? null;
       this.transform = event.transform;
       this.draw();
     });
@@ -51,11 +54,18 @@ class LiveChart {
     // Keep one point per second without letting frequent ticks overwrite history forever.
     if (last && Math.floor(time / 1000) === Math.floor(last.time / 1000)) this.points[this.points.length - 1] = {time, value};
     else this.points.push({time, value});
-    if (this.timeframeMs !== null) {
-      // Retain the largest selectable window, plus one point for the left-edge segment.
-      const cutoff = time - 60 * 60 * 1000;
-      while (this.points.length > 2 && this.points[1].time < cutoff) this.points.shift();
-    } else if (this.points.length > 1800) this.points.shift();
+    if (this.points.length > 1800) this.points.shift();
+    this.draw();
+  }
+  setCandles(candles) {
+    const points = candles.slice(-720).map(c => ({
+      time: Number(c.time) * 1000, open: Number(c.open), high: Number(c.high), low: Number(c.low), value: Number(c.close),
+    }));
+    if (points.some((p, i) => !Object.values(p).every(Number.isFinite) || p.time <= 0 || p.low <= 0 ||
+      p.high < Math.max(p.open, p.value) || p.low > Math.min(p.open, p.value) ||
+      (i > 0 && p.time <= points[i-1].time))) throw new Error('Invalid candle data');
+    // Replace the snapshot: updates to a forming candle must not append duplicates.
+    this.points = points;
     this.draw();
   }
   fill(event) {
@@ -70,19 +80,21 @@ class LiveChart {
     this.follow();
   }
   follow() {
-    this.cross.attr('display', 'none'); this.tip.text('');
+    this.anchor = null;
     this.svg.call(this.zoom.transform, d3.zoomIdentity);
   }
-  setTimeframe(milliseconds) {
-    if (!Number.isFinite(milliseconds) || milliseconds <= 0 || milliseconds > 60 * 60 * 1000) {
-      throw new RangeError('Chart timeframe must be between zero and one hour');
-    }
-    this.timeframeMs = milliseconds;
+  setCandleInterval(minutes) {
+    if (![1, 5, 15, 30, 60, 240, 1440].includes(minutes)) throw new RangeError('Unsupported candle interval');
+    this.intervalMs = minutes * 60000;
+    this.points = [];
     this.follow();
   }
   timeDomain() {
     const first = this.points[0].time, last = this.points.at(-1).time;
-    if (this.timeframeMs !== null) return [last - this.timeframeMs, last];
+    if (this.intervalMs) {
+      const end = (this.anchor ?? last) + this.intervalMs;
+      return [end - 60 * this.intervalMs, end];
+    }
     const start = Math.min(first, last - 60000);
     return [start, last + Math.max((last-start)*.025, 1000)];
   }
@@ -90,6 +102,7 @@ class LiveChart {
     const width = this.node.clientWidth, height = this.node.clientHeight;
     if (!width || !height) return;
     const m = this.margin;
+    this.cross.attr('display', 'none'); this.tip.text('');
     this.width = width; this.height = height;
     this.svg.attr('viewBox', `0 0 ${width} ${height}`);
     this.clip.attr('x', m.left).attr('y', m.top).attr('width', width-m.left-m.right).attr('height', height-m.top-m.bottom);
@@ -98,31 +111,56 @@ class LiveChart {
     this.empty.attr('x', (width-m.right)/2).attr('y', height/2).attr('display', this.points.length ? 'none' : null);
     if (!this.points.length) {
       this.area.attr('d', null); this.line.attr('d', null); this.fillGroup.selectAll('*').remove();
+      this.candleGroup.selectAll('*').remove();
       this.lastDot.attr('display', 'none'); this.lastLine.attr('display', 'none'); this.lastLabel.text('');
       this.xAxis.selectAll('*').remove(); this.yAxis.selectAll('*').remove(); this.grid.selectAll('*').remove();
       return;
     }
     const baseX = d3.scaleTime().domain(this.timeDomain()).range([m.left, width-m.right]);
+    if (this.intervalMs) {
+      this.zoom.translateExtent([[Math.min(m.left, baseX(this.points[0].time)), m.top],
+        [Math.max(width-m.right, baseX(this.points.at(-1).time + this.intervalMs)), height-m.bottom]]);
+    }
     this.x = this.transform.rescaleX(baseX);
     const domain = this.x.domain().map(Number);
-    const visible = this.points.filter(p => p.time >= domain[0] && p.time <= domain[1]);
-    const values = (visible.length ? visible : this.points).map(p => p.value);
+    const visible = this.points.filter(p => this.intervalMs
+      ? p.time + this.intervalMs > domain[0] && p.time < domain[1]
+      : p.time >= domain[0] && p.time <= domain[1]);
+    const values = (visible.length ? visible : this.points).flatMap(p => this.intervalMs ? [p.low, p.high] : [p.value]);
     for (const fill of this.fills) if (fill.time >= domain[0] && fill.time <= domain[1]) values.push(fill.value);
     const [low, high] = d3.extent(values);
     const pad = Math.max((high-low)*.15, Math.abs(high)*.00005, .000001);
     this.y = d3.scaleLinear().domain([low-pad, high+pad]).range([height-m.bottom, m.top]);
     this.xAxis.attr('transform', `translate(0,${height-m.bottom})`)
-      .call(d3.axisBottom(this.x).ticks(Math.max(2, Math.floor((width-m.left-m.right)/100))).tickFormat(d3.timeFormat('%H:%M:%S')).tickSize(0).tickPadding(12));
+      .call(d3.axisBottom(this.x).ticks(Math.max(2, Math.floor((width-m.left-m.right)/100))).tickFormat(this.intervalMs ? null : d3.timeFormat('%H:%M:%S')).tickSize(0).tickPadding(12));
+    this.xAxis.selectAll('.tick text').attr('text-anchor', d => this.x(d) < m.left+30 ? 'start' : this.x(d) > width-m.right-30 ? 'end' : 'middle');
     this.yAxis.attr('transform', `translate(${width-m.right},0)`)
       .call(d3.axisRight(this.y).ticks(height < 200 ? 3 : 6).tickFormat(d3.format(',.5~f')).tickSize(0).tickPadding(12));
     this.grid.attr('transform', `translate(${width-m.right},0)`)
       .call(d3.axisRight(this.y).ticks(height < 200 ? 3 : 6).tickSize(-(width-m.right-m.left)).tickFormat(''));
-    const line = d3.line().x(p => this.x(p.time)).y(p => this.y(p.value));
-    const area = d3.area().x(p => this.x(p.time)).y0(height-m.bottom).y1(p => this.y(p.value));
-    this.line.attr('d', line(this.points)); this.area.attr('d', area(this.points));
+    const center = p => p.time + (this.intervalMs || 0)/2;
+    if (this.intervalMs) {
+      this.line.attr('d', null); this.area.attr('d', null);
+      const bodyWidth = Math.max(1, Math.min(24, (this.x(this.intervalMs)-this.x(0))*.7));
+      const bars = this.candleGroup.selectAll('g.candle').data(visible, d => d.time).join(enter => {
+        const bar = enter.append('g').attr('class', 'candle');
+        bar.append('line'); bar.append('rect');
+        return bar;
+      }).attr('stroke', d => d.value >= d.open ? '#3de0b1' : '#ff788d');
+      bars.select('line').attr('x1', d => this.x(center(d))).attr('x2', d => this.x(center(d)))
+        .attr('y1', d => this.y(d.high)).attr('y2', d => this.y(d.low));
+      bars.select('rect').attr('x', d => this.x(center(d))-bodyWidth/2).attr('width', bodyWidth)
+        .attr('y', d => Math.min(this.y(d.open), this.y(d.value)))
+        .attr('height', d => Math.max(1, Math.abs(this.y(d.open)-this.y(d.value))))
+        .attr('fill', d => d.value >= d.open ? '#3de0b1' : '#ff788d');
+    } else {
+      const line = d3.line().x(p => this.x(p.time)).y(p => this.y(p.value));
+      const area = d3.area().x(p => this.x(p.time)).y0(height-m.bottom).y1(p => this.y(p.value));
+      this.line.attr('d', line(this.points)); this.area.attr('d', area(this.points));
+    }
     const latest = this.points.at(-1), latestY = this.y(latest.value);
-    const inView = latest.time <= domain[1] && latest.time >= domain[0];
-    this.lastDot.attr('display', inView ? null : 'none').attr('cx', this.x(latest.time)).attr('cy', latestY);
+    const inView = center(latest) <= domain[1] && center(latest) >= domain[0];
+    this.lastDot.attr('display', inView ? null : 'none').attr('cx', this.x(center(latest))).attr('cy', latestY);
     this.lastLine.attr('display', inView ? null : 'none').attr('x1', m.left).attr('x2', width-m.right).attr('y1', latestY).attr('y2', latestY);
     this.lastLabel.attr('x', width-m.right+10).attr('y', m.top-10).text(inView ? d3.format(',.5~f')(latest.value) : 'HISTORY');
     this.fillGroup.selectAll('path').data(this.fills, d => d.id).join('path')
@@ -133,16 +171,25 @@ class LiveChart {
   inspect(event) {
     if (!this.points.length || !this.x) return;
     const [px, py] = d3.pointer(event, this.node);
-    if (px > this.width-this.margin.right || py < this.margin.top || py > this.height-this.margin.bottom) return;
+    this.cross.attr('display', 'none'); this.tip.text('');
+    if (px < this.margin.left || px > this.width-this.margin.right || py < this.margin.top || py > this.height-this.margin.bottom) return;
     const time = +this.x.invert(px);
-    const i = d3.bisector(p => p.time).center(this.points, time);
+    const center = p => p.time + (this.intervalMs || 0)/2;
+    const i = d3.bisector(center).center(this.points, time);
     const point = this.points[i];
-    const x = this.x(point.time), y = this.y(point.value);
+    const x = this.x(center(point)), y = this.y(point.value);
+    if (x < this.margin.left || x > this.width-this.margin.right) return;
     this.cross.attr('display', null);
     this.crossX.attr('x1', x).attr('x2', x).attr('y1', this.margin.top).attr('y2', this.height-this.margin.bottom);
     this.crossY.attr('x1', 0).attr('x2', this.width-this.margin.right).attr('y1', y).attr('y2', y);
     this.crossDot.attr('cx', x).attr('cy', y);
-    this.tip.attr('x', 6).attr('y', 14).text(`${d3.timeFormat('%H:%M:%S')(new Date(point.time))}  ·  ${d3.format(',.8~f')(point.value)}`);
+    const format = d3.format(',.8~g');
+    const lines = this.intervalMs ? [
+      d3.timeFormat('%Y-%m-%d %H:%M')(new Date(point.time)),
+      `O ${format(point.open)}  H ${format(point.high)}`,
+      `L ${format(point.low)}  C ${format(point.value)}`,
+    ] : [`${d3.timeFormat('%H:%M:%S')(new Date(point.time))}  ·  ${d3.format(',.8~f')(point.value)}`];
+    this.tip.selectAll('tspan').data(lines).join('tspan').attr('x', 6).attr('y', (_, i) => 14+i*14).text(d => d);
   }
 }
 window.LiveChart = LiveChart;

@@ -6,90 +6,106 @@ const {runInNewContext} = require('node:vm');
 
 const browser = {};
 runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/chart.js'), 'utf8'), {window: browser});
-const start = 1700000000;
+const start = 1700000040;
 
-function chart(timeframeMs = 300000) {
-  // Exercise the chart's real data/window methods without an SVG renderer.
+function chart(intervalMs = 60000) {
+  // Exercise the real data/viewport methods without an SVG renderer.
   return Object.assign(Object.create(browser.LiveChart.prototype), {
-    timeframeMs, points: [], fills: [], draw() {}, follow() {},
+    intervalMs, anchor: null, points: [], fills: [], draw() {}, follow() { this.anchor = null; },
   });
 }
-
+function candle(time = start, close = '102') {
+  return {time, open: '100', high: '105', low: '95', close};
+}
 function domain(view) { return Array.from(view.timeDomain()); }
 
-test('five-minute window rolls forward instead of expanding from the first tick', () => {
+test('forming candle updates replace the bar; the next candle advances the live view', () => {
   const view = chart();
-  view.add(start, 100);
-  assert.deepEqual(domain(view), [start * 1000 - 300000, start * 1000]);
-  view.add(start + 360, 101);
-  assert.deepEqual(domain(view), [(start + 60) * 1000, (start + 360) * 1000]);
-  view.add(start + 361, 102);
-  assert.deepEqual(domain(view), [(start + 61) * 1000, (start + 361) * 1000]);
+  view.setCandles([candle()]);
+  const firstDomain = domain(view);
+  view.setCandles([candle(start, '103')]);
+  assert.equal(view.points.length, 1);
+  assert.equal(view.points[0].value, 103);
+  assert.deepEqual(domain(view), firstDomain);
+  view.setCandles([candle(start, '103'), candle(start + 60)]);
+  assert.equal(view.points.length, 2);
+  assert.equal(domain(view)[0] - firstDomain[0], 60000);
+  assert.equal(domain(view)[1] - domain(view)[0], 60 * 60000);
 });
 
-test('frequent ticks retain a history rather than continually replacing one point', () => {
+test('snapshots retain up to 720 historical candles for pan/zoom', () => {
   const view = chart();
-  for (let i = 0; i <= 240; i++) view.add(start + i / 2, 100 + i);
-  assert.equal(view.points.length, 121);
-  assert.equal(view.points[0].time, (start + .5) * 1000);
-  assert.equal(view.points.at(-1).time, (start + 120) * 1000);
+  view.setCandles(Array.from({length: 800}, (_, i) => candle(start + i * 60)));
+  assert.equal(view.points.length, 720);
+  assert.equal(view.points[0].time, (start + 80 * 60) * 1000);
+  assert.equal(view.points.at(-1).time, (start + 799 * 60) * 1000);
 });
 
-test('an hour stays available when switching from a shorter view, with bounded storage', () => {
+test('invalid OHLC or duplicate/out-of-order timestamps cannot replace a good snapshot', () => {
   const view = chart();
-  for (let i = 0; i <= 7200; i++) view.add(start + i, 100 + i % 10);
-  assert.ok(view.points.length <= 3602);
-  view.setTimeframe(3600000);
-  const [left, right] = domain(view);
-  assert.equal(right - left, 3600000);
-  assert.equal(left, (start + 3600) * 1000);
-  assert.ok(view.points[0].time <= left);
-  assert.ok(view.points[1].time >= left);
-});
-
-test('every offered timeframe keeps its duration as new ticks arrive', () => {
-  const view = chart();
-  view.add(start, 100);
-  let time = start + 4000;
-  for (const minutes of [1, 5, 10, 15, 30, 60]) {
-    view.setTimeframe(minutes * 60000);
-    view.add(time++, 101);
-    const previous = domain(view);
-    view.add(time++, 102);
-    const current = domain(view);
-    assert.equal(current[1] - current[0], minutes * 60000);
-    assert.equal(current[0] - previous[0], 1000);
-    assert.equal(current[1] - previous[1], 1000);
+  view.setCandles([candle()]);
+  const previous = view.points;
+  for (const rows of [
+    [candle(start, 'NaN')], [{...candle(), high: '99'}], [{...candle(), low: '103'}],
+    [{...candle(), time: Infinity}], [{...candle(), open: '-1'}],
+    [candle(), candle()], [candle(start + 60), candle()],
+  ]) {
+    assert.throws(() => view.setCandles(rows), /Invalid candle data/);
+    assert.equal(view.points, previous);
   }
 });
 
-test('out-of-order ticks cannot rewind the window or overwrite the latest value', () => {
+test('missing trading periods stay gaps rather than invented candles', () => {
   const view = chart();
-  view.add(start + 10, 100);
-  view.add(start, 999);
-  assert.equal(view.points.length, 1);
-  assert.equal(view.points[0].value, 100);
-  assert.equal(domain(view)[1], (start + 10) * 1000);
+  view.setCandles([candle(), candle(start + 180)]);
+  assert.equal(view.points.length, 2);
+  assert.equal(view.points[1].time - view.points[0].time, 180000);
 });
 
-test('changing markets clears observations but retains the selected timeframe', () => {
+test('a manually inspected history viewport stays anchored as new candles arrive', () => {
   const view = chart();
-  view.setTimeframe(600000);
-  view.add(start, 100);
+  view.setCandles([candle()]);
+  view.anchor = start * 1000;
+  const before = domain(view);
+  view.setCandles([candle(), candle(start + 60)]);
+  assert.deepEqual(domain(view), before);
+  view.follow();
+  assert.equal(domain(view)[1] - before[1], 60000);
+});
+
+test('native interval changes discard incompatible bars but preserve fill events', () => {
+  const view = chart();
+  view.fills.push({id: 1, time: start * 1000, value: 101, side: 'buy'});
+  for (const minutes of [1, 5, 15, 30, 60, 240, 1440]) {
+    view.setCandleInterval(minutes);
+    assert.equal(view.points.length, 0);
+    view.setCandles([candle()]);
+    assert.equal(domain(view)[1] - domain(view)[0], 60 * minutes * 60000);
+    assert.equal(view.fills.length, 1);
+  }
+  for (const invalid of [0, 10, NaN, '5', true]) {
+    assert.throws(() => view.setCandleInterval(invalid), /Unsupported candle interval/);
+  }
+});
+
+test('market changes clear candles and markers without changing the selected interval', () => {
+  const view = chart();
+  view.setCandleInterval(5);
+  view.setCandles([candle()]);
   view.fills.push({id: 1});
   view.clear();
   assert.equal(view.points.length, 0);
   assert.equal(view.fills.length, 0);
-  view.add(start + 20, 200);
-  assert.equal(domain(view)[1] - domain(view)[0], 600000);
+  assert.equal(view.intervalMs, 300000);
 });
 
-test('the separate session-equity view keeps its existing non-windowed behavior', () => {
+test('session equity remains a bounded line series and retains frequent observations', () => {
   const view = chart(null);
-  view.add(start, 1000);
-  view.add(start + 600, 1100);
-  assert.equal(domain(view)[0], start * 1000);
-  assert.ok(domain(view)[1] > (start + 600) * 1000);
-  for (let i = 601; i < 3000; i++) view.add(start + i, 1100);
+  for (let i = 0; i <= 240; i++) view.add(start + i / 2, 100 + i);
+  assert.equal(view.points.length, 121);
+  assert.equal(domain(view)[0], (start + .5) * 1000);
+  for (let i = 121; i < 3000; i++) view.add(start + i, 1100);
   assert.equal(view.points.length, 1800);
+  view.add(start, 9999);
+  assert.equal(view.points.at(-1).value, 1100);
 });

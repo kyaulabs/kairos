@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -11,7 +12,7 @@ from kairos.domain import SafetyError
 from kairos.engine import Engine
 from kairos.store import Store
 from kairos.web import create_app
-from tests.helpers import BTC, fake_jev, fake_kraken
+from tests.helpers import BTC, ETH, candle_rows, fake_jev, fake_kraken
 
 
 class Response:
@@ -80,6 +81,18 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
             Session({"error": [], "result": {BTC.id: [[1], [2], [3]], "last": 2}}), store
         )
         self.assertEqual(await client.candles(BTC, 15), [[1], [2]])
+        store.close()
+
+    async def test_chart_ohlc_includes_forming_candle_using_public_request(self):
+        store = Store(":memory:")
+        rows = candle_rows()
+        session = Session({"error": [], "result": {BTC.id: rows, "last": rows[-2][0]}})
+        client = Kraken(session, store)
+        self.assertEqual(await client.ohlc(BTC, 1), rows)
+        args, kwargs = session.calls[0]
+        self.assertEqual(args, ("GET", "https://api.kraken.com/0/public/OHLC"))
+        self.assertEqual(kwargs["params"], {"pair": BTC.id, "interval": 1})
+        self.assertEqual(kwargs["headers"], {})
         store.close()
 
     async def test_jev_response_validation(self):
@@ -178,6 +191,67 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(response.status, 409)
         self.engine.kraken.add.assert_not_awaited()
+
+    async def test_chart_candles_include_forming_bar_and_share_snapshot_across_tabs(self):
+        path = f"/api/candles?pair={BTC.id}&interval=1"
+        responses = await asyncio.gather(self.client.get(path), self.client.get(path))
+        data = [await response.json() for response in responses]
+        self.assertTrue(all(response.status == 200 for response in responses))
+        self.assertEqual(data[0], data[1])
+        self.assertEqual(data[0]["pair"], BTC.id)
+        self.assertEqual(data[0]["interval"], 1)
+        self.assertEqual(len(data[0]["candles"]), 120)
+        self.assertEqual(data[0]["candles"][-1]["close"], candle_rows()[-1][4])
+        self.engine.kraken.ohlc.assert_awaited_once_with(BTC, 1)
+        self.engine.kraken.candles.assert_not_awaited()
+        self.engine.kraken.add.assert_not_awaited()
+
+    async def test_chart_bounds_history_without_dropping_the_forming_candle(self):
+        rows = candle_rows(count=721)
+        self.engine.kraken.ohlc.side_effect = None
+        self.engine.kraken.ohlc.return_value = rows
+        response = await self.client.get(f"/api/candles?pair={BTC.id}&interval=1")
+        data = await response.json()
+        self.assertEqual(len(data["candles"]), 720)
+        self.assertEqual(data["candles"][0]["time"], rows[1][0])
+        self.assertEqual(data["candles"][-1]["time"], rows[-1][0])
+
+    async def test_chart_rejects_unsupported_intervals_and_wrong_markets(self):
+        for query in ("interval=10", "interval=0", "interval=no", "interval=1.0", ""):
+            response = await self.client.get(f"/api/candles?pair={BTC.id}&{query}")
+            self.assertIn(response.status, (400, 409))
+        response = await self.client.get(f"/api/candles?pair={ETH.id}&interval=1")
+        self.assertEqual(response.status, 409)
+        self.engine.kraken.ohlc.assert_not_awaited()
+
+    async def test_chart_snapshot_expires_and_failure_is_not_reported_as_fresh(self):
+        path = f"/api/candles?pair={BTC.id}&interval=1"
+        with patch("kairos.web.time") as clock:
+            clock.monotonic.return_value = 100
+            clock.time.return_value = 1000
+            response = await self.client.get(path)
+            self.assertEqual((await response.json())["received"], 1000)
+            clock.monotonic.return_value = 106
+            self.engine.kraken.ohlc.side_effect = SafetyError("Market data unavailable")
+            response = await self.client.get(path)
+            self.assertEqual(response.status, 409)
+            self.engine.kraken.ohlc.side_effect = lambda pair, minutes: candle_rows(minutes)
+            clock.time.return_value = 1006
+            response = await self.client.get(path)
+            self.assertEqual((await response.json())["received"], 1006)
+        self.assertEqual(self.engine.kraken.ohlc.await_count, 3)
+
+    async def test_chart_cache_separates_intervals_and_discards_previous_market(self):
+        for interval in (1, 5):
+            response = await self.client.get(f"/api/candles?pair={BTC.id}&interval={interval}")
+            data = await response.json()
+            self.assertEqual(data["interval"], interval)
+            self.assertEqual(data["candles"][1]["time"] - data["candles"][0]["time"], interval * 60)
+        await self.engine.configure({**self.engine.settings, "pair": ETH.id})
+        response = await self.client.get(f"/api/candles?pair={ETH.id}&interval=1")
+        self.assertEqual((await response.json())["pair"], ETH.id)
+        self.assertEqual(list(self.app["candle_cache"]), [(ETH.id, 1)])
+        self.engine.kraken.ohlc.assert_awaited_with(ETH, 1)
 
     async def test_sse_snapshot_and_buffering_header(self):
         response = await self.client.get("/api/events")

@@ -1,6 +1,8 @@
 # Kairos
 
-Kairos runs Jev-assisted trading strategies against Kraken market data. The browser shows prices, assessments, orders, fills, and portfolio equity through a live event stream. D3 charts support pan, zoom, crosshairs, and fill markers. Public prices stream over WebSocket; live fills are detected during the order-reconciliation cycle, not through a private execution stream.
+Kairos runs Jev-assisted trading strategies against Kraken market data. The browser shows prices, assessments, orders, fills, and portfolio equity through a live event stream. D3 charts support pan, zoom, crosshairs, and fill markers. Bid/ask quotes stream over WebSocket; live fills are detected during the order-reconciliation cycle, not through a private execution stream.
+
+The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices. The header price remains the live bid/ask midpoint. Portfolio equity remains a separate line chart.
 
 This is an experimental trading application, not evidence of a profitable strategy. Live spot execution is implemented but has not been verified with real orders. Test it with paper funds before installing a trade-capable key.
 
@@ -90,7 +92,7 @@ Recovery happens once per portfolio, persists across restarts, and does not regi
 
 ## Strategies
 
-**Higher-timeframe trend:** uses completed 15-minute, 30-minute, hourly, four-hour, or daily candles. Code calculates 8/21-period averages and historical returns. Jev assesses buy/sell/hold; code enforces trend and cost filters. Each completed candle is assessed at most once. Spot sells only reduce bot-owned inventory. Historical momentum is not a forecast of the next move.
+**Higher-timeframe trend:** uses completed 1-minute, 5-minute, 15-minute, 30-minute, hourly, four-hour, or daily candles. The default is 15 minutes; shorter intervals increase decision frequency, noise, and potential fee costs. Code calculates 8/21-period averages and historical returns. Jev assesses buy/sell/hold; code enforces trend and cost filters. Each completed candle is assessed at most once. Spot sells only reduce bot-owned inventory. Historical momentum is not a forecast of the next move.
 
 **Market making:** asks Jev which side to quote. It places one post-only order, with a fee-aware offset from the midpoint, and reconciles/cancels before replacing it. Quotes expire at Kraken after 30 seconds. The default cycle is 15 seconds; the configurable minimum is 10 seconds. This is rate-limited market making, not exchange-grade HFT. Wide fee-aware quotes may rarely fill, and filled quotes remain exposed to adverse selection.
 
@@ -182,6 +184,7 @@ uv sync --locked --dev
 uv run ruff check kairos tests
 uv run python -m unittest discover -v
 node --check kairos/static/chart.js
+node --test tests/chart.test.cjs
 node --check kairos/static/app.js
 ```
 

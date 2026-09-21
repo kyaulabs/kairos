@@ -5,6 +5,7 @@ import hmac
 import json
 import os
 import secrets
+import time
 from pathlib import Path
 
 import aiohttp
@@ -12,7 +13,7 @@ from aiohttp import web
 from dotenv import load_dotenv
 
 from kairos.clients import Jev, Kraken, ticker_feed
-from kairos.domain import SafetyError
+from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
 from kairos.store import Store, encode
 
@@ -88,6 +89,36 @@ async def catalog(request):
     return web.json_response(
         [p.public() for p in engine.kraken.pairs.values() if p.quote == engine.settings["quote"]]
     )
+
+
+async def candles(request):
+    minutes = int(request.query["interval"])
+    if minutes not in CANDLE_INTERVALS:
+        raise SafetyError("Unsupported candle interval")
+    # Share short-lived public snapshots across tabs without caching strategy inputs.
+    async with request.app["candle_lock"]:
+        engine = request.app["engine"]
+        pair = engine.resolve(engine.settings["pair"])
+        if request.query["pair"] != pair.id:
+            raise SafetyError("Chart market changed; refresh the selected market")
+        cache = request.app["candle_cache"]
+        for key in list(cache):
+            if key[0] != pair.id:
+                del cache[key]
+        key = (pair.id, minutes)
+        if key not in cache or time.monotonic() >= cache[key][0]:
+            rows = await engine.kraken.ohlc(pair, minutes)
+            data = {
+                "pair": pair.id,
+                "interval": minutes,
+                "received": time.time(),
+                "candles": [
+                    {"time": r[0], "open": r[1], "high": r[2], "low": r[3], "close": r[4]}
+                    for r in rows[-720:]
+                ],
+            }
+            cache[key] = (time.monotonic() + 5, data)
+        return web.json_response(cache[key][1])
 
 
 async def history(request):
@@ -209,6 +240,8 @@ async def index(request):
 def create_app(engine=None, origin=None):
     app = web.Application(middlewares=[security], client_max_size=16 * 1024)
     app["hub"] = Hub()
+    app["candle_cache"] = {}
+    app["candle_lock"] = asyncio.Lock()
     app["csrf"] = secrets.token_urlsafe(32)
     app["origin"] = (origin or os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8000")).rstrip("/")
     app.on_response_prepare.append(response_headers)
@@ -220,6 +253,7 @@ def create_app(engine=None, origin=None):
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/pairs", catalog)
     app.router.add_get("/api/history", history)
+    app.router.add_get("/api/candles", candles)
     app.router.add_get("/api/events", events)
     app.router.add_post("/api/{action}", command)
     app.router.add_get("/", index)
