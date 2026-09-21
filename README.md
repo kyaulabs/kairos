@@ -1,433 +1,178 @@
-﻿# 📘 template
+# Kairos
 
 [https://kyaulabs.com/](https://kyaulabs.com/)
 
-[![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md) &nbsp; [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=creativecommons)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)  
-[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org) &nbsp; [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
+[![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md) &nbsp; [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/kairos?logo=creativecommons)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)  
+[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/kairos?include_prereleases&logo=semver&sort=semver)](https://semver.org) &nbsp; [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 
-## About
+Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to assess trading opportunities. A browser dashboard shows live prices, model assessments, orders, fills, and portfolio equity. Code enforces sizing and execution limits; Jev does not control those safeguards.
 
-This repository is the basis for all other repositories created here at KYAU Labs.
+**Start with dry-run.** Live spot execution is implemented but has not been verified with real orders. Neither model confidence nor simulated returns establish profitability, and full-allocation trading can lose the entire allocation.
 
-Kairos application setup, trading controls, safety limits, and deployment instructions are in [OPERATIONS.md](OPERATIONS.md).
+- [Capabilities](#capabilities)
+- [Quick start](#quick-start)
+- [Your first dry-run](#your-first-dry-run)
+- [Strategies](#strategies)
+- [Capital and recovery](#capital-and-recovery)
+- [Live trading](#live-trading)
+- [Deployment](#deployment)
+- [Development and CI](#development-and-ci)
+- [Project layout](#project-layout)
+- [Documentation](#documentation)
 
-* GitHub limits repositories to 10GB of cache space for actions.
-* GitHub limits users/organizations to 0.5GB of artifact storage.
+## Capabilities
 
-Keep these factors in mind when setting up repositories.
+- Switch markets and strategies from the dashboard after stopping and reconciling orders.
+- Use real Kraken data and Jev assessments in dry-run, without submitting exchange orders.
+- Monitor prices with self-hosted D3 charts, including pan/zoom, crosshairs, buy/sell markers, and an equity view.
+- Configure starting capital, order and exposure caps, daily loss limits, fee assumptions, and reinvestment.
+- Persist settings, order intents, fills, and portfolio accounting in SQLite.
+- Protect network access with nginx Basic Auth over TLS.
 
-* [About](#about)
-* [Install Additions (optional)](#install-additions-optional)
-* [New Repository](#new-repository)
-  * [Clone this Template](#clone)
-  * [Initialize Repository](#init)
-  * [Add License](#add-license)
-  * [Add `.gitignore`](#add-gitignore)
-  * [Update `README.md`](#update-readmemd)
-* [Git Hooks](#git-hooks)
-  * [Configuration](#configuration)
-  * [Symlinks](#symlinks)
-* [Initial Commit](#initial-commit)
-  * [Stage All](#stage-all)
-  * [Commit](#commit)
-  * [Push](#push)
-* [Repository Settings](#repository-settings)
-  * [General](#general)
-  * [Collaborators and Teams](#collaborators-and-teams)
-  * [Branches](#branches)
-  * [Webhooks](#webhooks)
-* [Issue Labels](#issue-labels)
-* [Conventional Commits](#conventional-commits)
-  * [Type](#type)
-  * [Scope](#scope)
-  * [Subject](#subject)
-  * [Body](#body)
-  * [Footer](#footer)
-  * [Examples](#examples)
-* [Changelog](#changelog)
-* [Unity Projects](#unity-projects)
-  * [Unity Activation](#unity-activation)
-* [Attribution](#attribution)
+| Product | Dry-run | Trading |
+| --- | --- | --- |
+| USD-quoted crypto spot | Simulated fills using real market data | Guarded Kraken limit orders |
+| Crypto margin | Separate long/short simulation | Disabled |
+| Direct US stocks and ETFs | Not yet supported | Blocked pending a documented equities API |
+| xStocks | Not implemented | Not implemented |
 
-## Install Additions (optional)
+Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) for the API limitation.
+
+Public prices stream over WebSocket. Live fills are detected during the order-reconciliation cycle, then sent to the browser; they are not streamed directly from Kraken's private execution channel.
+
+## Quick start
+
+Requires Linux, Python 3.12 or later, [uv](https://docs.astral.sh/uv/), and a Jev API key. A read-only Kraken key is enough for authenticated balance and fee checks. There is no frontend build step; Node.js is needed only for development checks.
+
+Active development is on `develop`:
 
 ```sh
-🚧 WARNING
-# This is only required if you do not already have commitlint and git-cliff installed.
+git clone --branch develop https://github.com/kyaulabs/kairos.git
+cd kairos
+uv sync --locked
+
+# Create a private environment file only if one does not already exist.
+if [ ! -e .env ]; then
+  install -m 600 .env.example .env
+fi
 ```
 
-Install `commitlint` and `git-cliff` globally and then generate a commitlint config file.
+Use your editor to configure `.env` from [.env.example](.env.example). Keep it private and out of Git.
 
-```text
-npm i -g @commitlint/config-conventional @commitlint/cli git-cliff
+| Setting | Purpose |
+| --- | --- |
+| `JEV_API_KEY` | TypeSafe API access; assessments can incur charges |
+| `KRAKEN_API_KEY`, `KRAKEN_PRIVATE_KEY` | Kraken API key and signing secret |
+| `JEV_MODEL` | Defaults to `jev-latest` |
+| `ALLOW_LIVE_TRADING` | Defaults to `false`; leave disabled for dry-run |
+| `PUBLIC_ORIGIN` | Exact browser origin; defaults to `http://127.0.0.1:8000` |
+| `PORT` | Loopback HTTP port, default `8000` |
+| `DATA_DIR` | Persistent state directory, default `data` |
+
+```sh
+uv run kairos
 ```
 
-## New Repository
+Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused in Dry-run**. Do not expose it directly to the network; use [nginx](#deployment) for authenticated access.
 
-Base the repository off of the organization template repository.
+## Your first dry-run
 
-### Clone
+1. Choose a crypto market, strategy, and the **Spot** product.
+2. Set **Paper starting balance** to the amount you want to simulate, such as `100` USD.
+3. Click **Use full starting allocation**, then review the order cap, exposure cap, daily loss limit, and fee assumptions.
+4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
+5. Press **Start** and watch the assessments, fills, and equity chart.
 
-```text
-git clone https://github.com/kyaulabs/template <REPOSITORY_NAME>
-cd <REPOSITORY_NAME>
-rm -rf .git
+The default paper profile starts with $1,000 and reinvestment enabled. Changing the starting balance does not change an existing portfolio until you reset it. A reset discards simulated holdings, not live holdings, and retains labeled order/event history.
+
+Dry-run uses real feeds and real Jev calls. Taker fills are estimated from visible depth; maker fills require later crossing trades and assume limited participation. Neither model reconstructs actual queue priority or market impact.
+
+## Strategies
+
+| Strategy | Behavior |
+| --- | --- |
+| Higher-timeframe trend | Assesses completed 15-minute through daily candles. Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
+| Market making | Posts one fee-aware, post-only quote and reconciles it before replacement. Quotes expire after 30 seconds. This is rate-limited market making, not exchange-grade HFT. |
+| Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
+
+Arbitrage legs execute sequentially, not atomically. A failed or partial leg stops the engine with intermediate inventory retained for review. Retail fees may eliminate every observed opportunity.
+
+Existing spot holdings remain tracked when you change markets, but the newly selected strategy does not automatically trade the previous market's holdings. Paper margin uses separate accounting and does not support triangular arbitrage. Read [strategy details](OPERATIONS.md#strategies) and [margin assumptions](OPERATIONS.md#margin-simulation) before using them.
+
+## Capital and recovery
+
+Kairos has no scheduled end, trade-count limit, or profit target. It reuses available capital and proceeds, while allowing hold decisions when no trade qualifies. With reinvestment enabled, order and exposure caps scale with current equity relative to the initial allocation. Sizing reserves fees and respects exchange minimums.
+
+For spot portfolios, **Recover original allocation once above 2× equity** can protect the starting allocation. With a $100 start, the bot attempts to reserve $100 only when active equity is greater than $200. It sells enough bot-owned inventory if cash is needed and execution limits permit, then excludes the reserve from future orders and compounds the remainder.
+
+Recovery happens once and persists across restarts. It is a local accounting exclusion, not a separate Kraken wallet or external withdrawal. The cash stays on Kraken for you to withdraw manually. See [capital recovery](OPERATIONS.md#recover-the-original-investment) for timing and limitations.
+
+## Live trading
+
+Keep the server live-write gate disabled until you have reviewed the [operating guide](OPERATIONS.md#dry-run-and-trading) and tested the strategy with paper funds.
+
+1. Install a dedicated trade-capable Kraken key with the required query, order-creation, and cancellation permissions. **Do not grant withdrawal permission.**
+2. Set `ALLOW_LIVE_TRADING=true` and restart. The app still starts paused in Dry-run.
+3. Configure a positive live allocation and appropriate order, exposure, loss, and fee settings.
+4. Switch **Execution** to **Trading — real funds** and confirm. If paused, press Start; a running engine resumes after successful reconciliation and preflight.
+
+The switch cannot make a read-only key trade. The bot records order intents before submission and uses actual cumulative fills for live accounting. An uncertain submission or cancellation blocks further execution until reconciled.
+
+Stop cancels tracked orders; **it does not sell spot holdings**. Loss limits also stop new trading rather than guarantee a maximum loss. Closing the browser does not stop the engine. Restarting the process does, and unresolved live orders require reconciliation before trading resumes.
+
+## Deployment
+
+Use [deploy/nginx.conf](deploy/nginx.conf) for TLS, Basic Auth, and unbuffered dashboard events. Protect the entire site, including API routes and static assets. Set `PUBLIC_ORIGIN` to the HTTPS hostname and keep the backend port inaccessible from the network.
+
+[deploy/kairos.service](deploy/kairos.service) provides an unprivileged systemd service example. Adapt the hostname, certificates, password file, user, and paths before installing either configuration. Full instructions are in [nginx and systemd](OPERATIONS.md#nginx-and-systemd).
+
+Run only one process per data directory and do not share the bot's Kraken key with another order manager. Back up state while the process is stopped; losing the database loses the bot's allocation and reconciliation history.
+
+## Development and CI
+
+[GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests, with a manual dispatch trigger. It checks Ruff lint and formatting, JavaScript syntax using Node.js 22, and the regression suite on Python 3.12, 3.13, and 3.14. Dependencies come from `uv.lock`; action revisions are pinned. CI has read-only repository permissions, no trading credentials, and does not run the real-API smoke test.
+
+Run the same application checks locally:
+
+```sh
+uv sync --locked --dev
+uv run --no-sync ruff check kairos tests
+uv run --no-sync ruff format --check --output-format concise kairos tests
+uv run --no-sync python -m unittest discover -v
+node --check kairos/static/app.js
+node --check kairos/static/chart.js
 ```
 
-### Init
+The tests use mocked exchange/model responses and local HTTP fixtures. They cover execution gates, partial fills, uncertain submissions, risk limits, arbitrage recovery, principal recovery, paper margin, and API security. They do not verify live profitability or real-order execution.
 
-Initialize your new repository.
+For an optional integration check, stop the app first and run `uv run kairos-smoke --jev`. This makes read-only Kraken requests and one billable Jev assessment, but no exchange writes. See [verification](OPERATIONS.md#verification).
 
-```text
-git init
-```
-
-### Add `LICENSE`
-
-Add in a `LICENSE` of choice, using the filename `LICENSE.txt`, `LICENSE.md` or `LICENSE.rst`. There are two main repositories of licenses to choose from:
-
-* GNU: [GNU APGLv3](https://choosealicense.com/licenses/agpl-3.0/) / [GNU GPLv3](https://choosealicense.com/licenses/gpl-3.0/) / [GNU LGPLv3](https://choosealicense.com/licenses/lgpl-3.0/)
-* General: [Apache License 2.0](https://choosealicense.com/licenses/apache-2.0/) / [MIT License](https://choosealicense.com/licenses/mit/) / [Mozilla Public License 2.0](https://choosealicense.com/licenses/mpl-2.0/)
-* CC: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) / [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) / [CC BY-ND 4.0](https://creativecommons.org/licenses/by-nd/4.0) / [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0) / [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0) / [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0)
-
-### Add `.gitignore`
-
-Add a  `.gitignore` template from [@github/gitignore](https://github.com/github/gitignore) (modification required).
-
-### Update `README.md`
-
-Take this time to update the `README.md` with at least basic repository information and a hopeful table of contents. It is okay if most sections are blank.
-
-### Update `cliff.toml`
-
-Be sure to modify `cliff.toml` and replace all the instances of `kyaulabs/template` with the new repository location.
-
-### Add Actions
-
-Make sure you add the appropriate actions from the [@kyaulabs/template-workflows](https://github.com/kyaulabs/template-workflows) repository.
-
-Edit the workflow accordingly as all workflows come with only manual activation set with automatic activation commented out.
-
-```yaml
-on:
-  workflow_dispatch: {}
-#on:
-#  push:
-#    branches: [ "main", "develop" ]
-#  workflow_dispatch:
-```
-
-## Git Hooks
-
-### Configuration
-
-Install Gitleaks and ensure it is on `PATH`. Install commitlint and its conventional configuration; retain this repository's `commitlint.config.js`.
+Install [Gitleaks](https://github.com/gitleaks/gitleaks), then enable the repository hooks once per clone:
 
 ```sh
 npm install -g @commitlint/cli @commitlint/config-conventional
-```
-
-### Symlinks
-
-Point Git at the executable, versioned hooks. Run this once for each clone.
-
-```sh
 git config --local core.hooksPath .github/hooks
-chmod +x .github/hooks/pre-commit .github/hooks/commit-msg
 ```
 
-The pre-commit hook scans staged changes with Gitleaks and redacts findings. The commit-message hook enforces the conventional commit rules.
+The executable hooks scan staged changes for secrets and validate conventional commit messages. Commits require GPG signatures and detailed bodies. Work on a branch, commit and push each verified change separately, and use a pull request into `develop`; do not commit or push directly to `main` or `develop`.
 
-## Initial Commit
-
-### Stage All
-
-Add all files to the repository. The first command utilizing the dry-run switch to make sure you do not need any last minute additions to `.gitignore`.
+## Project layout
 
 ```text
-git add -A -n
-git add -A
+kairos/                  Exchange/model clients, strategies, accounting, and server
+kairos/static/           Dashboard and self-hosted D3 assets
+tests/                   Regression tests and exchange/model fixtures
+deploy/                  Nginx and systemd examples
+.github/workflows/ci.yml Lint and test automation
+.env.example             Environment variable names and safe defaults
+OPERATIONS.md            Detailed setup, execution, recovery, and deployment guide
 ```
 
-### Commit
-
-Push the initial commit with (non-commitlint verified message).
-
-```text
-git commit -S -a -m "ignore: here be dragons"
-```
-
-Finally set the main branch name.
-
-```text
-git branch -M main
-```
-
-### Push
-
-Add the remote origin and push the branch to origin.
-
-```text
-git remote add origin git@github.com:kyaulabs/<REPOSITORY_NAME>.git
-git push -u origin main
-```
-
-## Repository Settings
-
-In order to have proper repository security, some settings need to change. Open up the repository settings by clicking on the `Settings` tab at the top of the repository.
-
-### General
-
-Upload an image to customize the repository’s social media preview.
-
-* Image should be 1280×640px - [Download template](https://github.com/kyaulabs/win11tweak/settings/og-template)
-
-Under the `Features` section enable `Sponsorships` and then disable anything that is not being using.
-
-### Collaborators and Teams
-
-Under manage access click on `Add people`. In the search box enter and select `@kyaulabs-bot` then change the role to `Write`.
-
-<img src="https://avatars.githubusercontent.com/u/135310113?s=42&v=4" style="vertical-align:middle;margin-left:4ch" /> @kyaulabs-bot
-
-### Branches
-
-Create a new branch protection rule by clicking `Add branch protection rule`.
-
-* Branch name pattern: `main`
-* Protect matching branches:
-  * `Require a pull request before merging`
-  * `Require approvals (1)`
-  * `Require signed commits`
-
-Click `Create`.
-
-Create another branch protection rule with the following:
-
-* Branch name pattern: `**/**`
-* Protect matching branches:
-  * `Require signed commits`
-
-### Webhooks
-
-If you would like this repository to output to a channel on Discord you will need to create a webhook on both ends.
-
-In Discord goto the `Server Settings > Apps > Integrations` and click `New Webhook`. Give it an avatar, name and select a channel for it to output to.
-
-Back on GitHub on the `Settings > Webhooks` page, create a new hook by clicking `Add webhook`.
-
-* Payload URL: Click on `Copy Webhook URL` in Discord to get this URL.
-* Content type: `application/json`
-* Let me select individual events:
-  * `Commit comments` `Forks` `Issues` `Page builds` `Pull requests` `Pushes` `Releases` `Statuses` `Wiki`
-
-Click on `Add webhook`.
-
-## Issue Labels
-
-Organization level issue labels work in conjunction with conventional commits. We use a modified version of the [TIPS](https://www.fat.codes/articles/tips-issue-labeling-system/) system called TPS or Type, Priority and Status as a way to label issues such that they can be organized and assigned accordingly.
-
-In order to properly label something be sure to include at least one type, a single priority and it's current status. Optional labels may be added at your discretion.
-
-**T - Type:** Directly corresponds to the conventional commits [type](#type).
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Type | `feature` | <span style="color:#41d6c3">#41d6c3</span> | 🚀 Feature
-Type | `patch` | <span style="color:#41d6c3">#41d6c3</span> | 🚀 Sub-Feature
-Type | `bug` | <span style="color:#ff5050">#ff5050</span> | 🐛 Bug
-Type | `documentation` | <span style="color:#c0e6ff">#c0e6ff</span> | 📝 Documentation
-Type | `performance` | <span style="color:#41d6c3">#41d6c3</span> | ⚡️ Performance
-Type | `refactor` | <span style="color:#ffa572">#ffa572</span> | ♻️ Refactor
-Type | `style` | <span style="color:#ffa572">#ffa572</span> | 💄 Styling
-Type | `test` | <span style="color:#ffd791">#ffd791</span> | ⚗️ Testing
-Type | `ci/cd` | <span style="color:#ffd791">#ffd791</span> | 👷 CI/CD
-Type | `chore` | <span style="color:#ffd791">#ffd791</span> | 🔮 Misc
-Type | `security` | <span style="color:#ff5050">#ff5050</span> | 🔒️ Security
-
-**P - Priority:** The urgency of the issue/task.
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Priority | `critical` | <span style="color:#800000">#800000</span> | Security-related/Project-breaking
-Priority | `high` | <span style="color:#c11c00">#c11c00</span> | Foundational / Important
-Priority | `medium` | <span style="color:#f39a4d">#f39a4d</span> | Basic / Normal
-Priority | `low` | <span style="color:#8cd211">#8cd211</span> | Additional / Polish
-
-**S - Status:** Current progress.
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Status | `done` | <span style="color:#0e8a16">#0e8a16</span> | Complete
-Status | `in progress` | <span style="color:#fbca04">#fbca04</span> | Currently Working On
-Status | `testing` | <span style="color:#fbca04">#fbca04</span> | Testing Ideas / Methods
-Status | `under construction` | <span style="color:#fbca04">#fbca04</span> | Beginning Stages
-
-**Optional:** Two other groups are included for convinience.
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Feedback | `brainstorming` | <span style="color:#db2780">#db2780</span> | Coming Up w/ New &lt;Type&gt;
-Feedback | `help wanted` | <span style="color:#db2780">#db2780</span> | Help Requested on &lt;Type&gt;
-Feedback | `research` | <span style="color:#db2780">#db2780</span> | &lt;Type&gt; Needs Research
-Feedback | `request for comments` | <span style="color:#db2780">#db2780</span> | External Opinions Needed on &lt;Type&gt;
-Other | `good first issue` | <span style="color:#4e3cb2">#4e3cb2</span> | Good Issue for First Time Contributor
-Other | `duplicate` | <span style="color:#cfd3d7">#cfd3d7</span> | Duplicate &lt;Type&gt;
-Other | `invalid` | <span style="color:#cfd3d7">#cfd3d7</span> | Invalid &lt;Type&gt;
-Other | `on hold` | <span style="color:#cfd3d7">#cfd3d7</span> | Currently On Hold
-Other | `won't fix` | <span style="color:#cfd3d7">#cfd3d7</span> | This Will Not Be Fixed
-
-## Conventional Commits
-
-In order to abide by the conventional commit guidelines and in return get auto-generated changelogs, use the following.
-
-```text
-<type>[optional scope]: <subject>
-
-[optional body]
-
-[optional footer(s)]
-```
-
-### Type
-
-```text
-[required] (!empty) value = {
-  'build',
-  'chore',
-  'ci',
-  'docs',
-  'feat',   # this correlates with MINOR in Semantic Versioning
-  'fix',    # this correlates with PATCH in Semantic Versioning
-  'patch',  # this correlates with PATCH in Semantic Versioning
-  'perf',
-  'refactor',
-  'revert',
-  'style',
-  'test',
-  'ignore'  # this correlates with CHANGELOG ignores
-}
-
-A trailing ! indicates a BREAKING CHANGE (correlating with MAJOR in Semantic Versioning).
-```
-
-### Scope
-
-```text
-[optional] {lowercase | camelCase}
-
-A noun describing a section of the codebase surrounded by parenthesis.
-```
-
-### Subject
-
-```text
-[required] (!empty) {lowercase | camelCase} (max-length: 100)
-
-A short summary of the code changes, without a trailing full-stop.
-
-Adding [skip ci] will skip all push and pull_request workflows.
-```
-
-### Body
-
-```text
-[optional] {freeform} (max-length: 100)
-
-Longer commit body with additional contextual information about the code changes.
-```
-
-### Footer
-
-```text
-<token>: <value>
-[optional] (max-length: 100)
-token (Sentance-case) = {
-  'BREAKING CHANGE',    # Exception to the rule
-  'Acked-by',
-  'Cc',
-  'Fixes',
-  'Helped-by',
-  'Refs',
-  'Reviewed-by',
-  'Signed-off-by',
-}
-
-Any number of tokens may be included.
-```
-
-### Examples
-
-The following are all examples of valid commit messages.
-
-The commit message will also go through validation with `commitlint` upon issuing `git commit`.
-
-```text
-feat(player): begin new implementation of input controller
-
-As per #123 recommendation input contoller is now based on blah.
-
-Basic movement added.
-
-Acked-by: Alice <alice@example.com>
-Signed-off-by: Bob <bob@example.com>
-Refs: #123
-Refs: 676104e, a215868
-```
-
-```text
-fix: array parsing issue
-
-Fixes: #42
-Cc: Z
-Reviewed-by: Z
-Signed-off-by: Z
-```
-
-```text
-chore(release): v0.0.1 [skip ci]
-```
-
-## Changelog
-
-Once you have published at least one proper commit using conventional commits syntax you will be able to generate a changelog.
-
-```bash
-git cliff --tag 0.0.1
-```
-
-After the initial run of git-cliff all subsequent runs should detect the version automatically.
-
-```bash
-git cliff
-```
-
-A typical workflow should look like the following.
-
-```bash
-git add -A                      # add all un-indexed and changed files to the commit
-git commit -S -a -m "<message>" # add a conventional commit message and sign the commit
-git cliff                       # generate a new changelog
-git add CHANGELOG.md            # add the changelog file to the commit
-git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
-git push -u origin develop      # finally, push the commit
-```
-
-## Unity Projects
-
-### Unity Activation
-
-Visit the repository page and navigate to `Actions`. Manually run the `Unity Activation 🔐` action and then download the artifact.
-
-Extract the zip file somewhere accessible.
-
-Visit [license.unity3d.com](https://license.unity3d.com/manual) and upload the `Unity_v20XX.X.XXXX.alf` file, receiving a license file `Unity_v20XX.X.ulf` in return.
-
-Navigate on Github to `Settings > Secrets and variables > Actions`.
-
-Create the following repository secrets:
-
-* `UNITY_LICENSE` - (Copy the contents of your license file into here)
-* `UNITY_EMAIL` - (Add the email address that you use to login to Unity)
-* `UNITY_PASSWORD` - (Add the password that you use to login to Unity)
-
-## Attribution
-
-* [Commitlint](https://github.com/conventional-changelog/commitlint)
-* [git-cliff](https://github.com/orhun/git-cliff)
+## Documentation
+
+- [Operating guide](OPERATIONS.md)
+- [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
+- [Kraken Exchange API](https://docs.kraken.com/exchange/api-reference/overview)
+- [TypeSafe Jev documentation](https://docs.typesafe.ai/introduction)
+- [Jev Trader](https://github.com/jarrodwatts/jev-trader), the reference project that inspired this bot
+- [Project license](LICENSE) and [bundled D3 license](kairos/static/vendor/D3-LICENSE)
