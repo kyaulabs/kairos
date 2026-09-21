@@ -15,7 +15,7 @@ function chart(intervalMs = 60000) {
   });
 }
 function candle(time = start, close = '102') {
-  return {time, open: '100', high: '105', low: '95', close};
+  return {time, open: '100', high: '105', low: '95', close, volume: '12.5'};
 }
 function domain(view) { return Array.from(view.timeDomain()); }
 
@@ -23,9 +23,10 @@ test('forming candle updates replace the bar; the next candle advances the live 
   const view = chart();
   view.setCandles([candle()]);
   const firstDomain = domain(view);
-  view.setCandles([candle(start, '103')]);
+  view.setCandles([{...candle(start, '103'), volume: '15.75'}]);
   assert.equal(view.points.length, 1);
   assert.equal(view.points[0].value, 103);
+  assert.equal(view.points[0].volume, 15.75);
   assert.deepEqual(domain(view), firstDomain);
   view.setCandles([candle(start, '103'), candle(start + 60)]);
   assert.equal(view.points.length, 2);
@@ -48,11 +49,19 @@ test('invalid OHLC or duplicate/out-of-order timestamps cannot replace a good sn
   for (const rows of [
     [candle(start, 'NaN')], [{...candle(), high: '99'}], [{...candle(), low: '103'}],
     [{...candle(), time: Infinity}], [{...candle(), open: '-1'}],
+    ...['NaN', Infinity, '-1', undefined, null, ''].map(volume => [{...candle(), volume}]),
     [candle(), candle()], [candle(start + 60), candle()],
   ]) {
     assert.throws(() => view.setCandles(rows), /Invalid candle data/);
     assert.equal(view.points, previous);
   }
+});
+
+test('zero-volume candles remain aligned, and live view leaves room for the price badge', () => {
+  const view = chart();
+  view.setCandles([{...candle(), volume: '0'}]);
+  assert.equal(view.points[0].volume, 0);
+  assert.equal(domain(view)[1] - view.points[0].time, 5 * view.intervalMs);
 });
 
 test('missing trading periods stay gaps rather than invented candles', () => {

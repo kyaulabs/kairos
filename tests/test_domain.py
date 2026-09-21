@@ -89,6 +89,19 @@ class DomainTests(unittest.TestCase):
         with self.assertRaises(SafetyError):
             plan_cycle(route, books, dec(25), DEFAULTS)
 
+    def test_one_minute_entry_requires_positive_move_strictly_above_round_trip_cost(self):
+        settings = {**DEFAULTS, "candle_minutes": 1, "taker_fee_bps": "40", "slippage_bps": "10"}
+        for close, eligible in (("100.203", False), ("101", False), ("101.001", True)):
+            with self.subTest(close=close):
+                rows = [[i * 60, "0", "0", "0", "100"] for i in range(30)]
+                rows[-1][4] = close
+                state = trend_state(rows, settings)
+                self.assertEqual(state["trend"], "rising")
+                self.assertEqual(state["entry_eligible"], eligible)
+                self.assertEqual(dec(state["round_trip_cost_bps"]), dec(100))
+                self.assertEqual(dec(state["eight_candle_return_bps"]), (dec(close) - 100) * 100)
+                self.assertEqual(state["candle_close_time"], 1800)
+
     def test_trend_requires_completed_history(self):
         with self.assertRaises(SafetyError):
             trend_state([], DEFAULTS)

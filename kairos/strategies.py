@@ -15,6 +15,7 @@ def trend_state(rows, settings):
         "candle_minutes": settings["candle_minutes"],
         "trend": "rising" if fast > slow else "falling",
         "eight_candle_return_bps": str(move),
+        "round_trip_cost_bps": str(costs),
         "historical_move_exceeds_round_trip_cost": abs(move) > costs,
         "entry_eligible": fast > slow and move > costs,
         "exit_eligible": fast < slow,
