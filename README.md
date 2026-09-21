@@ -9,6 +9,8 @@
 
 This repository is the basis for all other repositories created here at KYAU Labs.
 
+Kairos application setup, trading controls, safety limits, and deployment instructions are in [OPERATIONS.md](OPERATIONS.md).
+
 * GitHub limits repositories to 10GB of cache space for actions.
 * GitHub limits users/organizations to 0.5GB of artifact storage.
 
@@ -119,20 +121,22 @@ on:
 
 ### Configuration
 
-Generate a config for commitlint.
+Install Gitleaks and ensure it is on `PATH`. Install commitlint and its conventional configuration; retain this repository's `commitlint.config.js`.
 
-```c
-echo "module.exports = { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
+```sh
+npm install -g @commitlint/cli @commitlint/config-conventional
 ```
 
 ### Symlinks
 
-Copy or symlink to the hooks located inside of `.github/hooks`.
+Point Git at the executable, versioned hooks. Run this once for each clone.
 
-```text
-chmod u+x .github/hook/*
-cp .github/hooks/* .git/hooks/
+```sh
+git config --local core.hooksPath .github/hooks
+chmod +x .github/hooks/pre-commit .github/hooks/commit-msg
 ```
+
+The pre-commit hook scans staged changes with Gitleaks and redacts findings. The commit-message hook enforces the conventional commit rules.
 
 ## Initial Commit
 

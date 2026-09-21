@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kairos · Trading desk</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/vendor/d3.v7.9.0.min.js"></script>
+  <script defer src="/static/chart.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+<header><a class="brand" href="/">K<span>AI</span>ROS</a><span class="muted">Kraken × Jev</span><span id="connection" class="pill">Connecting</span><span id="mode-badge" class="pill">DRY-RUN</span></header>
+<main>
+  <section class="toolbar" aria-label="Trading controls">
+    <div><h1>Trading desk</h1><p class="muted">Live market data. Explicit execution controls.</p></div>
+    <div class="actions">
+      <label>Execution <select id="mode"><option value="dry-run">Dry-run</option><option value="trading">Trading — real funds</option></select></label>
+      <button id="start" class="primary">Start</button><button id="stop" class="danger">Stop & cancel orders</button><button id="reconcile">Reconcile</button>
+    </div>
+  </section>
+  <p id="message" role="status" aria-live="polite"></p>
+  <p id="engine-error" class="warning" role="alert" hidden></p>
+  <div class="metrics">
+    <article><span>Bot equity · USD</span><strong id="equity">—</strong><small id="valuation-time">Not yet valued</small></article>
+    <article><span>Day P&L · USD</span><strong id="pnl">—</strong><small>Marked to market · UTC day</small></article>
+    <article><span>Gross exposure · USD</span><strong id="exposure">—</strong><small id="exposure-cap">—</small></article>
+    <article><span>Engine</span><strong id="engine-status">Paused</strong><small id="engine-strategy">—</small></article>
+  </div>
+  <div class="workspace">
+    <section class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow">LIVE MARKET / MIDPOINT</span><h2 id="market-title">BTC/USD</h2></div><strong id="price">—</strong><button id="follow" class="small">Follow live</button></div><svg id="chart" role="img" tabindex="0" aria-label="Live price chart. Drag to pan, scroll to zoom; use Follow live to reset."></svg><div class="market-info"><span id="bid-ask">Waiting for prices</span><span id="feed-age">—</span></div><p class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span><span>Drag to pan · scroll to zoom · crosshair to inspect</span></p></section>
+    <section class="panel"><h2>Jev assessment</h2><div class="decision"><strong id="decision">Waiting</strong><span id="confidence">—</span></div><div id="probabilities"></div><p id="model-info" class="muted">A model assessment is not a calibrated probability of trading profit.</p><details><summary>Decision inputs</summary><pre id="decision-inputs">No assessment yet.</pre></details></section>
+  </div>
+  <section class="panel equity-panel"><div class="panel-head"><div><span class="eyebrow">SESSION PERFORMANCE / USD</span><h2>Portfolio equity</h2></div><span class="muted">Includes trading fees · marks updated each cycle</span></div><svg id="equity-chart" role="img" tabindex="0" aria-label="Bot equity over time"></svg></section>
+  <div class="workspace settings-layout">
+    <section class="panel"><h2>Configuration</h2><p class="muted">Stop first to change settings. Existing spot holdings remain tracked when changing markets.</p>
+      <form id="settings">
+        <fieldset id="settings-fields"><div class="fields">
+          <label>Asset class<select id="asset-class"><option value="crypto">Crypto</option><option value="stocks" disabled>US stocks / ETFs — API unconfirmed</option></select></label>
+          <label>Market<select name="pair" id="pair"></select></label>
+          <label>Strategy<select name="strategy"><option value="htf">Higher-timeframe trend</option><option value="maker">Market making</option><option value="arbitrage">Triangular arbitrage</option></select></label>
+          <label>Product<select name="product"><option value="spot">Spot</option><option value="margin">Margin · paper only</option></select></label>
+          <label>Order notional cap · USD<input name="order_size" type="number" min="0.01" step="any" required></label>
+          <label>Gross exposure cap · USD<input name="max_exposure" type="number" min="0.01" step="any" required></label>
+          <label>Daily loss limit · USD<input name="daily_loss" type="number" min="0.01" step="any" required></label>
+          <label>Live capital allocation · USD<input name="live_budget" type="number" min="0" step="any" required></label>
+          <label>Paper starting balance · USD<input name="paper_balance" type="number" min="1" step="any" required></label>
+          <label class="check"><input name="reinvest_profits" type="checkbox"> Scale order/exposure caps with equity (reinvest)</label>
+          <label class="check"><input name="recover_initial" type="checkbox"> Recover original allocation once above 2× equity</label>
+          <label>Capital recovery check · seconds<input name="recovery_check_seconds" type="number" min="10" max="86400" step="1" required></label>
+          <label>Decision interval · seconds<input name="interval_seconds" type="number" min="10" max="3600" step="1" required></label>
+          <label>HTF candle interval<select name="candle_minutes"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
+          <label>Jev minimum confidence<input name="min_confidence" type="number" min="0" max="1" step="0.01" required></label>
+        </div>
+        <details><summary>Fees, execution & paper margin</summary><div class="fields advanced">
+          <label>Maker fee · bps<input name="maker_fee_bps" type="number" min="0" max="1000" step="any" required></label>
+          <label>Taker fee · bps<input name="taker_fee_bps" type="number" min="0" max="1000" step="any" required></label>
+          <label>Slippage / maker offset · bps<input name="slippage_bps" type="number" min="0" max="100" step="any" required></label>
+          <label>Maximum spread · bps<input name="max_spread_bps" type="number" min="0.01" max="1000" step="any" required></label>
+          <label>Minimum arbitrage edge · bps<input name="arb_min_profit_bps" type="number" min="0" max="1000" step="any" required></label>
+          <label>Max depth snapshot age · seconds<input name="stale_seconds" type="number" min="2" max="30" step="1" required></label>
+          <label>Paper leverage<select name="leverage"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option></select></label>
+          <label>Margin opening fee · bps<input name="margin_open_fee_bps" type="number" min="0" max="100" step="any" required></label>
+          <label>Rollover per 4 hours · bps<input name="margin_rollover_bps" type="number" min="0" max="100" step="any" required></label>
+          <label>Maintenance equity / used margin<input name="maintenance_ratio" type="number" min="0.1" max="0.9" step="0.01" required></label>
+        </div></details>
+        <div class="actions form-actions"><button class="primary" type="submit">Save settings</button><button id="full-allocation" type="button">Use full starting allocation</button><button id="reset" type="button">Reset selected paper portfolio</button></div></fieldset>
+      </form>
+      <p class="muted">Default: full starting allocation, fee reserve, and reinvestment; no scheduled end or profit target. With reinvestment enabled, order and exposure caps scale in proportion to equity versus starting capital. Save a new paper balance, then reset the paper portfolio to apply it.</p>
+      <p class="muted">Capital recovery is spot-only: above 2× original equity, sell enough inventory if needed and reserve the original allocation once. Reserved cash remains on Kraken but is excluded from this bot. No external withdrawal is made.</p>
+      <p class="muted">100 bps = 1%. Paper fills are estimates, not a backtest. Margin uses a simplified cross-collateral model, not Kraken’s exact borrowing or liquidation rules.</p>
+      <details><summary>US stocks / ETFs status</summary><p>Direct US stocks are not xStocks. Kraken offers equities in its app, but the linked public Exchange API does not document US brokerage order submission. Stock execution is blocked until Kraken provides that API. No tokenized substitute is used.</p><a href="https://docs.kraken.com/exchange/api-reference/overview" target="_blank" rel="noopener noreferrer">Kraken API reference</a></details>
+    </section>
+    <section class="panel"><h2>Portfolio</h2><p id="portfolio-label" class="muted">Bot allocation only, not your full Kraken account.</p><div id="holdings"></div><p id="margin-info" class="muted"></p><h2>Activity</h2><ol id="activity" class="activity" aria-label="Recent decisions, fills, and errors"></ol></section>
+  </div>
+  <section class="panel"><h2>Orders</h2><p class="muted">An accepted order is not a fill. Paper and live records remain separately labeled.</p><div class="table-wrap"><table><thead><tr><th>Time</th><th>Mode / product</th><th>Market</th><th>Side</th><th>Limit</th><th>Requested</th><th>Filled</th><th>Fee</th><th>Status</th></tr></thead><tbody id="orders"></tbody></table></div></section>
+  <footer>Stop cancels tracked orders; it does not sell holdings. Loss limits stop new trading, not market losses. Never expose the backend port publicly.</footer>
+</main>
+</body>
+</html>
