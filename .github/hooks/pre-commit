@@ -1,2 +1,2 @@
 #!/bin/sh
-gitleaks detect --source . -v --no-color --max-target-megabytes 5
+exec gitleaks git --pre-commit --staged --redact --no-banner --no-color .
