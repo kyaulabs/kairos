@@ -1,10 +1,11 @@
 /* D3 charts use local assets only; prices and fills stay in the authenticated session. */
 class LiveChart {
-  constructor(selector, color, prefix) {
+  constructor(selector, color, prefix, timeframeMs = null) {
     this.node = document.querySelector(selector);
     this.svg = d3.select(this.node);
     this.color = color;
     this.prefix = prefix;
+    this.timeframeMs = timeframeMs;
     this.points = [];
     this.fills = [];
     this.transform = d3.zoomIdentity;
@@ -47,9 +48,14 @@ class LiveChart {
     const time = ts * 1000;
     const last = this.points.at(-1);
     if (last && time < last.time) return;
-    if (last && time - last.time < 750) this.points[this.points.length - 1] = {time, value};
+    // Keep one point per second without letting frequent ticks overwrite history forever.
+    if (last && Math.floor(time / 1000) === Math.floor(last.time / 1000)) this.points[this.points.length - 1] = {time, value};
     else this.points.push({time, value});
-    if (this.points.length > 1800) this.points.shift();
+    if (this.timeframeMs !== null) {
+      // Retain the largest selectable window, plus one point for the left-edge segment.
+      const cutoff = time - 60 * 60 * 1000;
+      while (this.points.length > 2 && this.points[1].time < cutoff) this.points.shift();
+    } else if (this.points.length > 1800) this.points.shift();
     this.draw();
   }
   fill(event) {
@@ -63,7 +69,23 @@ class LiveChart {
     this.fills = [];
     this.follow();
   }
-  follow() { this.svg.call(this.zoom.transform, d3.zoomIdentity); }
+  follow() {
+    this.cross.attr('display', 'none'); this.tip.text('');
+    this.svg.call(this.zoom.transform, d3.zoomIdentity);
+  }
+  setTimeframe(milliseconds) {
+    if (!Number.isFinite(milliseconds) || milliseconds <= 0 || milliseconds > 60 * 60 * 1000) {
+      throw new RangeError('Chart timeframe must be between zero and one hour');
+    }
+    this.timeframeMs = milliseconds;
+    this.follow();
+  }
+  timeDomain() {
+    const first = this.points[0].time, last = this.points.at(-1).time;
+    if (this.timeframeMs !== null) return [last - this.timeframeMs, last];
+    const start = Math.min(first, last - 60000);
+    return [start, last + Math.max((last-start)*.025, 1000)];
+  }
   draw() {
     const width = this.node.clientWidth, height = this.node.clientHeight;
     if (!width || !height) return;
@@ -80,10 +102,7 @@ class LiveChart {
       this.xAxis.selectAll('*').remove(); this.yAxis.selectAll('*').remove(); this.grid.selectAll('*').remove();
       return;
     }
-    const first = this.points[0].time, last = this.points.at(-1).time;
-    const start = Math.min(first, last - 60000);
-    const end = last + Math.max((last-start)*.025, 1000);
-    const baseX = d3.scaleTime().domain([new Date(start), new Date(end)]).range([m.left, width-m.right]);
+    const baseX = d3.scaleTime().domain(this.timeDomain()).range([m.left, width-m.right]);
     this.x = this.transform.rescaleX(baseX);
     const domain = this.x.domain().map(Number);
     const visible = this.points.filter(p => p.time >= domain[0] && p.time <= domain[1]);
@@ -93,7 +112,7 @@ class LiveChart {
     const pad = Math.max((high-low)*.15, Math.abs(high)*.00005, .000001);
     this.y = d3.scaleLinear().domain([low-pad, high+pad]).range([height-m.bottom, m.top]);
     this.xAxis.attr('transform', `translate(0,${height-m.bottom})`)
-      .call(d3.axisBottom(this.x).ticks(width < 600 ? 4 : 7).tickFormat(d3.timeFormat('%H:%M:%S')).tickSize(0).tickPadding(12));
+      .call(d3.axisBottom(this.x).ticks(Math.max(2, Math.floor((width-m.left-m.right)/100))).tickFormat(d3.timeFormat('%H:%M:%S')).tickSize(0).tickPadding(12));
     this.yAxis.attr('transform', `translate(${width-m.right},0)`)
       .call(d3.axisRight(this.y).ticks(height < 200 ? 3 : 6).tickFormat(d3.format(',.5~f')).tickSize(0).tickPadding(12));
     this.grid.attr('transform', `translate(${width-m.right},0)`)
