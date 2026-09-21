@@ -202,6 +202,7 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data[0]["interval"], 1)
         self.assertEqual(len(data[0]["candles"]), 120)
         self.assertEqual(data[0]["candles"][-1]["close"], candle_rows()[-1][4])
+        self.assertEqual(data[0]["candles"][-1]["volume"], candle_rows()[-1][6])
         self.engine.kraken.ohlc.assert_awaited_once_with(BTC, 1)
         self.engine.kraken.candles.assert_not_awaited()
         self.engine.kraken.add.assert_not_awaited()
@@ -210,8 +211,12 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         rows = candle_rows(count=721)
         self.engine.kraken.ohlc.side_effect = None
         self.engine.kraken.ohlc.return_value = rows
+        rows[-1][6] = "0"
+        rows[-2][6] = "123.456"
         response = await self.client.get(f"/api/candles?pair={BTC.id}&interval=1")
         data = await response.json()
+        self.assertEqual(data["candles"][-1]["volume"], "0")
+        self.assertEqual(data["candles"][-2]["volume"], "123.456")
         self.assertEqual(len(data["candles"]), 720)
         self.assertEqual(data["candles"][0]["time"], rows[1][0])
         self.assertEqual(data["candles"][-1]["time"], rows[-1][0])

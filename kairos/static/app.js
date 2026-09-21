@@ -21,6 +21,24 @@
     return data;
   }
   function symbol() { return pairs.find(pair => pair.id === state?.settings.pair)?.symbol; }
+  function decisionLabel(decision) {
+    const inventory = decision.state?.inventory;
+    return decision.action === 'hold' && inventory != null && Number(inventory) === 0 ? 'wait' : decision.action;
+  }
+  function decisionContext(decision) {
+    if (decision.action !== 'hold') return '';
+    const input = decision.state || {};
+    const parts = ['No order requested; allocation unchanged.'];
+    if (decisionLabel(decision) === 'wait') {
+      parts.push(input.product === 'spot' ? `No ${input.symbol?.split('/')[0] || 'base-asset'} inventory to hold or sell.` : 'No open position in this market.');
+    }
+    if (input.strategy === 'htf' && input.entry_eligible === false) {
+      const move = (Number(input.eight_candle_return_bps)/100).toFixed(3);
+      const threshold = input.round_trip_cost_bps == null ? '' : `; required >${(Number(input.round_trip_cost_bps)/100).toFixed(3)}% plus a rising trend`;
+      parts.push(`HTF buy filter not met: eight-candle move ${move}%${threshold}.`);
+    }
+    return parts.join(' ');
+  }
   function restartCandles() {
     clearTimeout(candleTimer);
     candleController?.abort();
@@ -89,15 +107,16 @@
     $('mode').disabled = busy || !connected;
     const decision = state.decision;
     if (decision) {
-      $('decision').textContent = decision.action;
-      $('confidence').textContent = `${(decision.confidence*100).toFixed(1)}% confidence`;
+      $('decision').textContent = decisionLabel(decision);
+      $('confidence').textContent = `${(decision.confidence*100).toFixed(1)}% confidence in ${decision.action === 'hold' ? 'no trade' : decision.action}`;
+      $('decision-context').textContent = decisionContext(decision);
       $('model-info').textContent = `${decision.model} · ${decision.latency_ms} ms · ${time(decision.ts)} · ${decision.mode}`;
       $('decision-inputs').textContent = JSON.stringify(decision.state, null, 2);
       $('probabilities').replaceChildren();
       for (const [action, probability] of Object.entries(decision.probabilities)) {
         const row = document.createElement('div'); row.className = `probability ${action}`;
         const header = document.createElement('header'), name = document.createElement('span'), value = document.createElement('span');
-        name.textContent = action.toUpperCase(); value.textContent = `${(probability*100).toFixed(1)}%`;
+        name.textContent = action === 'hold' ? 'NO TRADE (HOLD)' : action.toUpperCase(); value.textContent = `${(probability*100).toFixed(1)}%`;
         header.append(name, value);
         const bar = document.createElement('progress'); bar.max = 1; bar.value = probability; bar.setAttribute('aria-label', `${action} assessment`);
         row.append(header, bar); $('probabilities').append(row);
@@ -144,7 +163,7 @@
     const li = document.createElement('li'), when = document.createElement('time'), kind = document.createElement('b'), detail = document.createElement('p');
     when.textContent = time(event.ts); kind.textContent = event.kind;
     const d = event.data;
-    detail.textContent = d.message || d.reason || (event.kind === 'decision' ? `${d.mode} · ${d.action.toUpperCase()} · ${(d.confidence*100).toFixed(1)}% confidence` : event.kind === 'fill' ? `${d.mode} · ${d.side} ${number(d.volume)} · ${d.pair} · fee ${number(d.fee)}` : event.kind === 'order' ? `${d.mode} · ${d.side} ${d.pair} · ${d.status}` : event.kind === 'mode' ? `${d.mode} · ${d.running ? 'running' : 'paused'}` : JSON.stringify(d));
+    detail.textContent = d.message || d.reason || (event.kind === 'decision' ? `${d.mode} · ${decisionLabel(d).toUpperCase()} · ${(d.confidence*100).toFixed(1)}% confidence${d.action === 'hold' ? ' in no trade' : ''}${decisionContext(d) ? ` · ${decisionContext(d)}` : ''}` : event.kind === 'fill' ? `${d.mode} · ${d.side} ${number(d.volume)} · ${d.pair} · fee ${number(d.fee)}` : event.kind === 'order' ? `${d.mode} · ${d.side} ${d.pair} · ${d.status}` : event.kind === 'mode' ? `${d.mode} · ${d.running ? 'running' : 'paused'}` : JSON.stringify(d));
     li.append(when, kind, detail); $('activity').prepend(li);
     while ($('activity').children.length > 120) $('activity').lastChild.remove();
   }

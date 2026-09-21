@@ -113,7 +113,14 @@ async def candles(request):
                 "interval": minutes,
                 "received": time.time(),
                 "candles": [
-                    {"time": r[0], "open": r[1], "high": r[2], "low": r[3], "close": r[4]}
+                    {
+                        "time": r[0],
+                        "open": r[1],
+                        "high": r[2],
+                        "low": r[3],
+                        "close": r[4],
+                        "volume": r[6],
+                    }
                     for r in rows[-720:]
                 ],
             }

@@ -93,6 +93,35 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.engine.orders(), [])
         self.kraken.add.assert_not_awaited()
 
+    async def test_high_confidence_hold_keeps_cash_without_creating_a_position(self):
+        self.jev.decide.return_value.update(action="hold", confidence=0.99)
+        cash = self.engine.balance(BTC.quote)
+        await self.engine.start()
+        await self.engine.tick()
+        self.assertTrue(self.engine.running)
+        self.assertEqual(self.engine.balance(BTC.quote), cash)
+        self.assertEqual(self.engine.balance(BTC.base), 0)
+        self.assertEqual(self.engine.orders(), [])
+        self.assertEqual(self.engine.latest_decision["action"], "hold")
+        self.kraken.add.assert_not_awaited()
+
+    async def test_htf_cost_filter_blocks_even_a_confident_buy(self):
+        rows = self.kraken.candles.return_value
+        for row in rows:
+            row[4] = "10000"
+        rows[-1][4] = "10020.3"
+        await self.engine.configure({**self.engine.settings, "candle_minutes": 1})
+        await self.engine.start()
+        await self.engine.tick()
+        self.assertTrue(self.engine.running)
+        self.assertEqual(self.engine.orders(), [])
+        self.assertFalse(self.engine.latest_decision["state"]["entry_eligible"])
+        self.assertIn(
+            {"reason": "Deterministic trend/cost filter vetoed the Jev action"},
+            [event["data"] for kind, event in self.events if kind == "skip"],
+        )
+        self.kraken.add.assert_not_awaited()
+
     async def test_low_confidence_abstains(self):
         self.jev.decide.return_value["confidence"] = 0.1
         await self.engine.start()
