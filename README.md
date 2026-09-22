@@ -5,7 +5,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md) &nbsp; [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/kairos?logo=creativecommons)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)  
 [![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/kairos?include_prereleases&logo=semver&sort=semver)](https://semver.org) &nbsp; [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 
-Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to assess trading opportunities. A browser dashboard shows live prices, model assessments, orders, fills, and portfolio equity. Code enforces sizing and execution limits; Jev does not control those safeguards.
+Kairos is an experimental Kraken trading bot with Jev-assisted strategies and deterministic spot programs. A browser dashboard shows live prices, model assessments, orders, fills, and portfolio equity. Code enforces sizing and execution limits; Jev does not control those safeguards.
 
 **Start with dry-run.** Live spot execution is implemented but has not been verified with real orders. Neither model confidence nor simulated returns establish profitability, and full-allocation trading can lose the entire allocation.
 
@@ -23,7 +23,8 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 ## Capabilities
 
 - Change the bot's market and strategy in Settings after stopping and reconciling orders; browse charts independently through the market picker.
-- Use real Kraken data and Jev assessments in dry-run, without submitting exchange orders.
+- Use real Kraken data in dry-run without exchange orders; model-assisted strategies use Jev, while DCA, TWAP, and rebalancing need no model calls.
+- Choose the supplied Kairos dark/light brand palettes and violet, green, or red accents without changing the workspace layout or fonts.
 - Use a single-screen workspace with a chart, Jev assessment, settings sidebar, and bottom tabs for orders, activity, portfolio, read-only exchange accounts, and equity.
 - Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
 - Configure starting capital, order and exposure caps, daily loss limits, fee assumptions, and reinvestment.
@@ -46,7 +47,7 @@ The header shows the chart market's bid/ask midpoint, using the newest available
 
 ## Quick start
 
-Requires Linux, Python 3.12 or later, [uv](https://docs.astral.sh/uv/), and a Jev API key. A read-only Kraken key is enough for authenticated balance and fee checks. There is no frontend build step; Node.js is needed only for development checks.
+Requires Linux, Python 3.12 or later, and [uv](https://docs.astral.sh/uv/). Model-assisted strategies also require a Jev API key. A read-only Kraken key is enough for authenticated balance and fee checks. There is no frontend build step; Node.js is needed only for development checks.
 
 Active development is on `develop`:
 
@@ -90,7 +91,7 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 
 The default paper profile starts with $1,000 and reinvestment enabled. Changing the starting balance does not change an existing portfolio until you reset it. A reset discards simulated holdings, not live holdings, and retains labeled order/event history.
 
-Dry-run uses real feeds and real Jev calls. Taker fills are estimated from visible depth; maker fills require later crossing trades and assume limited participation. Neither model reconstructs actual queue priority or market impact.
+Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Taker fills are estimated from visible depth; maker fills require later crossing trades and assume limited participation. Neither model reconstructs actual queue priority or market impact.
 
 ## Strategies
 
@@ -99,16 +100,19 @@ Dry-run uses real feeds and real Jev calls. Taker fills are estimated from visib
 | Higher-timeframe trend | Assesses completed candles from 1 minute through 1 day (1m, 5m, 15m, 30m, 1h, 4h, 1d). Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
 | Market making | Posts one fee-aware, post-only quote and reconciles it before replacement. Quotes expire after 30 seconds. This is rate-limited market making, not exchange-grade HFT. |
 | Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
+| DCA | Buys a fixed quote amount, including fees, for a finite number of scheduled purchases. Requires the full run budget up front; no missed-purchase catch-up. |
+| TWAP | Splits a funded buy/sell parent into time-spaced IOC limit orders. Bounds quantity, duration, and price; unfilled slices are not added to later orders. |
+| Threshold rebalancing | Adjusts an explicit spot basket and cash weight outside a drift band, with a cooldown, minimum trade, and UTC-day turnover cap. |
 
 Arbitrage legs execute sequentially, not atomically. A failed or partial leg stops the engine with intermediate inventory retained for review. Retail fees may eliminate every observed opportunity.
 
-DCA, TWAP, and threshold rebalancing are planned, not enabled. See the [retail API and strategy roadmap](RETAIL-ROADMAP.md) for pre-funded allocations and execution requirements.
+DCA, TWAP, and rebalancing support paper and explicitly gated live spot. They make no model calls. Run identity, schedules, and confirmed fills persist; completed runs require explicit rearming. See [operation and configuration](OPERATIONS.md#strategies), the [retail roadmap](RETAIL-ROADMAP.md), and the [TradingAgents research review](TRADINGAGENTS-REVIEW.md).
 
 Existing spot holdings remain tracked when you change markets, but the newly selected strategy does not automatically trade the previous market's holdings. Paper margin uses separate accounting and does not support triangular arbitrage. Read [strategy details](OPERATIONS.md#strategies) and [margin assumptions](OPERATIONS.md#margin-simulation) before using them.
 
 ## Capital and recovery
 
-Kairos has no scheduled end, trade-count limit, or profit target. It reuses available capital and proceeds, while allowing hold decisions when no trade qualifies. With reinvestment enabled, order and exposure caps scale with current equity relative to the initial allocation. Sizing reserves fees and respects exchange minimums.
+HTF, market making, arbitrage, and rebalancing have no scheduled end or profit target. DCA and TWAP stop after their finite run; their budgets do not grow automatically with profits. Continuous strategies reuse available capital and proceeds without forcing a trade when none qualifies. With reinvestment enabled, order and exposure caps scale with current equity relative to the initial allocation. Sizing reserves fees and respects exchange minimums.
 
 For spot portfolios, **Recover original allocation once above 2× equity** can protect the starting allocation. With a $100 start, the bot attempts to reserve $100 only when active equity is greater than $200. It sells enough bot-owned inventory if cash is needed and execution limits permit, then excludes the reserve from future orders and compounds the remainder.
 
@@ -130,6 +134,8 @@ Stop cancels tracked orders; **it does not sell spot holdings**. Loss limits als
 ## Deployment
 
 Use [deploy/nginx.conf](deploy/nginx.conf) for TLS, Basic Auth, and unbuffered dashboard events. Protect the entire site, including API routes and static assets. Set `PUBLIC_ORIGIN` to the HTTPS hostname and keep the backend port inaccessible from the network.
+
+The complete supplied brand pack is in [`brand/`](brand/README.md). The application uses its artwork and six palettes while retaining the viewport layout; select appearance under Execution settings. See [brand integration](BRANDING.md).
 
 The UI uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with OperatorMonoSSmLig Nerd Font for bold monospace. Font Awesome Pro webfonts are optional, locally supplied assets excluded from Git. See [font setup](OPERATIONS.md#run-locally); missing fonts fall back to system text and text icons.
 
@@ -153,6 +159,7 @@ node --check kairos/static/chart.js
 node --check kairos/static/markets.js
 node --check kairos/static/strategy-market.js
 node --check kairos/static/accounts.js
+node --check kairos/static/appearance.js
 node --test tests/*.test.cjs
 ```
 
@@ -185,6 +192,7 @@ OPERATIONS.md            Detailed setup, execution, recovery, and deployment gui
 
 - [Operating guide](OPERATIONS.md)
 - [Retail API coverage and strategy roadmap](RETAIL-ROADMAP.md)
+- [Brand integration](BRANDING.md) and [TradingAgents review](TRADINGAGENTS-REVIEW.md)
 - [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
 - [Kraken Exchange API](https://docs.kraken.com/exchange/api-reference/overview)
 - [TypeSafe Jev documentation](https://docs.typesafe.ai/introduction)

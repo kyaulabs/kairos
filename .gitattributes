@@ -1,0 +1,2 @@
+# PDF guides are binary assets; preserve their original bytes and cross-reference offsets.
+brand/guide/*.pdf binary

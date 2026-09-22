@@ -1,0 +1,1191 @@
+{
+  "name": "Kairos complete brand pack",
+  "version": "1.0.0",
+  "primaryLogo": "09 / AI module",
+  "modes": [
+    "dark",
+    "light"
+  ],
+  "interfaceAccents": [
+    "violet",
+    "green",
+    "red"
+  ],
+  "fonts": {
+    "primary": "Neo Sans Pro",
+    "monospace": "Operator Mono Lig Nerd Font"
+  },
+  "assetCount": 234,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 7098,
+      "sha256": "c5da9edc8ca7a4f2036c3facb721725167f6e230f260566ed3d0ec641adb0914"
+    },
+    {
+      "path": "boards/interface-six-variants.png",
+      "bytes": 207916,
+      "sha256": "8d64a28205a38b88bd352a643b4bc0d238100f64703fd153d281609be6f88e8c"
+    },
+    {
+      "path": "boards/kairos-accent-variants-dark.png",
+      "bytes": 224267,
+      "sha256": "75567dea8eb5f7ce2a303e7f9b4b0970040405e9e913cd1dba0212532d5c83f8"
+    },
+    {
+      "path": "boards/kairos-accent-variants-dark.svg",
+      "bytes": 301770,
+      "sha256": "94e3f5287007239c29910488e857c11e5e17dd629e9a7d31e10ad4867336cf86"
+    },
+    {
+      "path": "boards/kairos-accent-variants-light.png",
+      "bytes": 224046,
+      "sha256": "650ed0c55a4326c7fde64a7d06e8b17b42567e05c0eb6a55ef627be9177f0470"
+    },
+    {
+      "path": "boards/kairos-accent-variants-light.svg",
+      "bytes": 303734,
+      "sha256": "a4b1a6b4586ef134b2294cbe9afa631af26e6dd4947f7f98902b8125b465cc6c"
+    },
+    {
+      "path": "boards/kairos-icon-sheet-dark.png",
+      "bytes": 93916,
+      "sha256": "f8a75260d99db3a7705b311016c3bd3a5a721f209de4d7f6fa7182acf7b63e98"
+    },
+    {
+      "path": "boards/kairos-icon-sheet-dark.svg",
+      "bytes": 86881,
+      "sha256": "5e2aefbde73b7185609e5df76a208582aa3cf8e446983e52598861f084f445a3"
+    },
+    {
+      "path": "boards/kairos-icon-sheet-light.png",
+      "bytes": 89146,
+      "sha256": "251dd306b16de52bba308dd93da37bb87f44c7b75cfe629a4092938bda3f833a"
+    },
+    {
+      "path": "boards/kairos-icon-sheet-light.svg",
+      "bytes": 86882,
+      "sha256": "bb51a4441ccc99a962e0de704a6ad93bfb5e2545ea36a616a08449fdf5286a4b"
+    },
+    {
+      "path": "boards/kairos-icon-sheet.png",
+      "bytes": 93916,
+      "sha256": "f8a75260d99db3a7705b311016c3bd3a5a721f209de4d7f6fa7182acf7b63e98"
+    },
+    {
+      "path": "boards/kairos-icon-sheet.svg",
+      "bytes": 86881,
+      "sha256": "5e2aefbde73b7185609e5df76a208582aa3cf8e446983e52598861f084f445a3"
+    },
+    {
+      "path": "boards/kairos-identity-board-dark.png",
+      "bytes": 439718,
+      "sha256": "b0ef79c3b5b00fa27f3c1bb4720e9dd83b6aa172a5c0d172ef71f5389df09996"
+    },
+    {
+      "path": "boards/kairos-identity-board-dark.svg",
+      "bytes": 488096,
+      "sha256": "bbf2c00265a89d82bd95174c4dd294fe57e0fe427bed1a67e592c44e22308e64"
+    },
+    {
+      "path": "boards/kairos-identity-board-light.png",
+      "bytes": 432257,
+      "sha256": "6e9ab22818099a6dbacac07b787989a820a6ab4d2631e504f19552988efa5ab3"
+    },
+    {
+      "path": "boards/kairos-identity-board-light.svg",
+      "bytes": 489172,
+      "sha256": "a03b1973455e6b7804947a52393e1079cf99f2a229483a80e0af2e8ddd8350de"
+    },
+    {
+      "path": "boards/kairos-identity-board.png",
+      "bytes": 439718,
+      "sha256": "b0ef79c3b5b00fa27f3c1bb4720e9dd83b6aa172a5c0d172ef71f5389df09996"
+    },
+    {
+      "path": "boards/kairos-identity-board.svg",
+      "bytes": 488096,
+      "sha256": "bbf2c00265a89d82bd95174c4dd294fe57e0fe427bed1a67e592c44e22308e64"
+    },
+    {
+      "path": "boards/kairos-typography-dark.png",
+      "bytes": 239924,
+      "sha256": "468a1e074b7c20fc76a6178a2137b8110c0b1b4309d19689bb8a6da156b10e1b"
+    },
+    {
+      "path": "boards/kairos-typography-dark.svg",
+      "bytes": 257598,
+      "sha256": "f9c42ec736eff88f0237b1b9af590208fe8e2936e6c2588972751b8e5479008b"
+    },
+    {
+      "path": "boards/kairos-typography-light.png",
+      "bytes": 238411,
+      "sha256": "6ce729c9765d92463226e0e00c82cf9710aa9c18928bd01a9d6b531d44a0101f"
+    },
+    {
+      "path": "boards/kairos-typography-light.svg",
+      "bytes": 257599,
+      "sha256": "1e6e41b560092d16818cf287dd0ef31bb649b5c8b7724b2f283524bbadfd0df5"
+    },
+    {
+      "path": "guide/kairos-brand-guide-dark.pdf",
+      "bytes": 772462,
+      "sha256": "3c15686b6dd4816bb3a35d804a6c9e778e506f6aa9e09733bcab4f760ba24c6a"
+    },
+    {
+      "path": "guide/kairos-brand-guide-light.pdf",
+      "bytes": 781600,
+      "sha256": "7b4e350eab2861829de2bbcfacaea8397b99af0243ab761bfcd88a7e33c42df9"
+    },
+    {
+      "path": "icons/apple-touch-icon.png",
+      "bytes": 3074,
+      "sha256": "57ac1b299cf64b217e9d0d38fcb5c1df84eeef3ae2068783b3658b16c7bae2e4"
+    },
+    {
+      "path": "icons/favicon-16.png",
+      "bytes": 475,
+      "sha256": "a91a96d76b0d7515a0f1e0f227c8dbc2565870d784bf0a24c83e16429e3a6abc"
+    },
+    {
+      "path": "icons/favicon-32.png",
+      "bytes": 795,
+      "sha256": "13cce9e3448cd8bb5366c04beed2d45f72037baf6dc1c9f4a9323aef9b950b3c"
+    },
+    {
+      "path": "icons/favicon-48.png",
+      "bytes": 1203,
+      "sha256": "bb68d64c3a5aca384457898fc431901e530ae9cb8246399b555fe9a4eb3f2e0f"
+    },
+    {
+      "path": "icons/favicon-dark-16.png",
+      "bytes": 475,
+      "sha256": "a91a96d76b0d7515a0f1e0f227c8dbc2565870d784bf0a24c83e16429e3a6abc"
+    },
+    {
+      "path": "icons/favicon-dark-32.png",
+      "bytes": 795,
+      "sha256": "13cce9e3448cd8bb5366c04beed2d45f72037baf6dc1c9f4a9323aef9b950b3c"
+    },
+    {
+      "path": "icons/favicon-dark-48.png",
+      "bytes": 1203,
+      "sha256": "bb68d64c3a5aca384457898fc431901e530ae9cb8246399b555fe9a4eb3f2e0f"
+    },
+    {
+      "path": "icons/favicon-dark-64.png",
+      "bytes": 1491,
+      "sha256": "558cee534345b0a6ade490eb7468399d601c6de5694c7d4d242e9b6534ff7e7a"
+    },
+    {
+      "path": "icons/favicon-dark.ico",
+      "bytes": 19241,
+      "sha256": "7bd258e3afa4e89d9be371d9f16ecea06e477da9c26a5e674ad5ae0487394724"
+    },
+    {
+      "path": "icons/favicon-dark.png",
+      "bytes": 795,
+      "sha256": "13cce9e3448cd8bb5366c04beed2d45f72037baf6dc1c9f4a9323aef9b950b3c"
+    },
+    {
+      "path": "icons/favicon-dark.svg",
+      "bytes": 554,
+      "sha256": "acd16c1380399a65cd0d67ce47a53014097a1b88df6ea04e10889f34c37cc5f0"
+    },
+    {
+      "path": "icons/favicon-light-16.png",
+      "bytes": 428,
+      "sha256": "1266a6295d799e9ef9e9a2dcaf46e5118be7f96921b38e2966602ea55343b4af"
+    },
+    {
+      "path": "icons/favicon-light-32.png",
+      "bytes": 765,
+      "sha256": "4bf0fdeebe73fae5c9c55053ed2de0729a21364d674fe698a86401ac3c8ec2b6"
+    },
+    {
+      "path": "icons/favicon-light-48.png",
+      "bytes": 1148,
+      "sha256": "cf30954d5926b0fe40c32adbc72298b133a79c2a17521767ddafb4672b5fca07"
+    },
+    {
+      "path": "icons/favicon-light-64.png",
+      "bytes": 1429,
+      "sha256": "fd81df0a1f731399a5b7862697d883b996339fb1044d6c17cf8d913916b03219"
+    },
+    {
+      "path": "icons/favicon-light.ico",
+      "bytes": 19027,
+      "sha256": "f09045b8d6286aa7062058309338c5187f5175c2a81d50f6f7854d0a99c8ad32"
+    },
+    {
+      "path": "icons/favicon-light.png",
+      "bytes": 765,
+      "sha256": "4bf0fdeebe73fae5c9c55053ed2de0729a21364d674fe698a86401ac3c8ec2b6"
+    },
+    {
+      "path": "icons/favicon-light.svg",
+      "bytes": 555,
+      "sha256": "b89f1306ad0222ac76e14232f915f9dfd9c93e9d97ec46b8e4984ed49ffea350"
+    },
+    {
+      "path": "icons/favicon.ico",
+      "bytes": 19241,
+      "sha256": "7bd258e3afa4e89d9be371d9f16ecea06e477da9c26a5e674ad5ae0487394724"
+    },
+    {
+      "path": "icons/favicon.svg",
+      "bytes": 554,
+      "sha256": "acd16c1380399a65cd0d67ce47a53014097a1b88df6ea04e10889f34c37cc5f0"
+    },
+    {
+      "path": "icons/kai-app-dark-1024.png",
+      "bytes": 20246,
+      "sha256": "d5e08f71a40fb10c2dab4dd1ce0af5e1a03b472d5dc4fcb5e7a79faef250203e"
+    },
+    {
+      "path": "icons/kai-app-dark-128.png",
+      "bytes": 2198,
+      "sha256": "592a5c9970bff306e9d99cf3fd50cfd4a5e668e3737ba340762aac22f6820433"
+    },
+    {
+      "path": "icons/kai-app-dark-180.png",
+      "bytes": 3074,
+      "sha256": "57ac1b299cf64b217e9d0d38fcb5c1df84eeef3ae2068783b3658b16c7bae2e4"
+    },
+    {
+      "path": "icons/kai-app-dark-192.png",
+      "bytes": 3412,
+      "sha256": "458ca6a11cec2e89ad9c93764b11a3a94ba9079558a26b680d36e1cd75fec4d8"
+    },
+    {
+      "path": "icons/kai-app-dark-256.png",
+      "bytes": 4359,
+      "sha256": "4b5136721269748aa81d3264ff7f2d3d05ac03a0eb28828a177a72aa928eea24"
+    },
+    {
+      "path": "icons/kai-app-dark-512.png",
+      "bytes": 9128,
+      "sha256": "6a73306f8b9a2b1e4233f4071184134bb0d2ea21902ddd1914e647003eba43de"
+    },
+    {
+      "path": "icons/kai-app-dark-64.png",
+      "bytes": 1123,
+      "sha256": "dee377b0c881aea6eff3393e4942c8a3a0782254ed45ea7e7d82d67af95d698f"
+    },
+    {
+      "path": "icons/kai-app-dark.svg",
+      "bytes": 1592,
+      "sha256": "e3f5bff6ded46eabb30cc8a82d7eacbbb5ffc52175bd842c6fb7df012bdc854c"
+    },
+    {
+      "path": "icons/kai-app-light-1024.png",
+      "bytes": 19667,
+      "sha256": "3eddb024f48ec56ad25e31fb1c9ffbdf7cbda223aa3a44b04b9242f4d09b0ee3"
+    },
+    {
+      "path": "icons/kai-app-light-128.png",
+      "bytes": 2142,
+      "sha256": "eec63e2064026d40d6b63c42326eaf5d5722b778f337220486c0037a3fa8f795"
+    },
+    {
+      "path": "icons/kai-app-light-180.png",
+      "bytes": 3037,
+      "sha256": "b8bac4c3a620dad64016a926d66e1586c5bbca8e5b2cb0bb07fbd63f0bd6db56"
+    },
+    {
+      "path": "icons/kai-app-light-192.png",
+      "bytes": 3264,
+      "sha256": "490b7d7bfdc4cb7c9a49e337e0886d280f9032d5db9c72565804edc650548b1c"
+    },
+    {
+      "path": "icons/kai-app-light-256.png",
+      "bytes": 4277,
+      "sha256": "23b4e04b859a6b7f566a03d1d213baaeab4e00b4a34ad50fffb5f998b8e812a3"
+    },
+    {
+      "path": "icons/kai-app-light-512.png",
+      "bytes": 8886,
+      "sha256": "9226ac85a070a3707e77821e6fbc8dfc34ab1367f47c7aadd6c93416fcb4f549"
+    },
+    {
+      "path": "icons/kai-app-light-64.png",
+      "bytes": 1114,
+      "sha256": "99140157c1967010debbfe8a9d070c589f05435eb2ae8b858d3742670862863f"
+    },
+    {
+      "path": "icons/kai-app-light.svg",
+      "bytes": 1593,
+      "sha256": "46e6c74e5c5c826bb93312fb673c6a4a5f3c3134cd36b1648117f3b1bed60ea7"
+    },
+    {
+      "path": "icons/kai-app-maskable-1024.png",
+      "bytes": 19213,
+      "sha256": "36966626e8127ee0c43a0047aadeebf59ac7d55c05298524fe26ba6d7adc76fa"
+    },
+    {
+      "path": "icons/kai-app-maskable-192.png",
+      "bytes": 3225,
+      "sha256": "a03f58a66e47eb216d247356131c9068cc9f2eba73183cfdf8043d9f2b844fce"
+    },
+    {
+      "path": "icons/kai-app-maskable-512.png",
+      "bytes": 8557,
+      "sha256": "4d3c1f1abd37479a07d3c3fdf9ae886f5b869985143669081d74430c0d5e9bdf"
+    },
+    {
+      "path": "icons/kai-app-maskable-dark-1024.png",
+      "bytes": 19213,
+      "sha256": "36966626e8127ee0c43a0047aadeebf59ac7d55c05298524fe26ba6d7adc76fa"
+    },
+    {
+      "path": "icons/kai-app-maskable-dark-192.png",
+      "bytes": 3225,
+      "sha256": "a03f58a66e47eb216d247356131c9068cc9f2eba73183cfdf8043d9f2b844fce"
+    },
+    {
+      "path": "icons/kai-app-maskable-dark-512.png",
+      "bytes": 8557,
+      "sha256": "4d3c1f1abd37479a07d3c3fdf9ae886f5b869985143669081d74430c0d5e9bdf"
+    },
+    {
+      "path": "icons/kai-app-maskable-dark.svg",
+      "bytes": 1602,
+      "sha256": "19cf3ff8dad06e21bdbc828429ab24578755e9bc9e3125f4b463b1859abc6d27"
+    },
+    {
+      "path": "icons/kai-app-maskable-light-1024.png",
+      "bytes": 18665,
+      "sha256": "99b9fc5d8761d409cc160c16c05cd258429548e06887ab33aa01fc5ca8ec79bc"
+    },
+    {
+      "path": "icons/kai-app-maskable-light-192.png",
+      "bytes": 3162,
+      "sha256": "93914814690826c95a8a5c00286be6a0caf41d11d02dc89463a45d75a14f4a56"
+    },
+    {
+      "path": "icons/kai-app-maskable-light-512.png",
+      "bytes": 8379,
+      "sha256": "d488bb9339e3fb5008f477456d04117455524e39fbe4da5b024721722ead9682"
+    },
+    {
+      "path": "icons/kai-app-maskable-light.svg",
+      "bytes": 1603,
+      "sha256": "144453706aa835bef28ec459f000703607505123df6923be3bc5275359bcddc8"
+    },
+    {
+      "path": "icons/kai-app-maskable.svg",
+      "bytes": 1607,
+      "sha256": "e00c5be5bc06a22bfc51a854393295d53c1c0187bec3848578921c6a09da9960"
+    },
+    {
+      "path": "icons/kai-app-mono-black-1024.png",
+      "bytes": 14904,
+      "sha256": "c1893aaac8c4f4f45efc3169dae514243aa12f6c3456e956bcbd3fa094f859a5"
+    },
+    {
+      "path": "icons/kai-app-mono-black-192.png",
+      "bytes": 2179,
+      "sha256": "4bec4541b4d223b29502bc4aaa39a31cfb528e2ad270e9165d6e58af3f50067b"
+    },
+    {
+      "path": "icons/kai-app-mono-black-512.png",
+      "bytes": 6492,
+      "sha256": "8f96ef6128e6e50ac8d2d8f4e110053ad1ded0d5195c8a6609c65a51dfaae5a0"
+    },
+    {
+      "path": "icons/kai-app-mono-black.svg",
+      "bytes": 1792,
+      "sha256": "ee67eea546eea62e5e6a7d77c6ae40baaf39fb41f4bfd4d0a3e49c8b43b39d68"
+    },
+    {
+      "path": "icons/kai-app-mono-white-1024.png",
+      "bytes": 15875,
+      "sha256": "c1eeb815201482d234cc5402a2e932be3039568e99a2eac2373e7218bb7b17e7"
+    },
+    {
+      "path": "icons/kai-app-mono-white-192.png",
+      "bytes": 2396,
+      "sha256": "30328ff453d2b9a4ea3b95baa403d30fc8cc5866344bb6b266def1955d4ce76d"
+    },
+    {
+      "path": "icons/kai-app-mono-white-512.png",
+      "bytes": 7081,
+      "sha256": "f7a138dae56ddd0f9d320d43da85fee6f2384e73fbffe9814deae696af555d55"
+    },
+    {
+      "path": "icons/kai-app-mono-white.svg",
+      "bytes": 1792,
+      "sha256": "3d061faa4aad6d3807678da90290a0d6ddaa73149f80d893c3ac770bcc6de630"
+    },
+    {
+      "path": "icons/kai-app-simplified-dark-1024.png",
+      "bytes": 13857,
+      "sha256": "8ff37ee42ce8ef0730db486ec32966a9687b10e24820e1d2979a21174e2deec0"
+    },
+    {
+      "path": "icons/kai-app-simplified-dark-192.png",
+      "bytes": 2697,
+      "sha256": "5f35d014db2210aa5b35cee17ad5d1ff052920774853d7de038474bc6f305b36"
+    },
+    {
+      "path": "icons/kai-app-simplified-dark-512.png",
+      "bytes": 6177,
+      "sha256": "dfb8ccc556402c897dc262b85494249cf37bebebe68ba03ee660635ac8b5bd10"
+    },
+    {
+      "path": "icons/kai-app-simplified-dark.svg",
+      "bytes": 616,
+      "sha256": "85d74054f93e6a11fe20576b2bb793f510181621edd0311640686cb756615ba5"
+    },
+    {
+      "path": "icons/kai-app-simplified-light-1024.png",
+      "bytes": 13143,
+      "sha256": "9f5df948dbd63932eba2a493fc1d1e5ca1a5675674d0b629d4b9c013e52c7ffb"
+    },
+    {
+      "path": "icons/kai-app-simplified-light-192.png",
+      "bytes": 2551,
+      "sha256": "e49c1ff54c71dd0d352333091d8920c41ce2a8e21983111fd5b7029b599e4fe7"
+    },
+    {
+      "path": "icons/kai-app-simplified-light-512.png",
+      "bytes": 5877,
+      "sha256": "47efa92f3f4c9c4943393e3695476d1b27d9eb8d01eb2db7892d4375ba05f325"
+    },
+    {
+      "path": "icons/kai-app-simplified-light.svg",
+      "bytes": 617,
+      "sha256": "6c24fe981fbce0a4e55ca90c180c22556a02fe569a5d5c4efd9350547a719f17"
+    },
+    {
+      "path": "icons/kai-icon-mono-black-398.png",
+      "bytes": 5696,
+      "sha256": "0ece61e357565d19b1c004d03931d61b0998c111abd6a43ae6db7da7b39163a9"
+    },
+    {
+      "path": "icons/kai-icon-mono-black-796.png",
+      "bytes": 12317,
+      "sha256": "c583757a2e609b0f38615668ea7216182cb561a3953d187d6ed66715e3bc7b32"
+    },
+    {
+      "path": "icons/kai-icon-mono-black.svg",
+      "bytes": 1672,
+      "sha256": "455b275771f3e1ee42aaccf6d323e549f3fac139508d06721f6696aeb4260e44"
+    },
+    {
+      "path": "icons/kai-icon-mono-white-398.png",
+      "bytes": 6178,
+      "sha256": "b2db016e919f092c6dfb3b9d7ada08afc36dcdc95828592dedee2afe983cd2ab"
+    },
+    {
+      "path": "icons/kai-icon-mono-white-796.png",
+      "bytes": 13264,
+      "sha256": "5756fba32f30597ab858cd909d234c288e0b439c3445d62ea920e6fb02eaa392"
+    },
+    {
+      "path": "icons/kai-icon-mono-white.svg",
+      "bytes": 1672,
+      "sha256": "f772cbcdcee5aaefcaf9b8a8599692a285f2d6727c7f2dca90fd406fcbf3607e"
+    },
+    {
+      "path": "icons/kai-icon-on-dark-398.png",
+      "bytes": 7985,
+      "sha256": "d4fd03b907de1e22448019638f66109494e0ecb2e37c500168f7151051bc0dcd"
+    },
+    {
+      "path": "icons/kai-icon-on-dark-796.png",
+      "bytes": 16863,
+      "sha256": "d2c48da66cf6369577c2a49dc46a8a042e0ac5b0e039e844289d07a706b0ecc3"
+    },
+    {
+      "path": "icons/kai-icon-on-dark.svg",
+      "bytes": 1456,
+      "sha256": "953802f962cb376822c8ba582e41d0cc315393e5c27aa722452a6f3878a73436"
+    },
+    {
+      "path": "icons/kai-icon-on-light-398.png",
+      "bytes": 7986,
+      "sha256": "d76acf1226a8361eade85a6ed52aa79ddfb9b27b1a1f5927725495edbf6bb497"
+    },
+    {
+      "path": "icons/kai-icon-on-light-796.png",
+      "bytes": 16847,
+      "sha256": "81f45494fb22daf60e36bcee8c43cc07aa7ca1e51a5616566b27a0ab14ddfbbc"
+    },
+    {
+      "path": "icons/kai-icon-on-light.svg",
+      "bytes": 1457,
+      "sha256": "02842675a4172fe2a5967917395e4049a786519daac84d6fcaa09afc52b12b39"
+    },
+    {
+      "path": "icons/kai-simplified-dark-128.png",
+      "bytes": 2838,
+      "sha256": "bb0bbeceb7ccd5f7e82f858ca6a548c3ee8ba9258e1fe50857162821f1207ca6"
+    },
+    {
+      "path": "icons/kai-simplified-dark-16.png",
+      "bytes": 475,
+      "sha256": "a91a96d76b0d7515a0f1e0f227c8dbc2565870d784bf0a24c83e16429e3a6abc"
+    },
+    {
+      "path": "icons/kai-simplified-dark-256.png",
+      "bytes": 5653,
+      "sha256": "12722a1eed33843f4fc67ae76d4579dda14884a111534aa07a1d43dc60c753aa"
+    },
+    {
+      "path": "icons/kai-simplified-dark-32.png",
+      "bytes": 795,
+      "sha256": "13cce9e3448cd8bb5366c04beed2d45f72037baf6dc1c9f4a9323aef9b950b3c"
+    },
+    {
+      "path": "icons/kai-simplified-dark-48.png",
+      "bytes": 1203,
+      "sha256": "bb68d64c3a5aca384457898fc431901e530ae9cb8246399b555fe9a4eb3f2e0f"
+    },
+    {
+      "path": "icons/kai-simplified-dark-512.png",
+      "bytes": 12110,
+      "sha256": "3704c9d628d83000f39bb99b36802bc23f35d48fe8bf1f33938f113a30943b40"
+    },
+    {
+      "path": "icons/kai-simplified-dark-64.png",
+      "bytes": 1491,
+      "sha256": "558cee534345b0a6ade490eb7468399d601c6de5694c7d4d242e9b6534ff7e7a"
+    },
+    {
+      "path": "icons/kai-simplified-dark.svg",
+      "bytes": 554,
+      "sha256": "acd16c1380399a65cd0d67ce47a53014097a1b88df6ea04e10889f34c37cc5f0"
+    },
+    {
+      "path": "icons/kai-simplified-light-128.png",
+      "bytes": 2725,
+      "sha256": "c5c294337dac36599d7e4e7d25b4d04b670d51ffba8d49c2de0ddcc688eb8b2e"
+    },
+    {
+      "path": "icons/kai-simplified-light-16.png",
+      "bytes": 428,
+      "sha256": "1266a6295d799e9ef9e9a2dcaf46e5118be7f96921b38e2966602ea55343b4af"
+    },
+    {
+      "path": "icons/kai-simplified-light-256.png",
+      "bytes": 5431,
+      "sha256": "d8a61e53a16510fae914184e16783d2f8733e2f5e1388349d322f1a202ab61c4"
+    },
+    {
+      "path": "icons/kai-simplified-light-32.png",
+      "bytes": 765,
+      "sha256": "4bf0fdeebe73fae5c9c55053ed2de0729a21364d674fe698a86401ac3c8ec2b6"
+    },
+    {
+      "path": "icons/kai-simplified-light-48.png",
+      "bytes": 1148,
+      "sha256": "cf30954d5926b0fe40c32adbc72298b133a79c2a17521767ddafb4672b5fca07"
+    },
+    {
+      "path": "icons/kai-simplified-light-512.png",
+      "bytes": 11621,
+      "sha256": "de9aefbc737c31abc865b7fe99630fc574444ea90bd231d2e5756e2ac2cc474c"
+    },
+    {
+      "path": "icons/kai-simplified-light-64.png",
+      "bytes": 1429,
+      "sha256": "fd81df0a1f731399a5b7862697d883b996339fb1044d6c17cf8d913916b03219"
+    },
+    {
+      "path": "icons/kai-simplified-light.svg",
+      "bytes": 555,
+      "sha256": "b89f1306ad0222ac76e14232f915f9dfd9c93e9d97ec46b8e4984ed49ffea350"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black-128.png",
+      "bytes": 1491,
+      "sha256": "99ed944d3e5a89a2d77183e54f830b7978a5687d3e9fc9c7754883d0a7c318ea"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black-16.png",
+      "bytes": 253,
+      "sha256": "593bad22c01fc7ffac8142667174ea421ae30554a90cfb3e8db07bd125af70c4"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black-256.png",
+      "bytes": 3229,
+      "sha256": "6a893b9f4aceba69b3cf1c5f8deff7f07c50c6211a8f606bb759cd201efd5d3d"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black-32.png",
+      "bytes": 366,
+      "sha256": "5fdb438cc4ec64617ab3d8ee1ed2cd53cd5ab33df060f1ced31f6ad9d575dcde"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black-48.png",
+      "bytes": 593,
+      "sha256": "0e76a7e107e0dde192ec0a061da3d31cdc78c9c1d637d4f5a745762a054c6451"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black-512.png",
+      "bytes": 6985,
+      "sha256": "11511a0b9dd388690f2c8be7dcaf4f31ae0390f3140cd6cbac7534237b33131e"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black-64.png",
+      "bytes": 750,
+      "sha256": "1bde7d5ce1f6a3b69bfd532ddb5a5ad3ca9b1baf019d294070b0e0d43f353fda"
+    },
+    {
+      "path": "icons/kai-simplified-mono-black.svg",
+      "bytes": 647,
+      "sha256": "f07ae1bbee89fe48dd3840cb67131497b60d4a5449f58826f389d9de751e8ba3"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white-128.png",
+      "bytes": 1544,
+      "sha256": "254ba007b72ea2d38a75514bf01ccf78de85af613d12eafb1009c3bdbe58701b"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white-16.png",
+      "bytes": 267,
+      "sha256": "297c534e6adfab5e2534fdcf83019d660e6a968627de5346acd63236a32195d1"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white-256.png",
+      "bytes": 3062,
+      "sha256": "ef4bf1916a5049146113ce92c9d75a07a52cb306fddc80810be38e21f8beb048"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white-32.png",
+      "bytes": 413,
+      "sha256": "8762243bc11662c2b304e8d7777a8f93c98b1ecbe136e2d14af6dfa1a0e0417f"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white-48.png",
+      "bytes": 641,
+      "sha256": "4aa8cbcaede84b0059b3f74a1ab094e2f7c0dfb6678495f232946476f840f5f3"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white-512.png",
+      "bytes": 6913,
+      "sha256": "9452a4583a1f42df4036bf40e5e91e89b231b3b890fc4d1a354ef5cba4ca2ba3"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white-64.png",
+      "bytes": 799,
+      "sha256": "e8f77676d67b098d2eb7510f30b63faffca1d847377d7aaedce47be8cfbc92fc"
+    },
+    {
+      "path": "icons/kai-simplified-mono-white.svg",
+      "bytes": 647,
+      "sha256": "a0cce5a0c1d02c6cee5919dff725eb0afad445ab7549be25bac52c4b8d0e33bb"
+    },
+    {
+      "path": "index.html",
+      "bytes": 11605,
+      "sha256": "71cc6efcc8b0c6aaa7b9a1e4ac5bed771c13b9f3d9de2c1eab4a2679c79adfa7"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-mono-black.png",
+      "bytes": 15805,
+      "sha256": "b51cb3d3b4b18f715f1f7bd8375044c3a84ec1fdb216ae85f45a9ec379192e17"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-mono-black.svg",
+      "bytes": 5090,
+      "sha256": "cd7063d20279a6057eefac3ca50705652be3e27fc4b333bd9c65898400caa69f"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-mono-white.png",
+      "bytes": 17259,
+      "sha256": "1ea074f358e79029933ffc6786c677b2c5f9cfba9d7414b76a8e45b5a2604bc4"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-mono-white.svg",
+      "bytes": 5090,
+      "sha256": "77f1dab47e552589c4832d5443362472298f0eb4e1ec8ebb4e4be4a6f215e935"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-on-dark.png",
+      "bytes": 26236,
+      "sha256": "407589d7ccaa1d8397d3996cd16c56765f4b5f70ab147c3617df8d1b58be3683"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-on-dark.svg",
+      "bytes": 4941,
+      "sha256": "fa2a262dadc6e6be9102b7f98233ff3b129b81cf24882bd27d55403b16a5b92e"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-on-light.png",
+      "bytes": 26031,
+      "sha256": "f8f19516a5f378789dca2975e6a81f3587ec5db8215c24426fa0f16654c7ffd3"
+    },
+    {
+      "path": "logos/kairos-horizontal-lockup-on-light.svg",
+      "bytes": 4942,
+      "sha256": "801470a65f3445f1b0b13943d9792de04eded1fce363531ef0a46d313baf6f9c"
+    },
+    {
+      "path": "logos/kairos-wordmark-mono-black-1636.png",
+      "bytes": 26798,
+      "sha256": "321cb0729441e8bc98739b7a3e657a647455bdab44622ad48fd9c40716138dc4"
+    },
+    {
+      "path": "logos/kairos-wordmark-mono-black-818.png",
+      "bytes": 12376,
+      "sha256": "554fe41cb8268fa64b98afe0b9e0c1ec2ec18fd7cd053c0b553296783bc826d9"
+    },
+    {
+      "path": "logos/kairos-wordmark-mono-black.svg",
+      "bytes": 3805,
+      "sha256": "c90e018dbea3a041d1bf4440507da461a77bec13fc26fc52c64d10c0f8166a04"
+    },
+    {
+      "path": "logos/kairos-wordmark-mono-white-1636.png",
+      "bytes": 29251,
+      "sha256": "1893502bdcab41691fbeef1810adacfb684e8a4c3e01cdee25db9450b53504a2"
+    },
+    {
+      "path": "logos/kairos-wordmark-mono-white-818.png",
+      "bytes": 13594,
+      "sha256": "2a8b15a75dcc09aecccd520bf0720e759615f6e4e626d67c8807adee2532817d"
+    },
+    {
+      "path": "logos/kairos-wordmark-mono-white.svg",
+      "bytes": 3805,
+      "sha256": "a981915bc75299f506f85f213a0ee2f3155e98877d1fb004307509287b6b0136"
+    },
+    {
+      "path": "logos/kairos-wordmark-on-dark-1636.png",
+      "bytes": 38122,
+      "sha256": "bf2dc21d463c46ae1930645091bbf52aee41b4990906b9f84481851d79f998ed"
+    },
+    {
+      "path": "logos/kairos-wordmark-on-dark-818.png",
+      "bytes": 18004,
+      "sha256": "f9924aca42737a406bc8c147377193623acb6dd85da21146172bc1a76683ca8e"
+    },
+    {
+      "path": "logos/kairos-wordmark-on-dark.svg",
+      "bytes": 3589,
+      "sha256": "4ff9b853bd182f3ec3e4ec0cd50622d4cac6406eae20594404f25b4ad6bb51e4"
+    },
+    {
+      "path": "logos/kairos-wordmark-on-light-1636.png",
+      "bytes": 38269,
+      "sha256": "74e5b202c886b9837c8ae4ce8f9ea568744cbffb3346ad53822911e27db528f3"
+    },
+    {
+      "path": "logos/kairos-wordmark-on-light-818.png",
+      "bytes": 17986,
+      "sha256": "c348de150ee0f0ea97383d5980666ad3bba8c7d3e7fa33f14cd949b784220a68"
+    },
+    {
+      "path": "logos/kairos-wordmark-on-light.svg",
+      "bytes": 3590,
+      "sha256": "3f3d8721e5b491ec5035b085306f6cff5d11425484b0beeb5271c631a9175c7b"
+    },
+    {
+      "path": "palette/contrast-report.json",
+      "bytes": 12541,
+      "sha256": "d4a53e7c604d27d83401634cce8081050d77064224846d55277f6a4414303a4b"
+    },
+    {
+      "path": "palette/kairos-accent-variants.css",
+      "bytes": 1310,
+      "sha256": "247d578d3e5c63afdf2ead78b6326b5c0122f200144ec32320e98e3511a92d3a"
+    },
+    {
+      "path": "palette/kairos-dark.gpl",
+      "bytes": 398,
+      "sha256": "af9c5b590f87760119467d182e59baba94cd34a1398cb13444ac0ac0002cddb7"
+    },
+    {
+      "path": "palette/kairos-dark.json",
+      "bytes": 462,
+      "sha256": "9bff697467c7810177089003befa63c1179bc2dbd1ddf41d7bf7a17307c77ba3"
+    },
+    {
+      "path": "palette/kairos-green-dark.gpl",
+      "bytes": 403,
+      "sha256": "7987f7d4fe27bd6ebb7ff6079ad731f6240e19d2e3570fde9a8a273aa42df1b7"
+    },
+    {
+      "path": "palette/kairos-green-dark.json",
+      "bytes": 504,
+      "sha256": "d100c47184ab48c09d5b7022f4817a77ca747ec2781a6e9fb4dba5c2ee962970"
+    },
+    {
+      "path": "palette/kairos-green-dark.png",
+      "bytes": 146122,
+      "sha256": "fd54c9a40da8dcd3983900791acf680a37a91f4cbdb739c67fc80285161c01da"
+    },
+    {
+      "path": "palette/kairos-green-dark.svg",
+      "bytes": 199905,
+      "sha256": "f0f52b0b69edfbbb6c09f7ad6b5a4b19ffc5b29ca0c59629172e079ab3161d72"
+    },
+    {
+      "path": "palette/kairos-green-light.gpl",
+      "bytes": 404,
+      "sha256": "df0c7c8b8750e3337d1f7bf86c271ef734ad36f0df9211bb87d4b77def9fad11"
+    },
+    {
+      "path": "palette/kairos-green-light.json",
+      "bytes": 505,
+      "sha256": "82580901ec696b8e312e25ce7e0489e82e1d140bd134a318462361dd296ece40"
+    },
+    {
+      "path": "palette/kairos-green-light.png",
+      "bytes": 143790,
+      "sha256": "56976f499a0dec3cd32873c83cdbfcca48317953fc79d15deb4d922316c9ae67"
+    },
+    {
+      "path": "palette/kairos-green-light.svg",
+      "bytes": 201867,
+      "sha256": "1221d9279915ab498d098a5afc6249da9d9f988f2bf904272f79686a28a95e68"
+    },
+    {
+      "path": "palette/kairos-light.gpl",
+      "bytes": 399,
+      "sha256": "b995d9391ce7873cfcd3d9ded800de315657751d398488f170e1d9fe57f74b2f"
+    },
+    {
+      "path": "palette/kairos-light.json",
+      "bytes": 463,
+      "sha256": "d3aa714366ee9a68efafc46c1330c1fdfe19f4a72c74a7f290f9d79605bfc087"
+    },
+    {
+      "path": "palette/kairos-palette-dark.png",
+      "bytes": 249987,
+      "sha256": "582be611c22eca82a21d903b05ed27e21b8e6faa4819188d48e1603b16e5a627"
+    },
+    {
+      "path": "palette/kairos-palette-dark.svg",
+      "bytes": 395176,
+      "sha256": "c9158b729a2dae2725d7b5dd4c052219f1a3b2e4a01c095d1cb970d912a84807"
+    },
+    {
+      "path": "palette/kairos-palette-light.png",
+      "bytes": 248456,
+      "sha256": "75a42e5daf95e289022b477ffeea197703fb3d91a7ebe67b42308ae0531ac1ad"
+    },
+    {
+      "path": "palette/kairos-palette-light.svg",
+      "bytes": 396176,
+      "sha256": "1f18124a1ff69b35fd15b860a187a07088bf68664050ed8e848b5a7590e3b2ec"
+    },
+    {
+      "path": "palette/kairos-palette.css",
+      "bytes": 4232,
+      "sha256": "9ba3b3877effd5dcfc4428cccbc5fce2e76c3180fbf854c7cd6805d8f4f33fe7"
+    },
+    {
+      "path": "palette/kairos-palette.gpl",
+      "bytes": 859,
+      "sha256": "bc9a6415f70d2a1244256d54b85ccfb6bc92c80680fd69adeaed2b392542cbc4"
+    },
+    {
+      "path": "palette/kairos-palette.json",
+      "bytes": 12465,
+      "sha256": "9699e9745ed7d6b051d912b4c040baff532c4989bcc2cdfc4ae3a6e9b68dda0d"
+    },
+    {
+      "path": "palette/kairos-palette.png",
+      "bytes": 249987,
+      "sha256": "582be611c22eca82a21d903b05ed27e21b8e6faa4819188d48e1603b16e5a627"
+    },
+    {
+      "path": "palette/kairos-palette.svg",
+      "bytes": 395176,
+      "sha256": "c9158b729a2dae2725d7b5dd4c052219f1a3b2e4a01c095d1cb970d912a84807"
+    },
+    {
+      "path": "palette/kairos-red-dark.gpl",
+      "bytes": 401,
+      "sha256": "74c2a10e5a2bcbef9e241cbe722f1c7d7f71e788d078a930df68e5a61eaa4100"
+    },
+    {
+      "path": "palette/kairos-red-dark.json",
+      "bytes": 502,
+      "sha256": "57b6b3076a03bed6a2c24bfc83ce76e8b4fc022d456b3e21184f78f27db6d30f"
+    },
+    {
+      "path": "palette/kairos-red-dark.png",
+      "bytes": 145097,
+      "sha256": "60f0375cd499c56ca154a963574a228ac7c5b4a4a3e21453b5a9586f6d56d8a4"
+    },
+    {
+      "path": "palette/kairos-red-dark.svg",
+      "bytes": 199380,
+      "sha256": "fd23e86beabfbe8e3c19caf1748d918fd4b8dbf8b988713be4f493175838eeac"
+    },
+    {
+      "path": "palette/kairos-red-light.gpl",
+      "bytes": 402,
+      "sha256": "dec66c9d938c902d9c7bdd8a689465e83f4625e173e73ea52f802a541755102e"
+    },
+    {
+      "path": "palette/kairos-red-light.json",
+      "bytes": 503,
+      "sha256": "7e2f1f76542217a7637724002ab9f9cf6cd356c1d05b699ea5321dc405fe6d79"
+    },
+    {
+      "path": "palette/kairos-red-light.png",
+      "bytes": 144240,
+      "sha256": "307884b6713bb2a62f4ad54e991285ce43525ff781a19d9c8c946a110a121f65"
+    },
+    {
+      "path": "palette/kairos-red-light.svg",
+      "bytes": 201500,
+      "sha256": "65389d8580f6923b4c2b637ca55336e175bcc4d14abfba18c128b078d3c6dd29"
+    },
+    {
+      "path": "palette/kairos-violet-dark.gpl",
+      "bytes": 404,
+      "sha256": "79ecae7b636655182b2367da9c76e8a3c853afeabbce3c11957fda470445be06"
+    },
+    {
+      "path": "palette/kairos-violet-dark.json",
+      "bytes": 505,
+      "sha256": "a0f333973a92083305142414dde2bc011527e594de4c351d7023d43782513ffd"
+    },
+    {
+      "path": "palette/kairos-violet-dark.png",
+      "bytes": 146963,
+      "sha256": "ff71e365a41b0a5450171d4f1884980f3874914c2fffc246a076bd28f8329759"
+    },
+    {
+      "path": "palette/kairos-violet-dark.svg",
+      "bytes": 199946,
+      "sha256": "1b47a15dbbc390ce9b6c70024ea8e62b7a7770f57c0239a9d35cbd66cca3557f"
+    },
+    {
+      "path": "palette/kairos-violet-light.gpl",
+      "bytes": 405,
+      "sha256": "393b274edc2fc7494907ca3bcfdc2c2f2f4357a4ff880761334de5c12f50d5c2"
+    },
+    {
+      "path": "palette/kairos-violet-light.json",
+      "bytes": 506,
+      "sha256": "1f9aa86e116245bad175eff513756e05131719f8cb2757b23b81f1b8f4465a82"
+    },
+    {
+      "path": "palette/kairos-violet-light.png",
+      "bytes": 146631,
+      "sha256": "af36b0848923fab0f65b119f25cd41a0b4773226b2124da0d9e3781af99ebf90"
+    },
+    {
+      "path": "palette/kairos-violet-light.svg",
+      "bytes": 202162,
+      "sha256": "df6c73e87b01bfd3b465551f0aa0de5f57db42274f38932cb9c04f813a5e139d"
+    },
+    {
+      "path": "source/brand-config.json",
+      "bytes": 12465,
+      "sha256": "9699e9745ed7d6b051d912b4c040baff532c4989bcc2cdfc4ae3a6e9b68dda0d"
+    },
+    {
+      "path": "source/selected-concept-09.png",
+      "bytes": 30231,
+      "sha256": "d0f94bc9435f5e8be92cc3a84ed3bb0453615d6bc2de70bb75afe93448d67971"
+    },
+    {
+      "path": "source/selected-concept-09.svg",
+      "bytes": 3681,
+      "sha256": "70935ccb64559689bf671cec517dea767482b9aece3b9797cb74ec3daeb2d6ee"
+    },
+    {
+      "path": "verification/asset-checks.json",
+      "bytes": 583,
+      "sha256": "e10dd1200f35ff9d35817ce41cd96e15fdf5cfab706cd98fb3ed4f1be7f27cf4"
+    },
+    {
+      "path": "verification/browser-checks.json",
+      "bytes": 1782,
+      "sha256": "3df6522c6015c71d5e1c03643fa7d6120796987a8533273a4ddc3a4eb4280287"
+    },
+    {
+      "path": "web-template/FONTS.md",
+      "bytes": 1846,
+      "sha256": "0effc0c867e361ff253ec21363f9e93029b1a587bfc88e80a5849bbaf163aa28"
+    },
+    {
+      "path": "web-template/README.md",
+      "bytes": 2796,
+      "sha256": "3cb5e5c77f657a09a69354b578fc610dc8aa4719f0a9fa63ab46a532ea01e82e"
+    },
+    {
+      "path": "web-template/app.js",
+      "bytes": 12755,
+      "sha256": "5d46f4863168a8ad477e6075bfb8cb4274544cc64019b778ce9532a1358ff5be"
+    },
+    {
+      "path": "web-template/assets/apple-touch-icon.png",
+      "bytes": 3074,
+      "sha256": "57ac1b299cf64b217e9d0d38fcb5c1df84eeef3ae2068783b3658b16c7bae2e4"
+    },
+    {
+      "path": "web-template/assets/favicon.ico",
+      "bytes": 19241,
+      "sha256": "7bd258e3afa4e89d9be371d9f16ecea06e477da9c26a5e674ad5ae0487394724"
+    },
+    {
+      "path": "web-template/assets/favicon.svg",
+      "bytes": 554,
+      "sha256": "acd16c1380399a65cd0d67ce47a53014097a1b88df6ea04e10889f34c37cc5f0"
+    },
+    {
+      "path": "web-template/assets/fonts/NotoSans-Bold.ttf",
+      "bytes": 631484,
+      "sha256": "1df075a380fc7cb898acf64c1f7b3b4dd780de3caa860178bf929de35817a913"
+    },
+    {
+      "path": "web-template/assets/fonts/NotoSans-Regular.ttf",
+      "bytes": 621572,
+      "sha256": "478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823"
+    },
+    {
+      "path": "web-template/assets/fonts/NotoSansMono-Regular.ttf",
+      "bytes": 596428,
+      "sha256": "65b5e2b2c4a1fba9ae8be1f026cb35b03dcb8886d9b2a4147054fde12f7e767d"
+    },
+    {
+      "path": "web-template/assets/fonts/OFL.txt",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "web-template/assets/kai-app-dark-192.png",
+      "bytes": 3412,
+      "sha256": "458ca6a11cec2e89ad9c93764b11a3a94ba9079558a26b680d36e1cd75fec4d8"
+    },
+    {
+      "path": "web-template/assets/kai-app-dark-512.png",
+      "bytes": 9128,
+      "sha256": "6a73306f8b9a2b1e4233f4071184134bb0d2ea21902ddd1914e647003eba43de"
+    },
+    {
+      "path": "web-template/assets/kai-app-maskable-512.png",
+      "bytes": 8557,
+      "sha256": "4d3c1f1abd37479a07d3c3fdf9ae886f5b869985143669081d74430c0d5e9bdf"
+    },
+    {
+      "path": "web-template/assets/kairos-wordmark-on-dark.svg",
+      "bytes": 3589,
+      "sha256": "4ff9b853bd182f3ec3e4ec0cd50622d4cac6406eae20594404f25b4ad6bb51e4"
+    },
+    {
+      "path": "web-template/assets/kairos-wordmark-on-light.svg",
+      "bytes": 3590,
+      "sha256": "3f3d8721e5b491ec5035b085306f6cff5d11425484b0beeb5271c631a9175c7b"
+    },
+    {
+      "path": "web-template/index.html",
+      "bytes": 23984,
+      "sha256": "b4dfa1d00f6ecedb8d97194dbe95394628a50e28bae6f0636590c1236b391156"
+    },
+    {
+      "path": "web-template/manifest.webmanifest",
+      "bytes": 545,
+      "sha256": "7fa01c5af9c2de26053d0a428ae20eb632b6ad63addadbf4644995b23698202b"
+    },
+    {
+      "path": "web-template/previews/components-green-dark.png",
+      "bytes": 185813,
+      "sha256": "cd6a4e9fc700d78b35a16f278c94f1c5cc89acc5efa0923246c8fbb44c560450"
+    },
+    {
+      "path": "web-template/previews/components-green-light.png",
+      "bytes": 177540,
+      "sha256": "3b9a012f1cd22a3cf15cebfbf7b6fb5ccebd494cc334a48dd04c4d00e78e3596"
+    },
+    {
+      "path": "web-template/previews/components-red-dark.png",
+      "bytes": 185676,
+      "sha256": "a4c944e2c1b0ffedb30c033e30c96152cb919d44372b1a0870c7cf68bd72b886"
+    },
+    {
+      "path": "web-template/previews/components-red-light.png",
+      "bytes": 176896,
+      "sha256": "f94e0a61665d6cea6743e698c0d8373f188d86df6013a669fa84308e1034d4eb"
+    },
+    {
+      "path": "web-template/previews/components-violet-dark.png",
+      "bytes": 186306,
+      "sha256": "47840833cde565d25b93f32bcf1d558c710691d5144f427560316ccc8d22e942"
+    },
+    {
+      "path": "web-template/previews/components-violet-light.png",
+      "bytes": 177285,
+      "sha256": "16ca6712fe806676c916f5e22c45b18816fb4075e1b4c4b81a34d78cd6033191"
+    },
+    {
+      "path": "web-template/previews/dashboard-green-dark.png",
+      "bytes": 175648,
+      "sha256": "b8d6a6a4e9107cbe457cf3ba981ff14b42cb7340f8dc9d1103085de3f80bdf0f"
+    },
+    {
+      "path": "web-template/previews/dashboard-green-light.png",
+      "bytes": 166928,
+      "sha256": "8a4fa8d2a027647c98625c8964da436fccc88d7b892089f0b32a20aeacb12562"
+    },
+    {
+      "path": "web-template/previews/dashboard-red-dark.png",
+      "bytes": 175335,
+      "sha256": "3c58092e4bad510d1066d0566fe5fa972ee40c709e76e8ac324f400aa2a59782"
+    },
+    {
+      "path": "web-template/previews/dashboard-red-light.png",
+      "bytes": 166648,
+      "sha256": "150668dbe7d949c32d4a0ff098808d85ab72982f0a8ca2dbbd43bd7a3438e4fa"
+    },
+    {
+      "path": "web-template/previews/dashboard-violet-dark.png",
+      "bytes": 176257,
+      "sha256": "eb1ab98436bf49f5a7de2d4f506b80da542c2ca361ada444c6e2729876722f4f"
+    },
+    {
+      "path": "web-template/previews/dashboard-violet-light.png",
+      "bytes": 166858,
+      "sha256": "21c7f6d0b164a596a08a0e7a070cecaf3eae2c568b9fd3fce01e4dd180b40c0f"
+    },
+    {
+      "path": "web-template/previews/mobile-green-dark.png",
+      "bytes": 113455,
+      "sha256": "004dbefd8663f70738ab3bee201ba19d53eb60b2adad77029abbac14d663f68c"
+    },
+    {
+      "path": "web-template/previews/mobile-green-light.png",
+      "bytes": 104896,
+      "sha256": "73868d9439450e5824e496ec1cff72b451284e19afccced440e01ad901009232"
+    },
+    {
+      "path": "web-template/previews/mobile-red-dark.png",
+      "bytes": 113596,
+      "sha256": "54aa722b7df0c7602929bbca5c24950a4d0499512dcd0b3db8ee65fded4a86db"
+    },
+    {
+      "path": "web-template/previews/mobile-red-light.png",
+      "bytes": 104785,
+      "sha256": "12098cb4f98a4558764af8c7b20c51498f2cb4dc8c72e1d024be1d5dc3eb12b1"
+    },
+    {
+      "path": "web-template/previews/mobile-violet-dark.png",
+      "bytes": 113673,
+      "sha256": "495bd269842db91fda2f7a3f9439c2a4ea4ba8c8954de7342e6b9c5b66240336"
+    },
+    {
+      "path": "web-template/previews/mobile-violet-light.png",
+      "bytes": 104663,
+      "sha256": "3b02b0238b3fb30176ec5db16655a1cbb4787f8068ee3750a14ddea7b5785933"
+    },
+    {
+      "path": "web-template/styles.css",
+      "bytes": 26663,
+      "sha256": "6973a1c6f2bcfc9c15dbed3dd17da3b4f3010692bc7c58e3ebde85710073376b"
+    },
+    {
+      "path": "web-template/tokens.css",
+      "bytes": 4232,
+      "sha256": "9ba3b3877effd5dcfc4428cccbc5fce2e76c3180fbf854c7cd6805d8f4f33fe7"
+    }
+  ]
+}

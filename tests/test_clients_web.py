@@ -299,6 +299,37 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 409)
         self.engine.kraken.add.assert_not_awaited()
 
+    async def test_program_api_requires_csrf_confirmation_and_preserves_holdings(self):
+        await self.engine.configure(
+            {**self.engine.settings, "strategy": "dca", "dca_count": 1, "dca_amount": "25"}
+        )
+        response = await self.client.post("/api/start", json={}, headers=self.headers())
+        self.assertEqual(response.status, 200)
+        await self.engine.tick()
+        before = self.engine.ledger()
+        response = await self.client.post("/api/start", json={}, headers=self.headers())
+        self.assertEqual(response.status, 409)
+        self.assertEqual(
+            (
+                await self.client.post(
+                    "/api/reset-program", json={"confirmation": "NEW STRATEGY RUN"}
+                )
+            ).status,
+            403,
+        )
+        self.assertEqual(
+            (await self.client.post("/api/reset-program", json={}, headers=self.headers())).status,
+            409,
+        )
+        response = await self.client.post(
+            "/api/reset-program", json={"confirmation": "NEW STRATEGY RUN"}, headers=self.headers()
+        )
+        self.assertEqual(response.status, 200)
+        self.assertIsNone((await response.json())["program"])
+        self.assertEqual(self.engine.ledger(), before)
+        self.engine.kraken.add.assert_not_awaited()
+        self.engine.jev.decide.assert_not_awaited()
+
     async def test_chart_candles_include_forming_bar_and_share_snapshot_across_tabs(self):
         path = f"/api/candles?pair={BTC.id}&interval=1"
         responses = await asyncio.gather(self.client.get(path), self.client.get(path))

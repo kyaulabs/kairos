@@ -1,0 +1,20 @@
+GIMP Palette
+Name: Kairos - dark
+Columns: 6
+# Semantic colors in sRGB.
+ 24  28  32	bg
+ 28  33  39	surface
+ 40  44  52	surface-raised
+ 53  57  62	border
+112 121 134	control-border
+218 218 218	text
+186 186 186	muted
+193 160 255	accent
+210 186 255	accent-hover
+ 22  16  34	on-accent
+ 40  44  52	accent-soft
+ 68 207 110	success
+255 115 120	danger
+224 222 113	warning
+126 182 255	info
+193 160 255	focus

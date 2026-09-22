@@ -20,7 +20,7 @@ class LiveChart {
     this.volumeClip = defs.append('clipPath').attr('id', `${prefix}-volume-clip`).append('rect');
     this.volumeGroup = this.svg.append('g').attr('class', 'volume-bars').attr('clip-path', `url(#${prefix}-volume-clip)`);
     this.volumeAxis = this.svg.append('g').attr('class', 'd3-axis');
-    this.volumeDivider = this.svg.append('line').attr('stroke', '#243348');
+    this.volumeDivider = this.svg.append('line').attr('stroke', 'var(--border)');
     this.volumeLabel = this.svg.append('text').attr('class', 'chart-tip');
     this.grid = this.svg.append('g').attr('class', 'd3-grid');
     this.plot = this.svg.append('g').attr('clip-path', `url(#${prefix}-clip)`);
@@ -29,7 +29,7 @@ class LiveChart {
     this.candleGroup = this.plot.append('g').attr('class', 'candles');
     this.fillGroup = this.plot.append('g').attr('class', 'fills');
     this.lastLine = this.plot.append('line').attr('stroke', color).attr('stroke-opacity', .45).attr('stroke-dasharray', '3 4');
-    this.lastDot = this.plot.append('circle').attr('r', 4).attr('fill', color).attr('stroke', '#101723').attr('stroke-width', 2);
+    this.lastDot = this.plot.append('circle').attr('r', 4).attr('fill', color).attr('stroke', 'var(--surface)').attr('stroke-width', 2);
     this.xAxis = this.svg.append('g').attr('class', 'd3-axis');
     this.yAxis = this.svg.append('g').attr('class', 'd3-axis');
     this.lastBadge = this.svg.append('rect').attr('class', 'last-price-badge');
@@ -165,7 +165,7 @@ class LiveChart {
       this.volumeGroup.selectAll('rect').data(visible, d => d.time).join('rect')
         .attr('x', d => this.x(center(d))-bodyWidth/2).attr('width', bodyWidth)
         .attr('y', d => volumeY(d.volume)).attr('height', d => bottom-volumeY(d.volume))
-        .attr('fill', d => d.value >= d.open ? '#3de0b1' : '#ff788d').attr('fill-opacity', .5);
+        .attr('fill', d => d.value >= d.open ? 'var(--success)' : 'var(--danger)').attr('fill-opacity', .5);
       this.volumeAxis.attr('transform', `translate(${width-m.right},0)`)
         .call(d3.axisRight(volumeY).ticks(2).tickFormat(d3.format('.3~s')).tickSize(0).tickPadding(12));
       this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-7).text(`Volume · ${this.volumeUnit || 'base asset'}`);
@@ -173,13 +173,13 @@ class LiveChart {
         const bar = enter.append('g').attr('class', 'candle');
         bar.append('line'); bar.append('rect');
         return bar;
-      }).attr('stroke', d => d.value >= d.open ? '#3de0b1' : '#ff788d');
+      }).attr('stroke', d => d.value >= d.open ? 'var(--success)' : 'var(--danger)');
       bars.select('line').attr('x1', d => this.x(center(d))).attr('x2', d => this.x(center(d)))
         .attr('y1', d => this.y(d.high)).attr('y2', d => this.y(d.low));
       bars.select('rect').attr('x', d => this.x(center(d))-bodyWidth/2).attr('width', bodyWidth)
         .attr('y', d => Math.min(this.y(d.open), this.y(d.value)))
         .attr('height', d => Math.max(1, Math.abs(this.y(d.open)-this.y(d.value))))
-        .attr('fill', d => d.value >= d.open ? '#3de0b1' : '#ff788d');
+        .attr('fill', d => d.value >= d.open ? 'var(--success)' : 'var(--danger)');
     } else {
       const line = d3.line().x(p => this.x(p.time)).y(p => this.y(p.value));
       const area = d3.area().x(p => this.x(p.time)).y0(height-m.bottom).y1(p => this.y(p.value));
@@ -187,7 +187,7 @@ class LiveChart {
     }
     const latest = this.points.at(-1), latestY = this.y(latest.value);
     const inView = center(latest) <= domain[1] && center(latest) >= domain[0];
-    const latestColor = this.intervalMs ? (latest.value >= latest.open ? '#3de0b1' : '#ff788d') : this.color;
+    const latestColor = this.intervalMs ? (latest.value >= latest.open ? 'var(--success)' : 'var(--danger)') : this.color;
     this.lastDot.attr('display', inView && !this.intervalMs ? null : 'none').attr('cx', this.x(center(latest))).attr('cy', latestY);
     this.lastLine.attr('display', inView ? null : 'none').attr('stroke', latestColor)
       .attr('x1', m.left).attr('x2', width-m.right).attr('y1', latestY).attr('y2', latestY);
@@ -195,12 +195,12 @@ class LiveChart {
       .attr('x', width-m.right).attr('y', latestY-10).attr('width', m.right).attr('height', 20).attr('fill', latestColor);
     this.lastLabel.attr('x', width-m.right+6).attr('y', inView && this.intervalMs ? latestY : m.top-10)
       .attr('dy', inView && this.intervalMs ? '.35em' : 0)
-      .style('fill', inView && this.intervalMs ? '#101723' : this.color)
+      .style('fill', inView && this.intervalMs ? 'var(--on-accent)' : this.color)
       .text(inView ? d3.format(',.5~f')(latest.value) : 'HISTORY');
     this.fillGroup.selectAll('path').data(this.fills, d => d.id).join('path')
       .attr('d', d3.symbol().type(d3.symbolTriangle).size(65))
       .attr('transform', d => `translate(${this.x(d.time)},${this.y(d.value)}) rotate(${d.side === 'sell' ? 180 : 0})`)
-      .attr('fill', d => d.side === 'buy' ? '#3de0b1' : '#ff788d').attr('stroke', '#101723').attr('stroke-width', 1.5);
+      .attr('fill', d => d.side === 'buy' ? 'var(--success)' : 'var(--danger)').attr('stroke', 'var(--surface)').attr('stroke-width', 1.5);
   }
   inspect(event) {
     if (!this.points.length || !this.x) return;

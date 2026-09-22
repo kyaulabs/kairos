@@ -1,10 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-accent="violet">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Kairos · Trading desk</title>
+  <meta name="theme-color" content="#181C20">
+  <meta name="description" content="Kairos trading workspace. Intelligence, with intention.">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/static/brand/favicon.ico">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <script src="/static/appearance.js"></script>
+  <link rel="stylesheet" href="/static/brand/palette.css">
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/vendor/d3.v7.9.0.min.js"></script>
   <script defer src="/static/chart.js"></script>
@@ -16,7 +23,7 @@
 </head>
 <body>
 <header class="desk-header">
-  <a class="brand" href="/" aria-label="Kairos trading desk">K<span>AI</span>ROS</a>
+  <a class="brand" href="/" aria-label="Kairos trading desk" title="Kairos · Intelligence, with intention."><img id="brand-wordmark" src="/static/brand/kairos-wordmark-on-dark.svg" alt="" width="120" height="31"><img id="brand-icon" src="/static/brand/kai-icon-on-dark.svg" alt="" width="48" height="25"></a>
   <h1 class="sr-only">Trading desk</h1>
   <button id="market-open" class="market-heading" type="button" aria-haspopup="dialog" aria-controls="market-dialog" title="Choose chart market; does not change the bot"><span class="market-symbol"><span id="market-icons" aria-hidden="true"></span><strong id="market-title">BTC/USD</strong></span><span class="eyebrow">CHART MARKET <span class="icon icon-chevron" aria-hidden="true">▾</span></span></button>
   <div class="metric market-price"><span>Mid price</span><strong id="price" title="Live bid/ask midpoint">—</strong></div>
@@ -50,8 +57,8 @@
     </section>
 
     <section id="assessment-panel" class="panel assessment-panel" aria-labelledby="assessment-title">
-      <div class="panel-head"><h2 id="assessment-title"><span class="icon icon-brain" aria-hidden="true">◇</span> Jev assessment</h2><span class="eyebrow">MODEL</span></div>
-      <div class="assessment-market"><span class="eyebrow">BOT MARKET</span><button id="bot-market" type="button" title="Show the bot’s configured market on the chart">—</button></div>
+      <div class="panel-head"><h2 id="assessment-title"><span class="icon icon-brain" aria-hidden="true">◇</span> <span id="assessment-label">Jev assessment</span></h2><span id="assessment-kind" class="eyebrow">MODEL</span></div>
+      <div class="assessment-market"><span id="bot-market-kind" class="eyebrow">BOT MARKET</span><button id="bot-market" type="button" title="Show the bot’s configured market on the chart">—</button></div>
       <div class="panel-scroll" tabindex="0" role="region" aria-label="Assessment details">
         <div class="decision"><strong id="decision">Waiting</strong><span id="confidence">—</span></div>
         <p id="decision-context" class="muted"></p>
@@ -59,7 +66,7 @@
         <p id="decision-market" class="muted"></p>
         <p id="model-info" class="muted">No assessment yet.</p>
         <details><summary>Decision inputs</summary><pre id="decision-inputs">No assessment yet.</pre></details>
-        <p class="disclaimer">A model assessment is not a calibrated probability of trading profit.</p>
+        <p id="assessment-disclaimer" class="disclaimer">A model assessment is not a calibrated probability of trading profit.</p>
       </div>
     </section>
 
@@ -118,20 +125,45 @@
               <div class="fields">
                 <label class="wide">Asset class<select id="asset-class"><option value="crypto">Crypto / currency spot markets</option><option value="xstocks" disabled>xStocks — browse only</option><option value="futures" disabled>Futures — browse only</option><option value="stocks" disabled>Brokerage stocks / ETFs — not integrated</option></select></label>
                 <div id="strategy-market" class="strategy-market wide">
-                  <label for="pair-search">Bot market</label>
+                  <label id="bot-market-label" for="pair-search">Bot market</label>
                   <input type="hidden" name="pair" id="pair">
                   <input id="pair-search" type="search" role="combobox" aria-expanded="false" aria-controls="pair-options" aria-autocomplete="list" aria-describedby="pair-help" autocomplete="off" spellcheck="false" placeholder="Search all markets…">
                   <div id="pair-options" class="pair-options" role="listbox" aria-label="Bot markets" hidden></div>
                   <p id="pair-status" class="muted" role="status"></p>
                   <p id="pair-help" class="muted">The full chart-picker catalog is shown. xStocks and futures are browse-only. Quote-currency and margin limitations are Kairos safeguards, not account restrictions. Choose a supported pair, then Save settings.</p>
                 </div>
-                <label class="wide">Strategy<select name="strategy"><option value="htf">Higher-timeframe trend</option><option value="maker">Market making</option><option value="arbitrage">Triangular arbitrage</option></select></label>
+                <label class="wide">Strategy<select name="strategy"><option value="htf">Higher-timeframe trend</option><option value="maker">Market making</option><option value="arbitrage">Triangular arbitrage</option><option value="dca">DCA · scheduled accumulation</option><option value="twap">TWAP · bounded order slicing</option><option value="rebalance">Threshold rebalancing</option></select></label>
                 <label class="wide">Product<select name="product"><option value="spot">Spot</option><option value="margin">Margin · paper only</option></select></label>
                 <label>Decision interval · sec<input name="interval_seconds" type="number" min="10" max="3600" step="1" required></label>
                 <label>HTF candle interval<select name="candle_minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
                 <label class="wide">Jev minimum confidence<input name="min_confidence" type="number" min="0" max="1" step="0.01" required></label>
               </div>
-              <details><summary>Other Kraken products</summary><p>Kairos now browses spot/FX, margin-eligible pairs, xStocks, and futures, with read-only Exchange accounts. Trading remains the existing currency-spot path and paper margin. xStocks are tokens, not brokerage shares; futures are contracts. DEX and brokerage shares remain unverified. New execution and DCA/TWAP/rebalancing require later milestones and pre-funded allocations.</p><a href="https://github.com/krakenfx/kraken-cli#what-you-can-trade" target="_blank" rel="noopener noreferrer">Kraken CLI product coverage</a></details>
+              <div id="program-settings" hidden>
+                <p class="settings-hint">Deterministic spot orders; no Jev calls. Paper and gated live use only bot allocations. Save settings before starting or creating a new run.</p>
+                <div class="fields" data-strategy="dca" hidden>
+                  <label>Purchase · USD incl. fees<input name="dca_amount" type="number" min="0.01" step="any" required></label>
+                  <label>Purchases<input name="dca_count" type="number" min="1" max="10000" step="1" required></label>
+                  <label class="wide">Purchase period · sec<input name="dca_period_seconds" type="number" min="10" max="31536000" step="1" required></label>
+                </div>
+                <div class="fields" data-strategy="twap" hidden>
+                  <label>Side<select name="twap_side"><option value="buy">Buy</option><option value="sell">Sell bot-owned inventory</option></select></label>
+                  <label>Total base quantity<input name="twap_quantity" type="number" min="0.00000001" step="any" required></label>
+                  <label>Parent limit · USD<input name="twap_limit" type="number" min="0.00000001" step="any" required></label>
+                  <label>Slices<input name="twap_slices" type="number" min="2" max="10000" step="1" required></label>
+                  <label class="wide">Total duration · sec<input name="twap_duration_seconds" type="number" min="20" max="31536000" step="1" required></label>
+                </div>
+                <div class="fields" data-strategy="rebalance" hidden>
+                  <label class="wide">Basket weights · percent<input name="rebalance_targets" type="text" maxlength="1000" placeholder="BTC/USD=50,ETH/USD=30,CASH=20" required aria-describedby="basket-help"></label>
+                  <p id="basket-help" class="wide muted">1–10 fixed-quote markets plus CASH; total 100%. Only listed bot-owned assets and allocated cash participate. Other holdings stay untouched; the anchor market does not choose the basket.</p>
+                  <label>Drift band · percentage points<input name="rebalance_band_pct" type="number" min="0.1" max="50" step="any" required></label>
+                  <label>Minimum trade · USD<input name="rebalance_min_trade" type="number" min="0.01" step="any" required></label>
+                  <label>UTC-day turnover · USD incl. fees<input name="rebalance_daily_turnover" type="number" min="0.01" step="any" required></label>
+                  <label>Cooldown · sec<input name="rebalance_cooldown_seconds" type="number" min="10" max="604800" step="1" required></label>
+                </div>
+                <p class="settings-hint">First check is immediate on Start. DCA/TWAP skip missed slices and pause on completion; no catch-up burst. Rebalancing sends at most one order per cooldown. No conversions or transfers to fund trades.</p>
+                <button id="new-program" type="button">New strategy run…</button>
+              </div>
+              <details><summary>Other Kraken products</summary><p>Kairos now browses spot/FX, margin-eligible pairs, xStocks, and futures, with read-only Exchange accounts. Trading remains the existing currency-spot path and paper margin. xStocks are tokens, not brokerage shares; futures are contracts. DEX and brokerage shares remain unverified. New asset-class execution still requires separate milestones. DCA, TWAP and rebalancing use the existing spot path with pre-funded allocations.</p><a href="https://github.com/krakenfx/kraken-cli#what-you-can-trade" target="_blank" rel="noopener noreferrer">Kraken CLI product coverage</a></details>
             </div>
             <div id="capital-settings" role="tabpanel" aria-labelledby="capital-tab" hidden>
               <div class="fields">
@@ -145,7 +177,7 @@
                 <label class="check wide"><input name="recover_initial" type="checkbox"> Recover original allocation once above 2× equity</label>
               </div>
               <div class="capital-actions"><button id="full-allocation" type="button">Use full starting allocation</button><button id="reset" type="button">Reset selected paper portfolio</button></div>
-              <details><summary>Allocation &amp; recovery</summary><p>Default: full starting allocation, fee reserve, and reinvestment; no scheduled end or profit target. With reinvestment enabled, order and exposure caps scale in proportion to equity versus starting capital. Save a new paper balance, then reset the paper portfolio to apply it.</p><p>Capital recovery is spot-only: above 2× original equity, sell enough inventory if needed and reserve the original allocation once. Reserved cash remains on Kraken but is excluded from this bot. No external withdrawal is made.</p></details>
+              <details><summary>Allocation &amp; recovery</summary><p>Default: full starting allocation, fee reserve, and reinvestment. Continuous strategies have no scheduled end or profit target; DCA/TWAP have finite runs. With reinvestment enabled, order and exposure caps scale in proportion to equity versus starting capital. Save a new paper balance, then reset the paper portfolio to apply it.</p><p>Capital recovery is spot-only: above 2× original equity, sell enough inventory if needed and reserve the original allocation once. Reserved cash remains on Kraken but is excluded from this bot. No external withdrawal is made.</p></details>
             </div>
             <div id="execution-settings" role="tabpanel" aria-labelledby="execution-tab" hidden>
               <div class="fields">
@@ -160,6 +192,11 @@
                 <label>Rollover / 4h · bps<input name="margin_rollover_bps" type="number" min="0" max="100" step="any" required></label>
                 <label>Maintenance ratio<input name="maintenance_ratio" type="number" min="0.1" max="0.9" step="0.01" required></label>
               </div>
+              <div class="fields appearance-controls">
+                <label>Color theme<select id="appearance-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+                <label>Interface accent<select id="appearance-accent"><option value="violet">Violet · signature</option><option value="green">Green</option><option value="red">Red</option></select></label>
+              </div>
+              <p id="appearance-status" class="muted" role="status">Appearance is local to this browser. Gains remain green; losses remain red.</p>
               <p class="disclaimer">100 bps = 1%. Paper fills are estimates, not a backtest. Margin uses a simplified cross-collateral model, not Kraken’s exact borrowing or liquidation rules.</p>
             </div>
           </div>

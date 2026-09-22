@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from kairos import margin
+from kairos import margin, programs
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, DEFAULTS, TERMINAL, ZERO, SafetyError, dec, floor, validate_settings
 from kairos.strategies import plan_cycle, plan_leg, trend_state, triangle
@@ -13,7 +13,13 @@ from kairos.strategies import plan_cycle, plan_leg, trend_state, triangle
 class Engine:
     def __init__(self, store, kraken, jev, publish):
         self.store, self.kraken, self.jev, self.publish = store, kraken, jev, publish
-        self.settings = validate_settings(store.get("settings", DEFAULTS))
+        # Migrate only newly introduced program fields; missing legacy risk fields still fail.
+        program_defaults = {
+            key: value
+            for key, value in DEFAULTS.items()
+            if key.startswith(("dca_", "twap_", "rebalance_"))
+        }
+        self.settings = validate_settings({**program_defaults, **store.get("settings", DEFAULTS)})
         self.mode = "dry-run"  # Never auto-resume live trading after a restart.
         self.running = False
         self.ready = False
@@ -73,6 +79,7 @@ class Engine:
             "orders": self.store.orders()[-100:],
             "cycle": self.store.get("cycle"),
             "margin": self.store.get("margin"),
+            "program": programs.snapshot(self),
             "capabilities": {
                 "crypto_spot": "paper-and-live",
                 "crypto_margin": "paper-only",
@@ -175,6 +182,8 @@ class Engine:
                 )
             if new["strategy"] == "arbitrage":
                 triangle(pair, self.kraken.pairs)
+            if new["strategy"] in programs.STRATEGIES:
+                programs.validate_markets(new, self.resolve)
             ledger = self.ledger("trading")
             delta = dec(new["live_budget"]) - dec(self.settings["live_budget"])
             if ledger and delta:
@@ -206,9 +215,27 @@ class Engine:
                 self.store.put("day:margin", None)
             else:
                 self.reset_ledger("dry-run", self.settings["paper_balance"])
+                for strategy in programs.STRATEGIES:
+                    self.store.put(f"program:dry-run:{strategy}", None)
             self.store.put("candle:dry-run", None)
             self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
             self.event("system", {"message": "Paper ledger reset; historical events retained"})
+            self.emit_state()
+
+    async def reset_program(self, confirmation):
+        async with self.lock:
+            if self.running or self.orders(active=True) or self.recovery_required:
+                raise SafetyError("Stop and reconcile all orders before rearming a strategy run")
+            if (
+                self.settings["strategy"] not in programs.STRATEGIES
+                or confirmation != "NEW STRATEGY RUN"
+            ):
+                raise SafetyError("Explicit new strategy run confirmation is required")
+            self.store.put(programs.key(self), None)
+            self.event(
+                "program",
+                {"message": "New run armed for next Start; holdings unchanged", "mode": self.mode},
+            )
             self.emit_state()
 
     async def live_preflight(self):
@@ -229,6 +256,8 @@ class Engine:
             if self.settings["strategy"] == "arbitrage"
             else [pair]
         )
+        if self.settings["strategy"] == "rebalance":
+            pairs = programs.validate_markets(self.settings, self.resolve)
         maker, taker = await self.kraken.fees(pairs)
         if any(
             taker[p.id] > dec(self.settings["taker_fee_bps"])
@@ -266,6 +295,7 @@ class Engine:
                 self.last_error = None
                 if was_running:
                     await self.valuation(enforce=True)
+                    programs.prepare(self)
                     self.running = True
                 self.event("mode", {"mode": mode, "running": self.running})
             finally:
@@ -279,9 +309,10 @@ class Engine:
                 raise SafetyError("Reconcile outstanding orders/cycle before starting")
             if self.mode == "trading":
                 await self.live_preflight()
-            if not self.jev.key:
+            if self.settings["strategy"] not in programs.STRATEGIES and not self.jev.key:
                 raise SafetyError("JEV_API_KEY is not configured")
             await self.valuation(enforce=True)
+            programs.prepare(self)
             self.running, self.last_error = True, None
             self.event("system", {"message": "Started", "mode": self.mode})
             self.emit_state()
@@ -604,7 +635,7 @@ class Engine:
         self.event("order", order)
         return order
 
-    async def place(self, pair, side, volume, price, book, maker=False):
+    async def place(self, pair, side, volume, price, book, maker=False, *, program=None):
         if not self.running:
             raise SafetyError("Engine is stopped")
         if self.orders(self.mode, True):
@@ -655,6 +686,10 @@ class Engine:
             status = await self.kraken.request("SystemStatus")
             if status.get("status") != "online":
                 raise SafetyError("Kraken trading is not online")
+            if program:
+                _, current_fees = await self.kraken.fees([pair])
+                if pair.id not in current_fees or current_fees[pair.id] > fee_bps:
+                    raise SafetyError("Current Kraken fees exceed the strategy's fee reserve")
             balances = await self.kraken.balances()
             if any(balances.get(asset, ZERO) < amount for asset, amount in needed.items()):
                 raise SafetyError("Insufficient exchange funds after holds")
@@ -664,6 +699,8 @@ class Engine:
         if not self.running:
             raise SafetyError("Engine stopped before order submission")
         now = time.time()
+        if program and now + 1 >= program["deadline"]:
+            raise SafetyError("Scheduled slot expired before submission; no late order sent")
         order = {
             "id": str(uuid.uuid4()),
             "txid": None,
@@ -686,7 +723,9 @@ class Engine:
             "cost": "0",
             "fee": "0",
         }
-        self.store.save_order(order)  # Durable intent before the network write.
+        if program:
+            order.update(program_id=program["id"], program_slot=program["slot"])
+        self.store.save_order(order)  # Durable intent and run identity before the network write.
         if self.mode == "dry-run":
             if maker:
                 order["status"] = "open"
@@ -714,6 +753,10 @@ class Engine:
                     timespec="milliseconds"
                 ),
             }
+            if program:
+                params["deadline"] = datetime.fromtimestamp(
+                    min(time.time() + 5, program["deadline"]), UTC
+                ).isoformat(timespec="milliseconds")
             if maker:
                 params["expiretm"] = "+30"
             try:
@@ -1032,7 +1075,9 @@ class Engine:
                 pair = self.resolve(self.settings["pair"])
                 recovered = await self.recover_capital()
                 if not recovered:
-                    if self.settings["strategy"] == "arbitrage":
+                    if self.settings["strategy"] in programs.STRATEGIES:
+                        await programs.run(self)
+                    elif self.settings["strategy"] == "arbitrage":
                         await self.arbitrage(pair)
                     else:
                         await self.directional(pair)
