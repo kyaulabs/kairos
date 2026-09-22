@@ -29,6 +29,7 @@ class FuturesTrading(Futures):
         super().__init__(session, key, secret)
         self.allow_live = allow_live
         self.pairs, self.metadata = {}, {}
+        self.account_uid = None
 
     async def get(self, method, params=None):
         if method not in self.PUBLIC | self.PRIVATE:
@@ -171,6 +172,14 @@ class FuturesTrading(Futures):
         rows, seen = [], set()
         for _ in range(50):
             data = await self.request(method, params, history=True)
+            identity = data["accountUid"]
+            if (
+                not isinstance(identity, str)
+                or not identity
+                or self.account_uid not in (None, identity)
+            ):
+                raise SafetyError("Futures history account identity changed")
+            self.account_uid = identity
             batch = data["logs" if method == "account-log" else "elements"]
             rows.extend(batch)
             if method == "account-log":
@@ -183,8 +192,7 @@ class FuturesTrading(Futures):
             else:
                 cursor = data.get("continuationToken")
                 if not cursor:
-                    if len(batch) >= 1000:
-                        raise SafetyError("Futures history may be truncated; remain stopped")
+                    # The documented continuation marker, not page fullness, signals more data.
                     return rows
                 if cursor in seen:
                     break

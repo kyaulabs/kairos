@@ -54,6 +54,7 @@ class FutureSession(Session):
 def fake_futures():
     client = FuturesTrading(None, "test-key", base64.b64encode(b"fixture-only").decode(), True)
     client.pairs, client.metadata = {PAIR.id: PAIR}, {PAIR.id: CONTRACT}
+    client.account_uid = "fixture-wallet"
     client.catalog = AsyncMock(return_value=client.pairs)
     client.book = AsyncMock(side_effect=lambda pair: book(pair, "99.9", "100", "100"))
     client.market = AsyncMock(
@@ -234,17 +235,24 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         client = FuturesTrading(None)
         client.request = AsyncMock(
             side_effect=[
-                {"elements": [{"uid": "1"}], "continuationToken": "next"},
-                {"elements": [{"uid": "2"}]},
+                {"accountUid": "wallet", "elements": [{"uid": "1"}], "continuationToken": "next"},
+                {"accountUid": "wallet", "elements": [{"uid": "2"}]},
             ]
         )
         self.assertEqual(await client.history("orders", 100), [{"uid": "1"}, {"uid": "2"}])
         self.assertEqual(client.request.call_args.args[1]["continuation_token"], "next")
-        client.request = AsyncMock(return_value={"elements": [{}] * 1000})
-        with self.assertRaisesRegex(SafetyError, "truncated"):
+        client.request = AsyncMock(return_value={"accountUid": "wallet", "elements": [{}] * 1000})
+        self.assertEqual(len(await client.history("orders", 100)), 1000)
+        client.request = AsyncMock(
+            return_value={"accountUid": "wallet", "elements": [{}], "continuationToken": "repeated"}
+        )
+        with self.assertRaisesRegex(SafetyError, "reconciliation budget"):
             await client.history("orders", 100)
         client.request = AsyncMock(
-            side_effect=[{"logs": [{"id": i} for i in range(1, 1001)]}, {"logs": [{"id": 1001}]}]
+            side_effect=[
+                {"accountUid": "wallet", "logs": [{"id": i} for i in range(1, 1001)]},
+                {"accountUid": "wallet", "logs": [{"id": 1001}]},
+            ]
         )
         self.assertEqual(len(await client.history("account-log", 100)), 1001)
         self.assertEqual(client.request.call_args.args[1]["from"], 1001)
@@ -764,6 +772,15 @@ class FuturesTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.start()
         await self.engine.tick()
         self.assertFalse(self.engine.latest_decision["state"]["short_entry_eligible"])
+        self.assertEqual(self.store.orders(), [])
+
+    async def test_changing_credentials_cannot_adopt_a_different_wallet(self):
+        self.spot.allow_live = True
+        await self.engine.set_mode("trading", "ENABLE LIVE FUTURES")
+        self.assertEqual(self.engine.futures.ledger()["account_uid"], "fixture-wallet")
+        self.client.account_uid = "different-wallet"
+        with self.assertRaisesRegex(SafetyError, "account crossover"):
+            await self.place()
         self.assertEqual(self.store.orders(), [])
 
     async def test_settings_migration_keeps_required_legacy_risk_validation(self):

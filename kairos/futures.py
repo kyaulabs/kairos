@@ -154,6 +154,10 @@ class FuturesDesk:
             execution = element["event"]["execution"]["execution"]
             if execution["order"].get("clientId") not in owned:
                 raise SafetyError("External Futures fill or liquidation detected; inspect account")
+        if ledger.get("account_uid") != self.client.account_uid:
+            raise SafetyError(
+                "Futures allocation belongs to another wallet; refusing account crossover"
+            )
         for row in (await self.client.get("openorders"))["openOrders"]:
             if row.get("cliOrdId") not in owned:
                 raise SafetyError("Untracked Futures order; dedicated wallet required")
@@ -284,7 +288,11 @@ class FuturesDesk:
                 raise SafetyError(
                     "Pre-fund a dedicated USD-only Futures wallet with exactly the configured allocation"
                 )
+            await self.client.history("orders", armed_at)
+            if not self.client.account_uid:
+                raise SafetyError("Futures account identity is unavailable")
             ledger = new_ledger(budget)
+            ledger["account_uid"] = self.client.account_uid
             ledger["armed_at"] = armed_at
             engine.store.put("futures:trading", ledger)
         if dec(self.ledger("trading")["initial"]) != budget:
