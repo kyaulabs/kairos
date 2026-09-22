@@ -1,0 +1,37 @@
+# Kraken CLI and Kairos
+
+Reviewed on 2026-09-22 against the official [krakenfx/kraken-cli](https://github.com/krakenfx/kraken-cli) source at [`aa56e5976be5afa6d8267eb6741f3a8844678fe9`](https://github.com/krakenfx/kraken-cli/tree/aa56e5976be5afa6d8267eb6741f3a8844678fe9). The latest published release checked was [v0.4.1](https://github.com/krakenfx/kraken-cli/releases/tag/v0.4.1). This was a source review and public, unauthenticated API check—not an installation, private-account test, or verification of account entitlements.
+
+The CLI is useful alongside Kairos for market research, account inspection, and isolated paper experiments. It wraps Kraken's APIs; it does not unlock products merely because they appear in the Kraken app. Kairos can call the same documented endpoints through its existing Python client without making the CLI an execution dependency.
+
+The earlier stock limitation needs a narrower statement: **no retail brokerage stock-order endpoint was found in the CLI and public Exchange documentation reviewed.** That is not proof that Kraken has no institutional, partner, or future equities API. Kraken does offer actual stock trading in its application. The CLI's advertised stock support refers to **xStocks**, and its equity/index futures are derivatives—not brokerage shares.
+
+| Kraken product | What the reviewed CLI exposes | What Kairos would need |
+|---|---|---|
+| Crypto spot | Public data, orders, balances, history, order amendment/cancellation | Already integrated natively. Current portfolio accounting fixes the quote currency. |
+| Crypto margin | Leveraged spot orders and position/account queries | Kairos currently simulates margin only. Live support needs borrowing fees, collateral, position reconciliation, and liquidation/eligibility handling. |
+| DEX | No DEX swap or on-chain transaction command found in the command tree/catalog | A separately verified DEX integration, including wallet signing, approvals, gas, slippage, and transaction confirmation. Do not route swaps through the spot ledger. |
+| Futures | Kraken Derivatives market data, orders, positions, funding, streaming, and a separate paper engine | A contract-aware adapter and separate derivatives accounting/risk/recovery. This does not establish access to every jurisdiction's futures product. |
+| Brokerage stocks/ETFs | No brokerage-share order path found; stock examples use xStocks | A documented applicable brokerage API and its permissions, sessions, settlement, corporate-action, and order-lifecycle rules. |
+| xStocks | `tokenized_asset` market data and orders using the spot API family | Explicit asset classification and tokenized-asset accounting/eligibility support. Never silently substitute these for shares. |
+| Fiat/FX and Earn | Fiat-pair requests, staking strategies, allocations, funding and transfers | Explicit catalog handling for FX; separate scope and authorization for staking or moving funds. |
+
+Public checks confirmed that an AAPLx ticker is available with `asset_class=tokenized_asset`, that the tokenized catalog exists, and that the Derivatives instruments endpoint responds. The CLI's `forex` catalog flag did not produce a forex-only result in the public probe; integrations should verify returned metadata instead of assuming the flag filters the catalog. Public listings do not prove that a particular key or account can place an order.
+
+Two implementation details rule out using this CLI as a drop-in live-execution replacement:
+
+1. **Do not share Kairos's API key with the CLI.** The reviewed CLI generates nanosecond nonces in [`src/auth.rs`](https://github.com/krakenfx/kraken-cli/blob/aa56e5976be5afa6d8267eb6741f3a8844678fe9/src/auth.rs#L20-L40); Kairos persists microsecond nonces. A CLI request can advance Kraken's nonce far beyond Kairos's stored value and cause subsequent Kairos requests to be rejected. Even a read-only authenticated request consumes a nonce. Use a separately issued least-privilege key for a companion process.
+2. **Timeout retry semantics differ.** The CLI's [`private_post`](https://github.com/krakenfx/kraken-cli/blob/aa56e5976be5afa6d8267eb6741f3a8844678fe9/src/client.rs#L142-L231) retries transient transport failures, including timeouts, even when an operation is marked non-idempotent. An exchange might already have accepted an order when its response is lost. Kairos deliberately does not retry ambiguous writes and reconciles them instead. Any future execution bridge must preserve that behavior, order identity, and recovery ownership.
+
+Recommended use:
+
+- Start with unauthenticated market research, recording/replay, and isolated paper workspaces. The CLI's paper ledgers and fill assumptions are not Kairos's ledger; do not treat their balances or results as interchangeable.
+- For account inspection, use a dedicated read-only key and an explicit command/service allowlist. JSON output and structured errors suit a small integration; no shell command construction from model output is needed.
+- If using MCP, explicitly select services such as `market` or `market,account`. Do not enable unrestricted dangerous tools. The reviewed defaults also include feedback uploads; exclude that service unless uploads are intended.
+- Keep order execution and its safeguards in Kairos. Add new product adapters only after their accounting, eligibility, reconciliation, and test requirements are agreed. No CLI installation, credentials, live margin, futures, stock, swap, staking, or transfer path was added by this change.
+
+The dashboard changes do not depend on the CLI. Strategy now searches the same online currency-spot catalog as the chart picker. Nonmatching quote currencies and unsupported margin choices remain visible with reasons but cannot be selected. Choosing a supported market edits a draft; only Save settings applies it. The engine still enforces its original quote, product, stopped-state, and outstanding-order checks.
+
+The chart picker now displays and sorts Kraken's rolling `change_pct` in percentage points. Kraken's [WebSocket v2 ticker](https://docs.kraken.com/exchange/api-reference/spot-websocket-v2/ticker) documents this as 24-hour price change. The [REST ticker](https://docs.kraken.com/api-reference/market-data/get-ticker-information) opening price is midnight UTC and must not be used as a rolling 24-hour baseline. Kairos collects bounded, batched public snapshots about once a minute, shared across browser tabs; missing or unsupported values display as unavailable, not zero. Last prices retain their separate REST refresh.
+
+Other sources: [CLI product coverage and commands](https://github.com/krakenfx/kraken-cli/blob/aa56e5976be5afa6d8267eb6741f3a8844678fe9/README.md), [machine-readable command catalog](https://github.com/krakenfx/kraken-cli/blob/aa56e5976be5afa6d8267eb6741f3a8844678fe9/agents/tool-catalog.json), [Kraken API platforms and access requirements](https://docs.kraken.com/llms.txt), and [actual stock trading on Kraken Pro](https://support.kraken.com/articles/how-to-trade-stocks-on-kraken-pro).

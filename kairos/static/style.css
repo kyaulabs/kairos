@@ -160,6 +160,17 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
 .fields label { display: flex; flex-direction: column; gap: 5px; color: #a6b6cb; font-size: 10px; }
 .fields .wide { grid-column: 1 / -1; }
+.strategy-market > label { margin-bottom: 5px; }
+.strategy-market p { margin: 5px 0 0; font-size: 10px; line-height: 1.5; }
+.strategy-market p:empty { display: none; }
+.pair-options { max-height: 220px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #304058; border-radius: 5px; margin-top: 4px; background: #0b111c; }
+.pair-options [role="option"] { display: flex; align-items: center; gap: 8px; padding: 9px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.pair-options [role="option"] > span:last-child { min-width: 0; }
+.pair-options strong { font-size: 12px; }
+.pair-options small { display: block; color: var(--muted); font-size: 10px; }
+.pair-options [aria-selected="true"] { background: #142b29; }
+.pair-options [aria-disabled="true"] { color: var(--muted); cursor: not-allowed; }
+.pair-options [role="option"]:hover, .pair-options .active-option { outline: 1px solid var(--blue); outline-offset: -1px; }
 .fields .check { flex-direction: row; align-items: center; gap: 10px; }
 .check input { width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--green); }
 fieldset:disabled input, fieldset:disabled select { opacity: .65; }
@@ -228,7 +239,7 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .market-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 12px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .market-filters button { font-size: 11px; padding: 5px 10px; color: var(--muted); }
 .market-filters button[aria-pressed="true"] { color: var(--green); border-color: #276858; background: #12221f; }
-#market-feed-status { margin-left: auto; color: var(--muted); font-size: 10px; }
+.market-feed-times { margin-left: auto; display: grid; text-align: right; color: var(--muted); font-size: 10px; }
 .market-results { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .market-results td, .market-results th { padding: 6px 16px; }
 .market-results td:not(:first-child), .market-results th:not(:first-child) { text-align: right; }
@@ -291,4 +302,5 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
   .market-results td, .market-results th { padding: 6px 8px; }
   .market-dialog-head { padding: 12px; }
   .market-select { font-size: 12px; }
+  .market-sort { white-space: normal; max-width: 76px; }
 }

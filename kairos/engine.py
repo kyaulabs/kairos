@@ -76,7 +76,7 @@ class Engine:
             "capabilities": {
                 "crypto_spot": "paper-and-live",
                 "crypto_margin": "paper-only",
-                "us_stocks": "blocked: no documented US equities order API in the linked Kraken specification",
+                "us_stocks": "not integrated: reviewed CLI offers xStocks, not brokerage stock orders",
             },
         }
 

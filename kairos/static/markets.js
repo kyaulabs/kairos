@@ -7,6 +7,7 @@ class MarketPicker {
     this.select = select;
     this.markets = [];
     this.received = 0;
+    this.changeReceived = 0;
     this.error = '';
     this.selected = null;
     this.favoritesOnly = false;
@@ -50,7 +51,7 @@ class MarketPicker {
     this.renderFooter();
   }
   sortBy(key) {
-    if (!['symbol', 'last', 'volume'].includes(key)) return;
+    if (!['symbol', 'last', 'volume', 'change_pct'].includes(key)) return;
     this.sortDirection = key === this.sortKey
       ? (this.sortDirection === 'ascending' ? 'descending' : 'ascending')
       : (key === 'symbol' ? 'ascending' : 'descending');
@@ -68,6 +69,14 @@ class MarketPicker {
       if (left === null || right === null) return left === right ? byName : left === null ? 1 : -1;
       return direction * (left-right) || byName;
     });
+  }
+  static matches(market, query) {
+    const normalize = value => value.toUpperCase().replace(/[^A-Z0-9]/g, '').replaceAll('XBT', 'BTC').replaceAll('XDG', 'DOGE');
+    return [market.symbol, market.id].some(value => normalize(value).includes(normalize(query)));
+  }
+  static percentage(value) {
+    return value == null || value === '' || !Number.isFinite(Number(value)) ? '—'
+      : `${Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'exceptZero'})}%`;
   }
   static iconPath(currency) {
     // Kraken's XDG symbol denotes Dogecoin, not a separate asset.
@@ -137,12 +146,12 @@ class MarketPicker {
     const focused = document.activeElement;
     const focusId = focused.dataset.favorite || focused.dataset.market;
     const favoriteFocus = focused.dataset.favorite !== undefined;
-    const query = this.search.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const query = this.search.value;
     const known = new Set(this.markets.map(market => market.id));
     const candidates = this.favoritesOnly ? [...this.markets, ...this.favorites.filter(id => !known.has(id))
       .map(id => ({id, symbol: id, unavailable: true}))] : this.markets;
     const matches = this.sortedMarkets(candidates.filter(market =>
-      (!this.favoritesOnly || this.favorites.includes(market.id)) && market.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(query)));
+      (!this.favoritesOnly || this.favorites.includes(market.id)) && MarketPicker.matches(market, query)));
     for (const button of document.querySelectorAll('.market-sort')) {
       const active = button.dataset.sort === this.sortKey;
       button.closest('th').setAttribute('aria-sort', active ? this.sortDirection : 'none');
@@ -155,6 +164,9 @@ class MarketPicker {
       const row = document.createElement('tr');
       row.classList.toggle('selected-market', market.id === this.selected);
       const name = document.createElement('td'), price = document.createElement('td'), volume = document.createElement('td'), favorite = document.createElement('td');
+      const change = document.createElement('td');
+      change.className = `market-change${Number(market.change_pct) > 0 ? ' buy' : Number(market.change_pct) < 0 ? ' sell' : ''}`;
+      change.textContent = MarketPicker.percentage(market.change_pct);
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'market-select'; button.dataset.market = market.id;
       button.disabled = market.unavailable === true;
@@ -171,10 +183,11 @@ class MarketPicker {
       icon.textContent = saved ? '★' : '☆'; star.append(icon); star.setAttribute('aria-pressed', String(saved));
       star.setAttribute('aria-label', `${saved ? 'Remove' : 'Add'} ${market.symbol} ${saved ? 'from' : 'to'} favorites`);
       star.addEventListener('click', () => this.toggleFavorite(market.id)); favorite.append(star);
-      row.append(name, price, volume, favorite); fragment.append(row);
+      row.append(name, price, change, volume, favorite); fragment.append(row);
     }
     this.rows.replaceChildren(fragment);
     document.getElementById('market-empty').hidden = matches.length > 0;
+    this.updateFreshness();
     if (focusId) {
       const target = [...this.rows.querySelectorAll(favoriteFocus ? '[data-favorite]' : '[data-market]')]
         .find(button => (favoriteFocus ? button.dataset.favorite : button.dataset.market) === focusId);
@@ -204,6 +217,14 @@ class MarketPicker {
   updateFreshness() {
     const age = this.received ? Math.max(0, Date.now()/1000-this.received) : null;
     const stale = age === null || age > 30;
+    const changeAge = this.changeReceived ? Math.max(0, Date.now()/1000-this.changeReceived) : null;
+    const changeStale = changeAge === null || changeAge > 90;
+    const changeStatus = changeAge === null ? '24h change unavailable' : `${changeStale ? 'STALE · ' : ''}24h change updated ${changeAge.toFixed(0)}s ago`;
+    document.getElementById('market-change-status').textContent = changeStatus;
+    for (const cell of this.rows.querySelectorAll('.market-change')) {
+      cell.classList.toggle('stale', changeStale);
+      cell.title = cell.textContent === '—' ? 'Rolling 24h change unavailable' : changeStatus;
+    }
     this.watchlist.classList.toggle('stale', stale);
     this.watchlist.title = age === null ? 'Waiting for market prices' : `${stale ? 'STALE · ' : ''}Market snapshot ${age.toFixed(0)}s ago`;
     this.rows.classList.toggle('stale', stale);
@@ -218,7 +239,9 @@ class MarketPicker {
       const data = await this.request('markets');
       if (!Array.isArray(data.markets) || !Number.isFinite(data.received)) throw new Error('Invalid market snapshot');
       this.markets = data.markets;
-      this.received = data.received; this.error = '';
+      this.received = data.received;
+      this.changeReceived = Number.isFinite(data.change_received) ? data.change_received : 0;
+      this.error = '';
       this.renderRows(); this.renderFooter();
     } catch {
       this.error = 'Market prices unavailable — retrying'; this.updateFreshness();

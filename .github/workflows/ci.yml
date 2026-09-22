@@ -50,7 +50,8 @@ jobs:
           node --check kairos/static/app.js
           node --check kairos/static/chart.js
           node --check kairos/static/markets.js
-      - name: Test chart data, viewport, and market favorites
+          node --check kairos/static/strategy-market.js
+      - name: Test charts and market pickers
         run: node --test tests/*.test.cjs
 
   tests:

@@ -21,6 +21,7 @@ function fixture(saved = null) {
     renderRows() {}, renderFooter() {}, updateFreshness() {},
   });
   picker.favorites = picker.loadFavorites();
+  runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/strategy-market.js'), 'utf8'), {window: browser});
   return {picker, values, storage, warning, timers, browser};
 }
 
@@ -82,6 +83,68 @@ test('currency icons use only bundled local files; unknown symbols have no image
   assert.equal(browser.MarketPicker.iconPath('../btc'), null);
   const files = readdirSync(path.join(__dirname, '../kairos/static/vendor/crypto-icons')).filter(name => name.endsWith('.svg')).map(name => name.slice(0, -4));
   assert.deepEqual(Array.from(browser.CryptoIconSymbols).sort(), files.sort());
+});
+
+test('24h change uses signed percentage points and sorts losses below zero', () => {
+  const {picker, browser} = fixture();
+  const format = browser.MarketPicker.percentage;
+  assert.equal(format('2.5'), '+2.50%');
+  assert.equal(format('-1.25'), '-1.25%');
+  assert.equal(format('0'), '0.00%');
+  for (const missing of [null, undefined, '', 'NaN', Infinity]) assert.equal(format(missing), '—');
+  const rows = [
+    {id: 'loss', symbol: 'A/USD', change_pct: '-5.2'}, {id: 'zero', symbol: 'B/USD', change_pct: '0'},
+    {id: 'gain', symbol: 'C/USD', change_pct: '12'}, {id: 'missing', symbol: 'D/USD', change_pct: null},
+  ];
+  picker.sortBy('change_pct');
+  assert.deepEqual(Array.from(picker.sortedMarkets(rows), row => row.id), ['gain', 'zero', 'loss', 'missing']);
+  picker.sortBy('change_pct');
+  assert.deepEqual(Array.from(picker.sortedMarkets(rows), row => row.id), ['loss', 'zero', 'gain', 'missing']);
+});
+
+test('both market pickers search names, IDs, punctuation, and Kraken aliases', () => {
+  const {browser} = fixture();
+  const matches = browser.MarketPicker.matches;
+  for (const query of ['btc', 'BTC/USD', 'xbt usd', 'XXBTZUSD', '']) assert.equal(matches({id: 'XXBTZUSD', symbol: 'BTC/USD'}, query), true);
+  assert.equal(matches({id: 'XDGUSD', symbol: 'XDG/USD'}, 'doge'), true);
+  assert.equal(matches({id: 'XXBTZUSD', symbol: 'BTC/USD'}, 'ETH'), false);
+});
+
+test('Strategy shows limitations for quote mismatch and unsupported margin without changing drafts', () => {
+  const {browser} = fixture();
+  const limitation = browser.StrategyMarketPicker.limitation;
+  const pair = {id: 'ETHUSD', symbol: 'ETH/USD', quote: 'ZUSD', leverage_buy: [2, 3], leverage_sell: [2]};
+  const context = {quote: 'ZUSD', quoteLabel: 'USD', product: 'spot', leverage: 2, mode: 'dry-run'};
+  assert.equal(limitation(pair, context), '');
+  assert.match(limitation({...pair, quote: 'XXBT', symbol: 'ETH/BTC'}, context), /Quoted in BTC.*USD/);
+  assert.equal(limitation(pair, {...context, product: 'margin'}), '');
+  assert.match(limitation(pair, {...context, product: 'margin', leverage: 3}), /3× margin/);
+  assert.match(limitation(pair, {...context, product: 'margin', mode: 'trading'}), /paper-only/);
+  assert.equal(context.product, 'spot');
+  assert.equal(pair.id, 'ETHUSD');
+});
+
+test('Enter in the Strategy picker never implicitly submits settings', () => {
+  const handlers = {}, browser = {};
+  const input = {addEventListener(name, handler) { handlers[name] = handler; }};
+  const list = {hidden: true, addEventListener() {}};
+  runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/strategy-market.js'), 'utf8'), {
+    window: browser,
+    document: {getElementById: id => id === 'pair-search' ? input : id === 'pair-options' ? list : {}, addEventListener() {}},
+  });
+  const picker = new browser.StrategyMarketPicker();
+  let opens = 0, choices = 0, prevented = 0;
+  picker.open = () => { opens++; list.hidden = false; };
+  picker.choose = () => { choices++; list.hidden = true; };
+  const enter = () => handlers.keydown({key: 'Enter', preventDefault() { prevented++; }});
+  enter(); // Closed: open the picker, not the form's implicit submit.
+  assert.equal(opens, 1);
+  picker.active = 0; picker.matches = [{id: 'ETHUSD'}];
+  enter(); // Open: select a draft only.
+  assert.equal(choices, 1);
+  enter(); // A second/repeated Enter must not save that draft.
+  assert.equal(opens, 2);
+  assert.equal(prevented, 3);
 });
 
 test('favorites persist across page instances; removing one retains the rest', () => {

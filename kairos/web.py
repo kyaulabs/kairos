@@ -86,9 +86,8 @@ async def state(request):
 
 async def catalog(request):
     engine = request.app["engine"]
-    return web.json_response(
-        [p.public() for p in engine.kraken.pairs.values() if p.quote == engine.settings["quote"]]
-    )
+    # Visibility is not execution permission; Engine.configure keeps the quote/product gates.
+    return web.json_response([p.public() for p in engine.kraken.pairs.values()])
 
 
 async def markets(request):
@@ -98,10 +97,25 @@ async def markets(request):
         if not cached or time.monotonic() >= cached["expires"]:
             engine = request.app["engine"]
             tickers = await engine.kraken.market_tickers()
+            received = time.time()
+            changes = request.app["market_change_cache"]
+            if not changes or time.monotonic() >= changes["expires"]:
+                values = await engine.kraken.market_changes()
+                changes.update(
+                    values=values,
+                    received=time.time() if values else None,
+                    expires=time.monotonic() + 60,
+                )
             data = {
-                "received": time.time(),
+                "received": received,
+                "change_received": changes["received"],
                 "markets": [
-                    {"id": p.id, "symbol": p.symbol, **tickers.get(p.id, {})}
+                    {
+                        "id": p.id,
+                        "symbol": p.symbol,
+                        **tickers.get(p.id, {}),
+                        "change_pct": changes["values"].get(p.id),
+                    }
                     for p in engine.kraken.pairs.values()
                 ],
             }
@@ -270,6 +284,7 @@ def create_app(engine=None, origin=None):
     app["candle_cache"] = {}
     app["candle_lock"] = asyncio.Lock()
     app["market_cache"] = {}
+    app["market_change_cache"] = {}
     app["market_lock"] = asyncio.Lock()
     app["csrf"] = secrets.token_urlsafe(32)
     app["origin"] = (origin or os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8000")).rstrip("/")

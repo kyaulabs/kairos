@@ -148,6 +148,62 @@ class Kraken:
             if key in self.pairs
         }
 
+    async def market_changes(self):
+        """Bounded public snapshots: REST's opening price is midnight UTC, not 24h ago."""
+        symbols = {
+            "/".join("DOGE" if asset == "XDG" else asset for asset in p.symbol.split("/")): p.id
+            for p in self.pairs.values()
+        }
+        changes = {}
+        if not symbols:
+            return changes
+        try:
+            async with (
+                asyncio.timeout(12),
+                self.session.ws_connect("wss://ws.kraken.com/v2", heartbeat=20) as ws,
+            ):
+                names = list(symbols)
+                # A single catalog-sized subscription exceeds the server's message limit.
+                for offset in range(0, len(names), 100):
+                    if offset:
+                        await asyncio.sleep(0.1)
+                    pending = set(names[offset : offset + 100])
+                    await ws.send_json(
+                        {
+                            "method": "subscribe",
+                            "params": {
+                                "channel": "ticker",
+                                "symbol": sorted(pending),
+                                "snapshot": True,
+                            },
+                        }
+                    )
+                    while pending:
+                        message = await ws.receive()
+                        if message.type != aiohttp.WSMsgType.TEXT:
+                            return changes
+                        data = json.loads(message.data)
+                        if not isinstance(data, dict):
+                            return changes
+                        if data.get("channel") == "ticker" and data.get("type") == "snapshot":
+                            for row in data["data"]:
+                                symbol = row["symbol"]
+                                if symbol not in pending:
+                                    continue
+                                pending.remove(symbol)
+                                try:
+                                    changes[symbols[symbol]] = str(dec(row["change_pct"]))
+                                except (KeyError, SafetyError):
+                                    pass  # Missing/non-finite change is unavailable, never zero.
+                        elif data.get("success") is False:
+                            symbol = data.get("symbol")
+                            if symbol not in pending:
+                                return changes
+                            pending.remove(symbol)  # Some REST pairs have no WS v2 ticker.
+        except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError):
+            pass  # Keep valid partial snapshots; quote prices use an independent REST call.
+        return changes
+
     async def marks(self, pairs):
         if not pairs:
             return {}
