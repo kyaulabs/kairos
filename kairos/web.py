@@ -91,6 +91,24 @@ async def catalog(request):
     )
 
 
+async def markets(request):
+    # Share a bounded-rate public ticker snapshot across all dashboard tabs.
+    async with request.app["market_lock"]:
+        cached = request.app["market_cache"]
+        if not cached or time.monotonic() >= cached["expires"]:
+            engine = request.app["engine"]
+            tickers = await engine.kraken.market_tickers()
+            data = {
+                "received": time.time(),
+                "markets": [
+                    {"id": p.id, "symbol": p.symbol, **tickers.get(p.id, {})}
+                    for p in engine.kraken.pairs.values()
+                ],
+            }
+            cached.update(expires=time.monotonic() + 10, data=data)
+        return web.json_response(cached["data"])
+
+
 async def candles(request):
     minutes = int(request.query["interval"])
     if minutes not in CANDLE_INTERVALS:
@@ -98,12 +116,12 @@ async def candles(request):
     # Share short-lived public snapshots across tabs without caching strategy inputs.
     async with request.app["candle_lock"]:
         engine = request.app["engine"]
-        pair = engine.resolve(engine.settings["pair"])
-        if request.query["pair"] != pair.id:
-            raise SafetyError("Chart market changed; refresh the selected market")
+        pair = engine.kraken.pairs.get(request.query["pair"])
+        if pair is None:
+            raise SafetyError("Unsupported chart market")
         cache = request.app["candle_cache"]
         for key in list(cache):
-            if key[0] != pair.id:
+            if time.monotonic() >= cache[key][0]:
                 del cache[key]
         key = (pair.id, minutes)
         if key not in cache or time.monotonic() >= cache[key][0]:
@@ -124,6 +142,8 @@ async def candles(request):
                     for r in rows[-720:]
                 ],
             }
+            if len(cache) >= 32:
+                del cache[next(iter(cache))]
             cache[key] = (time.monotonic() + 5, data)
         return web.json_response(cache[key][1])
 
@@ -249,6 +269,8 @@ def create_app(engine=None, origin=None):
     app["hub"] = Hub()
     app["candle_cache"] = {}
     app["candle_lock"] = asyncio.Lock()
+    app["market_cache"] = {}
+    app["market_lock"] = asyncio.Lock()
     app["csrf"] = secrets.token_urlsafe(32)
     app["origin"] = (origin or os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8000")).rstrip("/")
     app.on_response_prepare.append(response_headers)
@@ -259,6 +281,7 @@ def create_app(engine=None, origin=None):
         app["feed_restart"] = asyncio.Event()
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/pairs", catalog)
+    app.router.add_get("/api/markets", markets)
     app.router.add_get("/api/history", history)
     app.router.add_get("/api/candles", candles)
     app.router.add_get("/api/events", events)

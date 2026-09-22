@@ -74,6 +74,12 @@ def fake_kraken():
     fake.catalog = AsyncMock(return_value=fake.pairs)
     fake.book = AsyncMock(side_effect=lambda pair: book(pair))
     fake.marks = AsyncMock(side_effect=lambda pairs: {p.id: dec("9990") for p in pairs})
+    fake.market_tickers = AsyncMock(
+        return_value={
+            p.id: {"bid": "9990", "ask": "10000", "last": "9995", "volume": "123.45"}
+            for p in (BTC, ETH, CROSS)
+        }
+    )
     fake.balances = AsyncMock(
         return_value={"ZUSD": dec("10000"), "XXBT": dec("1"), "XETH": dec("10")}
     )

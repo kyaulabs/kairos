@@ -134,6 +134,20 @@ class Kraken:
         # Trading uses only completed candles; the chart also displays the forming candle.
         return (await self.ohlc(pair, minutes))[:-1]
 
+    async def market_tickers(self):
+        # One public snapshot for browsing/watchlists, never an execution input.
+        result = await self.request("Ticker")
+        return {
+            key: {
+                "bid": str(dec(row["b"][0])),
+                "ask": str(dec(row["a"][0])),
+                "last": str(dec(row["c"][0])),
+                "volume": str(dec(row["v"][1])),
+            }
+            for key, row in result.items()
+            if key in self.pairs
+        }
+
     async def marks(self, pairs):
         if not pairs:
             return {}
