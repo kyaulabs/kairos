@@ -148,9 +148,10 @@
                 <div class="fields" data-strategy="twap" hidden>
                   <label>Side<select name="twap_side"><option value="buy">Buy</option><option value="sell">Sell bot-owned inventory</option></select></label>
                   <label>Total base quantity<input name="twap_quantity" type="number" min="0.00000001" step="any" required></label>
-                  <label>Parent limit · USD<input name="twap_limit" type="number" min="0.00000001" step="any" required></label>
+                  <label>Parent limit · USD<input name="twap_limit" type="number" min="0.00000001" step="any" placeholder="Enter price per unit" required aria-describedby="twap-limit-help"></label>
                   <label>Slices<input name="twap_slices" type="number" min="2" max="10000" step="1" required></label>
                   <label class="wide">Total duration · sec<input name="twap_duration_seconds" type="number" min="20" max="31536000" step="1" required></label>
+                  <p id="twap-limit-help" class="wide muted">Required: maximum buy price or minimum sell price per base unit in USD, not the total budget. Enter a positive price before saving TWAP; there is no automatic default.</p>
                 </div>
                 <div class="fields" data-strategy="rebalance" hidden>
                   <label class="wide">Basket weights · percent<input name="rebalance_targets" type="text" maxlength="1000" placeholder="BTC/USD=50,ETH/USD=30,CASH=20" required aria-describedby="basket-help"></label>
