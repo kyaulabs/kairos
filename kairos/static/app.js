@@ -143,7 +143,7 @@
     for (const [key, value] of Object.entries(state.settings)) {
       const input = form.elements.namedItem(key);
       if (input?.type === 'checkbox') input.checked = value;
-      else if (input) input.value = value;
+      else if (input) input.value = key === 'twap_limit' && Number(value) === 0 ? '' : value;
     }
     updateStrategyMarket(); strategyMarketPicker.sync(); updateProgramFields();
   }
