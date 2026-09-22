@@ -1,13 +1,13 @@
 # Linear Futures
 
-Kairos supports paper and explicitly gated live execution for qualified USD-quoted linear crypto perpetuals on Kraken Derivatives. HTF, market making, DCA and TWAP are supported. Inverse contracts, dated Futures, non-crypto contracts, Futures arbitrage and Futures basket rebalancing remain blocked. Public listings do not establish your account's regional eligibility; this is not a US CME Futures integration.
+Kairos supports paper and explicitly gated live execution for qualified USD-quoted linear crypto perpetuals on Kraken Derivatives. HTF, market making, DCA and TWAP support both modes. [Bollinger range scalping](SCALPING.md) supports paper Futures only. Inverse contracts, dated Futures, non-crypto contracts, Futures arbitrage and Futures basket rebalancing remain blocked. Public listings do not establish your account's regional eligibility; this is not a US CME Futures integration.
 
 A supported contract has the `PF_` prefix, `flexible_futures` type, USD quote, contract size 1, published precision and margin tiers, and active, non-expired crypto metadata. One contract unit represents one base unit of exposure, not ownership of that coin. Fractional contract sizes follow Kraken's published trade precision. The Futures catalog never enters the spot execution catalog. Its equity, exposure and loss caps are separate from spot, paper margin and Earn; they are not a combined account-wide risk limit. Switching products does not liquidate existing spot holdings.
 
 ## Paper operation
 
 1. Stop and reconcile any orders. Select **Futures · USD linear crypto perpetuals** under Product in Strategy, then choose a supported Bot market. The header picker still changes only the chart.
-2. Select HTF, market making, DCA or TWAP. Set the local leverage cap, notional order/exposure caps and loss limit in Capital. Review the read-only account fees in Execution; paper mode also needs a Spot key with fee-query access. The default leverage cap is 1×; 1–5× is configurable. Published margin tiers can require more collateral than that cap implies.
+2. Select HTF, market making, DCA, TWAP or paper-only Bollinger scalping. Set the local leverage cap, notional order/exposure caps and loss limit in Capital. Review the read-only account fees in Execution; paper mode also needs a Spot key with fee-query access. The default leverage cap is 1×; 1–5× is configurable. Published margin tiers can require more collateral than that cap implies.
 3. Set Paper starting balance under Capital, Save settings, and Reset selected paper portfolio if you want a new simulated allocation. Futures paper cash and positions are separate from paper spot, paper margin and live Futures.
 4. Press Start. HTF and market making use Jev; DCA and TWAP do not.
 

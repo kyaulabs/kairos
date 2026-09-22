@@ -104,11 +104,22 @@ small, .muted { color: var(--muted); }
 .decision strong { font-size: 30px; line-height: 1.2; font-weight: 500; text-transform: uppercase; }
 .decision span { color: var(--muted); font: 10px/1.5 var(--font-mono); }
 #decision-context { font-size: 11px; line-height: 1.65; }
-.probability { margin: 16px 0; }
-.probability header { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; }
-.probability progress { display: block; width: 100%; height: 5px; margin-top: 7px; accent-color: var(--blue); }
-.probability.buy progress { accent-color: var(--green); }
-.probability.sell progress { accent-color: var(--red); }
+.assessment-viz { margin: 14px 0; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); overflow: hidden; }
+.assessment-instrument, .cost-instrument { display: block; width: 100%; height: auto; }
+.assessment-viz svg text { fill: var(--text); font-family: var(--font-mono); }
+.assessment-viz .instrument-caption { font-size: 9px; fill: var(--muted); letter-spacing: .3px; }
+.assessment-viz .instrument-score { font-size: 29px; font-weight: 700; }
+.assessment-viz .instrument-value { font-size: 14px; }
+.cost-instrument { border-top: 1px solid var(--line); padding-top: 8px; }
+.assessment-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+.assessment-metrics > div { min-width: 0; padding: 10px 8px; border-right: 1px solid var(--line); }
+.assessment-metrics > div:last-child { border-right: 0; }
+.assessment-metrics span { display: block; font-size: 8px; letter-spacing: .4px; color: var(--muted); }
+.assessment-metrics strong { display: block; font: 12px/1.8 var(--font-mono); overflow-wrap: anywhere; }
+.assessment-tape { display: flex; gap: 3px; padding: 12px; align-items: center; border-top: 1px solid var(--line); }
+.assessment-tape span { font: 8px var(--font-mono); color: var(--muted); margin-right: 5px; }
+.assessment-tape i { flex: 1; max-width: 14px; height: 14px; border-radius: 2px; font: normal 8px/14px var(--font-mono); text-align: center; color: var(--bg); }
+.assessment-protection { padding: 10px; border-top: 1px solid var(--line); font-size: 10px; overflow-wrap: anywhere; }
 #model-info { font-size: 10px; overflow-wrap: anywhere; }
 details { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 summary { cursor: pointer; color: var(--text); font-size: 11px; }

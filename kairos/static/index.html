@@ -20,6 +20,7 @@
   <script defer src="/static/strategy-market.js"></script>
   <script defer src="/static/accounts.js"></script>
   <script defer src="/static/settings.js"></script>
+  <script defer src="/static/assessment.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -62,8 +63,8 @@
       <div class="assessment-market"><span id="bot-market-kind" class="eyebrow">BOT MARKET</span><button id="bot-market" type="button" title="Show the bot’s configured market on the chart">—</button></div>
       <div class="panel-scroll" tabindex="0" role="region" aria-label="Assessment details">
         <div class="decision"><strong id="decision">Waiting</strong><span id="confidence">—</span></div>
+        <div id="assessment-viz" class="assessment-viz"></div>
         <p id="decision-context" class="muted"></p>
-        <div id="probabilities"></div>
         <p id="decision-market" class="muted"></p>
         <p id="model-info" class="muted">No assessment yet.</p>
         <details><summary>Decision inputs</summary><pre id="decision-inputs">No assessment yet.</pre></details>
@@ -137,6 +138,16 @@
                 <label>Engine cycle · sec<input name="interval_seconds" type="number"></label>
                 <label>HTF candle interval<select name="candle_minutes"></select></label>
                 <label class="wide">Jev minimum confidence<input name="min_confidence" type="number"></label>
+                <div class="fields wide" data-settings-group>
+                  <p class="wide settings-hint">Bollinger · paper only · fixed 1-minute candles. Spot longs / Futures longs and shorts. No model calls. Stops and deadlines are checked only while running; Stop does not close positions.</p>
+                  <label>Rolling candles<input name="scalp_window" type="number"></label>
+                  <label>Band deviations<input name="scalp_sigma" type="number"></label>
+                  <label>Maximum trend efficiency<input name="scalp_max_efficiency" type="number"></label>
+                  <label>Net-cost margin · bps<input name="scalp_margin_bps" type="number"></label>
+                  <label>Price stop · bps<input name="scalp_stop_bps" type="number"></label>
+                  <label>Maximum hold · seconds<input name="scalp_max_hold_seconds" type="number"></label>
+                  <label>Exit cooldown · seconds<input name="scalp_cooldown_seconds" type="number"></label>
+                </div>
                 <label class="wide">Min arbitrage edge · bps<input name="arb_min_profit_bps" type="number"></label>
               </div>
               <div id="program-settings" hidden>

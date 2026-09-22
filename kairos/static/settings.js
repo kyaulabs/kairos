@@ -47,7 +47,7 @@ class SettingsForm {
       const label = input.closest('label');
       if (label) label.hidden = input.disabled;
       if (field.positive) input.setCustomValidity(active && !(Number(input.value) > 0) ? 'Enter an explicit positive limit price.' : '');
-      if (field.must_be_off_when_inactive) input.setCustomValidity(!active && input.checked ? 'Turn off spot-only capital recovery before selecting another product.' : '');
+      if (field.must_be_off_when_inactive) input.setCustomValidity(!active && input.checked ? 'Turn off spot-only capital recovery before selecting this product or strategy.' : '');
     }
     for (const group of this.form.querySelectorAll('[data-settings-group]')) {
       group.hidden = [...group.querySelectorAll('input, select')].every(input => input.disabled);
