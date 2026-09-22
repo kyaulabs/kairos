@@ -7,7 +7,7 @@ A supported contract has the `PF_` prefix, `flexible_futures` type, USD quote, c
 ## Paper operation
 
 1. Stop and reconcile any orders. Select **Futures · USD linear crypto perpetuals** under Product in Strategy, then choose a supported Bot market. The header picker still changes only the chart.
-2. Select HTF, market making, DCA or TWAP. Set the local leverage cap, notional order/exposure caps and loss limit in Capital, and fee assumptions in Execution. The default leverage cap is 1×; 1–5× is configurable. Published margin tiers can require more collateral than that cap implies.
+2. Select HTF, market making, DCA or TWAP. Set the local leverage cap, notional order/exposure caps and loss limit in Capital. Review the read-only account fees in Execution; paper mode also needs a Spot key with fee-query access. The default leverage cap is 1×; 1–5× is configurable. Published margin tiers can require more collateral than that cap implies.
 3. Set Paper starting balance under Capital, Save settings, and Reset selected paper portfolio if you want a new simulated allocation. Futures paper cash and positions are separate from paper spot, paper margin and live Futures.
 4. Press Start. HTF and market making use Jev; DCA and TWAP do not.
 
@@ -29,7 +29,7 @@ Paper valuation uses fresh mark prices, signed position PnL, fees and funding. H
 4. Set both `ALLOW_LIVE_TRADING=true` and `ALLOW_FUTURES_TRADING=true` on the server. Deploy backend/static changes together and restart only when safe. A restart remains paused in Dry-run; it does not reactivate trading or flatten existing exchange positions.
 5. Save the Futures configuration, select Trading, and accept the separate Futures confirmation. Preflight checks the contract, current fees, collateral, settlement/margin preferences, account history, positions and unrelated orders. **Arming leaves Futures paused. Press Start separately.**
 
-Kraken deprecated `/feeschedules` and `/feeschedules/volumes` in June 2026. Kairos uses the central Spot `TradeVolume` endpoint with an explicit `derivatives` asset-class query, not those stale schedules. Missing fee data or underestimated fees block orders. Actual fill fees are recorded even if they exceed the reserve, then trading stops for review.
+Kraken deprecated `/feeschedules` and `/feeschedules/volumes` in June 2026. Kairos uses the central Spot `TradeVolume` endpoint with an explicit `derivatives` asset-class query, not those stale schedules. Both paper and live execution automatically use the account's returned maker/taker rates. The Spot fee-query key must belong to the same Kraken account as the Futures wallet. Rates are displayed in Execution, expire after 60 seconds, and are rechecked before live submission. Missing/stale data or a fee increase beyond the planned opening or closing reserve blocks the order. Actual fill fees are recorded even if they exceed the reserve, then trading stops for review.
 
 Orders carry durable client IDs before submission. Opening orders obey notional, collateral, margin-tier and fee checks; opposing orders are reduce-only and cannot cross through zero. There is a local 20% starting-collateral buffer. Notional checks use current prices: subsequent market movement or a sell filling at a better price can increase marked or filled notional. Exceeding a marked exposure cap or TWAP parent cap stops further trading, but does not undo a fill or guarantee a maximum loss.
 

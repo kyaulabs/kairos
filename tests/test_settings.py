@@ -70,7 +70,7 @@ class SettingsTests(unittest.TestCase):
             if not k.startswith(("dca_", "twap_", "rebalance_", "futures_"))
         }
         self.assertEqual(load_settings(legacy)["daily_loss"], "17.25")
-        for name in ("daily_loss", "order_size", "maker_fee_bps", "recover_initial", "leverage"):
+        for name in ("daily_loss", "order_size", "slippage_bps", "recover_initial", "leverage"):
             with self.subTest(name=name), self.assertRaises(SafetyError):
                 load_settings({k: v for k, v in legacy.items() if k != name})
         with self.assertRaises(SafetyError):

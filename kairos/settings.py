@@ -56,8 +56,6 @@ FIELDS = {
     "order_size": setting("1000", ("0.01", "1000000000")),
     "max_exposure": setting("1000", ("0.01", "1000000000")),
     "daily_loss": setting("1000", ("0.01", "1000000000")),
-    "maker_fee_bps": setting("25", ("0", "1000")),
-    "taker_fee_bps": setting("40", ("0", "1000")),
     "slippage_bps": setting("10", ("0", "100")),
     "max_spread_bps": setting("30", ("0.01", "1000")),
     "min_confidence": setting("0.7", ("0", "1"), strategies=("htf", "maker", "arbitrage")),
@@ -157,6 +155,10 @@ def applies(field, values):
 def load_settings(saved):
     # Only named, already-introduced additions may migrate. Never invent a missing risk limit.
     additions = {key: field["default"] for key, field in FIELDS.items() if field.get("migrate")}
+    # Remove only the retired manual trading-fee assumptions. Existing order snapshots remain intact.
+    saved = {
+        key: value for key, value in saved.items() if key not in ("maker_fee_bps", "taker_fee_bps")
+    }
     return validate_settings({**additions, **saved})
 
 
@@ -200,6 +202,4 @@ def validate_settings(values):
         raise SafetyError("Rebalance minimum trade exceeds daily turnover allowance")
     if dec(result["order_size"]) > dec(result["max_exposure"]):
         raise SafetyError("Order size exceeds maximum exposure")
-    if dec(result["maker_fee_bps"]) > dec(result["taker_fee_bps"]):
-        raise SafetyError("Maker fee assumption must not exceed taker fee assumption")
     return result

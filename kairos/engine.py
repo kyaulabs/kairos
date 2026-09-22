@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from kairos import margin, programs
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
+from kairos.fees import AccountFees
 from kairos.futures import FuturesDesk
 from kairos.futures import new_ledger as futures_ledger
 from kairos.settings import DEFAULTS, load_settings, validate_settings
@@ -18,6 +19,8 @@ class Engine:
         self.store, self.kraken, self.jev, self.publish = store, kraken, jev, publish
         self.futures = FuturesDesk(self, futures)
         self.settings = load_settings(store.get("settings", DEFAULTS))
+        self.fees = AccountFees(kraken, futures)
+        self.fee_scope = []
         self.mode = "dry-run"  # Never auto-resume live trading after a restart.
         self.running = False
         self.stop_generation = 0
@@ -72,6 +75,7 @@ class Engine:
             "live_enabled": self.kraken.allow_live,
             "futures_live_enabled": bool(self.futures.client and self.futures.client.allow_live),
             "settings": self.settings,
+            "fees": self.fees.snapshot(self.fee_scope),
             "error": self.last_error
             or (
                 "Live Futures positions remain. Dry-run does not close them; arm Trading to reconcile/manage them."
@@ -124,6 +128,30 @@ class Engine:
             raise SafetyError("Pair is not an online Kraken crypto spot market")
         return pair
 
+    def fee_pairs(self):
+        pair = self.resolve(self.settings["pair"])
+        pairs = [pair]
+        if self.settings["strategy"] == "arbitrage":
+            pairs = [leg.pair for leg in triangle(pair, self.kraken.pairs)[0]]
+        elif self.settings["strategy"] == "rebalance":
+            pairs = programs.validate_markets(self.settings, self.resolve)
+        if self.settings["product"] == "spot" and self.settings["recover_initial"]:
+            pairs += [
+                p
+                for p in self.kraken.pairs.values()
+                if p.quote == self.settings["quote"] and self.balance(p.base) > 0
+            ]
+        return list({p.id: p for p in pairs}.values())
+
+    async def refresh_fees(self, *, force=False, required=True):
+        self.fee_scope = []
+        try:
+            self.fee_scope = self.fee_pairs()
+            await self.fees.refresh(self.fee_scope, force=force)
+        except SafetyError:
+            if required:
+                raise
+
     async def initialize(self):
         await self.kraken.catalog()
         self.futures.ensure_paper()
@@ -146,6 +174,7 @@ class Engine:
             )
         if self.futures.has_live_position():
             self.last_error = "Live Futures positions remain after restart; arm Trading to reconcile/manage them. Dry-run does not close them."
+        await self.refresh_fees(required=False)
         self.ready = True
         self.event("system", {"message": "Ready; paused in dry-run mode"})
         self.emit_state()
@@ -249,6 +278,7 @@ class Engine:
             else:
                 self.store.put("settings", new)
             self.settings = new
+            await self.refresh_fees(required=False)
             self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
             self.event("settings", {"message": "Settings saved", "settings": new})
             self.emit_state()
@@ -305,21 +335,7 @@ class Engine:
         status = await self.kraken.request("SystemStatus")
         if status.get("status") != "online":
             raise SafetyError("Kraken is not fully online")
-        pair = self.resolve(self.settings["pair"])
-        pairs = (
-            [leg.pair for leg in triangle(pair, self.kraken.pairs)[0]]
-            if self.settings["strategy"] == "arbitrage"
-            else [pair]
-        )
-        if self.settings["strategy"] == "rebalance":
-            pairs = programs.validate_markets(self.settings, self.resolve)
-        maker, taker = await self.kraken.fees(pairs)
-        if any(
-            taker[p.id] > dec(self.settings["taker_fee_bps"])
-            or maker.get(p.id, taker[p.id]) > dec(self.settings["maker_fee_bps"])
-            for p in pairs
-        ):
-            raise SafetyError("Configured fees underestimate the account's Kraken fees")
+        await self.refresh_fees(force=True)
         available = await self.kraken.balances()
         if not self.ledger("trading"):
             if available.get(self.settings["quote"], ZERO) < dec(self.settings["live_budget"]):
@@ -377,6 +393,8 @@ class Engine:
                 )
             if self.mode == "trading":
                 await self.live_preflight()
+            else:
+                await self.refresh_fees(force=True)
             if self.settings["strategy"] not in programs.STRATEGIES and not self.jev.key:
                 raise SafetyError("JEV_API_KEY is not configured")
             await self.valuation(enforce=True)
@@ -410,6 +428,7 @@ class Engine:
             if self.recovery_required:
                 raise SafetyError("Reconcile recovery before reducing a Futures position")
             pair = self.resolve(self.settings["pair"])
+            await self.fees.refresh([pair])
             await self.futures.valuation(False, exit_only=True)
             quantity = self.futures.position(pair)
             if not quantity:
@@ -494,7 +513,7 @@ class Engine:
         volume = total_volume - dec(order["filled"])
         cost = total_cost - dec(order["cost"])
         fee = total_fee - dec(order["fee"])
-        if min(volume, cost, fee) < 0:
+        if min(volume, cost) < 0 or (fee < 0 and not order["maker"]):
             raise SafetyError("Order accounting moved backwards; reconciliation required")
         if order.get("product") == "margin":
             ledger = self.store.get("margin")
@@ -655,7 +674,7 @@ class Engine:
                     order,
                     filled,
                     cost,
-                    cost * dec(self.settings["taker_fee_bps"]) / BPS,
+                    cost * self.fees.rate(self.resolve(key)) / BPS,
                     "closed" if filled == abs(quantity) else "canceled",
                 )
             self.event(
@@ -686,7 +705,7 @@ class Engine:
             "volume": str(volume),
             "price": str(price),
             "maker": maker,
-            "fee_bps": self.settings["maker_fee_bps" if maker else "taker_fee_bps"],
+            "fee_bps": str(self.fees.rate(pair, maker)),
             "created": now,
             "expires": now + 30,
             "cursor": str(int(now * 1_000_000_000)),
@@ -714,7 +733,7 @@ class Engine:
             fee = (
                 volume
                 * price
-                * (dec(self.settings["taker_fee_bps"]) + dec(self.settings["margin_open_fee_bps"]))
+                * (self.fees.reserve(pair) + dec(self.settings["margin_open_fee_bps"]))
                 / BPS
             )
             required = volume * price / self.settings["leverage"] + fee
@@ -745,6 +764,8 @@ class Engine:
         if self.orders(self.mode, True):
             raise SafetyError("Previous order must settle before placing another")
         pair.validate(volume, price)
+        # Do not refresh away the planner's fee snapshot here; stale plans must fail closed.
+        self.fees.rate(pair, maker)
         if self.settings["product"] == "futures":
             return await self.futures.place(pair, side, volume, price, book, maker, program=program)
         if self.settings["product"] == "margin":
@@ -765,7 +786,7 @@ class Engine:
             if direct.id not in marks or marks[direct.id] <= 0:
                 raise SafetyError("Missing order valuation price")
             prices[asset] = marks[direct.id]
-        fee_bps = dec(self.settings["maker_fee_bps" if maker else "taker_fee_bps"])
+        fee_bps = self.fees.rate(pair, maker)
         notional = volume * price * prices[pair.quote]
         # Every order, including an intermediate leg, has a quote-denominated size cap.
         order_cap, exposure_cap = self.limits()
@@ -776,7 +797,7 @@ class Engine:
         if side == "sell" and pair.base == quote and exposure + notional > exposure_cap:
             raise SafetyError("Maximum total crypto exposure would be exceeded")
         needed = (
-            {pair.quote: volume * price * (1 + fee_bps / BPS)}
+            {pair.quote: volume * price * (1 + max(ZERO, fee_bps) / BPS)}
             if side == "buy"
             # A spot sell's fee is paid from its proceeds, not a separate quote reserve.
             else {pair.base: volume}
@@ -790,10 +811,7 @@ class Engine:
             status = await self.kraken.request("SystemStatus")
             if status.get("status") != "online":
                 raise SafetyError("Kraken trading is not online")
-            if program:
-                _, current_fees = await self.kraken.fees([pair])
-                if pair.id not in current_fees or current_fees[pair.id] > fee_bps:
-                    raise SafetyError("Current Kraken fees exceed the strategy's fee reserve")
+            fee_bps = await self.fees.recheck(pair, maker, fee_bps)
             balances = await self.kraken.balances()
             if any(balances.get(asset, ZERO) < amount for asset, amount in needed.items()):
                 raise SafetyError("Insufficient exchange funds after holds")
@@ -805,6 +823,7 @@ class Engine:
         now = time.time()
         if program and now + 1 >= program["deadline"]:
             raise SafetyError("Scheduled slot expired before submission; no late order sent")
+        self.fees.rate(pair, maker)
         order = {
             "id": str(uuid.uuid4()),
             "txid": None,
@@ -929,7 +948,7 @@ class Engine:
         }
         if not maker:
             rows = await self.kraken.candles(pair, self.settings["candle_minutes"])
-            state.update(trend_state(rows, self.settings))
+            state.update(trend_state(rows, self.settings, self.fees.reserve(pair)))
             candle = f"{pair.id}:{self.settings['candle_minutes']}:{state['candle_close_time']}"
             if self.store.get("candle:" + self.mode) == candle:
                 return
@@ -941,8 +960,8 @@ class Engine:
             mid=str(book.mid),
             spread_bps=str(book.spread_bps),
             liquidity="bid-heavy" if bid_depth > ask_depth else "ask-heavy",
-            taker_fee_bps=self.settings["taker_fee_bps"],
-            maker_fee_bps=self.settings["maker_fee_bps"],
+            taker_fee_bps=str(self.fees.rate(pair)),
+            maker_fee_bps=str(self.fees.rate(pair, True)),
         )
         side = await self.decision(state)
         if not self.running or side == "hold":
@@ -955,12 +974,12 @@ class Engine:
             return
         # Re-read after inference; do not execute on an aged pre-model snapshot.
         book = await self.kraken.book(pair)
-        fee = dec(self.settings["maker_fee_bps" if maker else "taker_fee_bps"]) / BPS
+        fee = self.fees.reserve(pair, maker) / BPS
         price = limit_price(
             book,
             side,
             self.settings["slippage_bps"],
-            maker_fee_bps=self.settings["maker_fee_bps"] if maker else None,
+            maker_fee_bps=self.fees.reserve(pair, True) if maker else None,
         )
         _, exposure = await self.valuation(enforce=True)
         budget, exposure_cap = self.limits()
@@ -986,7 +1005,7 @@ class Engine:
         _, exposure = await self.valuation(enforce=True)
         order_cap, exposure_cap = self.limits()
         amount = min(
-            order_cap / (1 + dec(self.settings["taker_fee_bps"]) / BPS),
+            order_cap / (1 + max(self.fees.reserve(leg.pair) for leg in routes[0]) / BPS),
             self.balance(pair.quote),
             exposure_cap - exposure,
         )
@@ -996,7 +1015,9 @@ class Engine:
         candidates = []
         for route in routes:
             try:
-                candidates.append((plan_cycle(route, books, amount, self.settings), route))
+                candidates.append(
+                    (plan_cycle(route, books, amount, self.settings, self.fees), route)
+                )
             except SafetyError:
                 continue
         if not candidates:
@@ -1015,7 +1036,7 @@ class Engine:
         )
         if peak_notional > order_cap:
             amount *= order_cap / peak_notional * dec("0.999")
-            plan = plan_cycle(route, books, amount, self.settings)
+            plan = plan_cycle(route, books, amount, self.settings, self.fees)
         eligible = dec(plan["edge_bps"]) >= dec(self.settings["arb_min_profit_bps"])
         action = await self.decision(
             {
@@ -1033,7 +1054,7 @@ class Engine:
         books = {leg.pair.id: await self.kraken.book(leg.pair) for leg in route}
         for book in books.values():
             book.fresh(self.settings["stale_seconds"])
-        plan = plan_cycle(route, books, amount, self.settings)
+        plan = plan_cycle(route, books, amount, self.settings, self.fees)
         if dec(plan["edge_bps"]) < dec(self.settings["arb_min_profit_bps"]):
             self.event("skip", {"reason": "Arbitrage opportunity disappeared during assessment"})
             return
@@ -1047,7 +1068,7 @@ class Engine:
                 leg,
                 book,
                 output,
-                dec(self.settings["taker_fee_bps"]),
+                self.fees.reserve(leg.pair),
                 dec(self.settings["slippage_bps"]),
             )
             # Do not let a deteriorated leg escape the original cycle's price bounds.
@@ -1110,7 +1131,7 @@ class Engine:
                     continue
                 snapshot = await self.kraken.book(pair)
                 price = limit_price(snapshot, "sell", self.settings["slippage_bps"])
-                fee = dec(self.settings["taker_fee_bps"]) / BPS
+                fee = self.fees.reserve(pair) / BPS
                 needed = (original - cash) / (price * (1 - fee))
                 # Round up for proceeds, then down to the available inventory/order cap.
                 desired = floor(needed, pair.lot) + pair.lot
@@ -1156,6 +1177,7 @@ class Engine:
     async def tick(self):
         async with self.lock:
             if not self.running:
+                await self.refresh_fees(required=False)
                 if self.settings["product"] in {"margin", "futures"}:
                     try:
                         await self.valuation(False)
@@ -1165,9 +1187,10 @@ class Engine:
                             if isinstance(exc, SafetyError)
                             else "Portfolio valuation unavailable; remain stopped"
                         )
-                    self.emit_state()
+                self.emit_state()
                 return
             try:
+                await self.refresh_fees()
                 if self.mode == "dry-run":
                     await self.paper_makers()
                 await self.cancel_active()

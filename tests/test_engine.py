@@ -236,12 +236,13 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
             await self.engine.set_mode("trading", "yes")
         self.assertEqual(self.engine.mode, "dry-run")
 
-    async def test_live_requires_fee_assumptions_cover_actual_fees(self):
+    async def test_live_automatically_adopts_account_fees(self):
         self.kraken.allow_live = True
         self.kraken.fees.return_value = ({BTC.id: dec(30)}, {BTC.id: dec(50)})
         await self.engine.configure({**self.engine.settings, "live_budget": "100"})
-        with self.assertRaisesRegex(SafetyError, "underestimate"):
-            await self.engine.set_mode("trading", "ENABLE LIVE TRADING")
+        await self.engine.set_mode("trading", "ENABLE LIVE TRADING")
+        self.assertEqual(self.engine.fees.rate(BTC), dec(50))
+        self.assertEqual(self.engine.fees.rate(BTC, True), dec(30))
 
     async def test_live_submits_limit_without_leverage_and_accounts_fill(self):
         await self.arm()
@@ -379,13 +380,15 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
             await self.buy()
 
     async def prepare_arbitrage(self):
+        self.kraken.fees.return_value = (
+            {p.id: dec(0) for p in (BTC, ETH, CROSS)},
+            {p.id: dec(0) for p in (BTC, ETH, CROSS)},
+        )
         await self.engine.configure(
             {
                 **self.engine.settings,
                 "pair": ETH.id,
                 "strategy": "arbitrage",
-                "maker_fee_bps": "0",
-                "taker_fee_bps": "0",
                 "slippage_bps": "0",
             }
         )

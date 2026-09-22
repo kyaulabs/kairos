@@ -27,7 +27,7 @@ Kairos is an experimental Kraken trading bot with Jev-assisted strategies and de
 - Choose the supplied Kairos dark/light brand palettes and violet, green, or red accents without changing the workspace layout or fonts.
 - Use a single-screen workspace with a chart, Jev assessment, settings sidebar, and bottom tabs for orders, activity, portfolio, read-only exchange accounts, and equity.
 - Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
-- Configure starting capital, order and exposure caps, daily loss limits, fee assumptions, and reinvestment.
+- Configure starting capital, order and exposure caps, daily loss limits, and reinvestment; trading fees come automatically from your Kraken account.
 - Persist settings, order intents, fills, and portfolio accounting in SQLite.
 - Protect network access with nginx Basic Auth over TLS.
 
@@ -50,7 +50,7 @@ The header shows the chart market's bid/ask midpoint, using the newest available
 
 ## Quick start
 
-Requires Linux, Python 3.12 or later, and [uv](https://docs.astral.sh/uv/). Model-assisted strategies also require a Jev API key. A read-only Kraken key is enough for authenticated balance and fee checks. There is no frontend build step; Node.js is needed only for development checks.
+Requires Linux, Python 3.12 or later, and [uv](https://docs.astral.sh/uv/). Model-assisted strategies also require a Jev API key. A Kraken Spot key with fee-query access is required even for paper trading; read-only permissions are enough. Futures fee queries use that same account's Spot key. There is no frontend build step; Node.js is needed only for development checks.
 
 Active development is on `develop`:
 
@@ -89,7 +89,7 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 
 1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks and unsupported Futures remain visible with explanations. Select the Futures product separately for a qualified linear perpetual. The header picker changes only the chart.
 2. In **Capital**, set **Paper starting balance** to the amount you want to simulate, such as `100` USD.
-3. Set **Order cap**, **Exposure cap**, the daily loss limit, and reinvestment explicitly in Capital. Review fee assumptions in Execution. To size against the full starting allocation, set both caps to that allocation; changing the balance does not change the caps.
+3. Set **Order cap**, **Exposure cap**, the daily loss limit, and reinvestment explicitly in Capital. Review the read-only Kraken account rates in Execution. To size against the full starting allocation, set both caps to that allocation; changing the balance does not change the caps.
 4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
 5. Press **Start** and watch the assessments, fills, and equity chart.
 
@@ -128,7 +128,7 @@ Keep the server live-write gate disabled until you have reviewed the [operating 
 
 1. Install a dedicated trade-capable Kraken key with the required query, order-creation, and cancellation permissions. **Do not grant withdrawal permission.**
 2. Set `ALLOW_LIVE_TRADING=true` and restart. The app still starts paused in Dry-run.
-3. Configure a positive live allocation and appropriate order, exposure, loss, and fee settings.
+3. Configure a positive live allocation and appropriate order, exposure, and loss limits. Confirm current Kraken account fees are available in Execution.
 4. Switch **Execution** to **Trading — real funds** and confirm. If paused, press Start; a running engine resumes after successful reconciliation and preflight.
 
 The switch cannot make a read-only key trade. The bot records order intents before submission and uses actual cumulative fills for live accounting. An uncertain submission or cancellation blocks further execution until reconciled.

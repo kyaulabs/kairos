@@ -1,5 +1,6 @@
 import time
 import unittest
+from types import SimpleNamespace
 
 from kairos import margin
 from kairos.domain import SafetyError, dec
@@ -89,7 +90,7 @@ class DomainTests(unittest.TestCase):
             for left, right in zip(route, route[1:], strict=False):
                 self.assertEqual(left.target, right.source)
 
-    def test_fees_can_eliminate_apparent_arbitrage(self):
+    def test_intermediate_market_fees_can_eliminate_apparent_arbitrage(self):
         pairs = {p.id: p for p in (BTC, ETH, CROSS)}
         route = triangle(ETH, pairs)[0]
         books = {
@@ -97,24 +98,43 @@ class DomainTests(unittest.TestCase):
             BTC.id: book(BTC, "10000", "10001"),
             CROSS.id: book(CROSS, "0.101", "0.102"),
         }
-        cheap = {**DEFAULTS, "taker_fee_bps": "0", "slippage_bps": "0"}
-        expensive = {**cheap, "taker_fee_bps": "50"}
-        self.assertGreater(dec(plan_cycle(route, books, dec(25), cheap)["edge_bps"]), 0)
-        self.assertLess(dec(plan_cycle(route, books, dec(25), expensive)["edge_bps"]), 0)
+        settings = {**DEFAULTS, "slippage_bps": "0"}
+        self.assertGreater(
+            dec(
+                plan_cycle(
+                    route, books, dec(25), settings, SimpleNamespace(reserve=lambda _: dec(0))
+                )["edge_bps"]
+            ),
+            0,
+        )
+        self.assertLess(
+            dec(
+                plan_cycle(
+                    route,
+                    books,
+                    dec(25),
+                    settings,
+                    SimpleNamespace(
+                        reserve=lambda pair: dec(200) if pair.id == CROSS.id else dec(0)
+                    ),
+                )["edge_bps"]
+            ),
+            0,
+        )
 
     def test_shallow_arbitrage_rejected(self):
         route = triangle(ETH, {p.id: p for p in (BTC, ETH, CROSS)})[0]
         books = {p.id: book(p, "999", "1000", "0.000001") for p in (BTC, ETH, CROSS)}
         with self.assertRaises(SafetyError):
-            plan_cycle(route, books, dec(25), DEFAULTS)
+            plan_cycle(route, books, dec(25), DEFAULTS, SimpleNamespace(reserve=lambda _: dec(40)))
 
     def test_one_minute_entry_requires_positive_move_strictly_above_round_trip_cost(self):
-        settings = {**DEFAULTS, "candle_minutes": 1, "taker_fee_bps": "40", "slippage_bps": "10"}
+        settings = {**DEFAULTS, "candle_minutes": 1, "slippage_bps": "10"}
         for close, eligible in (("100.203", False), ("101", False), ("101.001", True)):
             with self.subTest(close=close):
                 rows = [[i * 60, "0", "0", "0", "100"] for i in range(30)]
                 rows[-1][4] = close
-                state = trend_state(rows, settings)
+                state = trend_state(rows, settings, dec(40))
                 self.assertEqual(state["trend"], "rising")
                 self.assertEqual(state["entry_eligible"], eligible)
                 self.assertEqual(dec(state["round_trip_cost_bps"]), dec(100))
@@ -123,7 +143,7 @@ class DomainTests(unittest.TestCase):
 
     def test_trend_requires_completed_history(self):
         with self.assertRaises(SafetyError):
-            trend_state([], DEFAULTS)
+            trend_state([], DEFAULTS, dec(40))
 
 
 class MarginTests(unittest.TestCase):

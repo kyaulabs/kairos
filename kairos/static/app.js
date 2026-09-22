@@ -149,6 +149,15 @@
     const name = document.createElement('span'), value = document.createElement('span');
     name.textContent = left; value.textContent = right; row.append(name, value); container.append(row);
   }
+  function updateFeeStatus() {
+    const fees = state?.fees, rows = fees?.markets || [];
+    const stale = !rows.length || rows.some(row => row.stale || !row.received || Date.now()/1000 < row.received || Date.now()/1000-row.received >= fees.max_age_seconds);
+    const received = rows.filter(row => row.received).map(row => row.received);
+    const observed = received.length ? `Oldest snapshot ${time(Math.min(...received))} · ` : '';
+    const text = observed + (stale ? 'Fees unavailable or stale; new orders blocked. Check selected markets and Kraken fee-query access.' : `valid for ${fees.max_age_seconds}s. Spread, slippage, funding and borrowing are separate.`);
+    if ($('fees-status').textContent !== text) $('fees-status').textContent = text;
+    $('fees-status').classList.toggle('warning', stale);
+  }
   function render(next) {
     state = next;
     if (next.csrf) csrf = next.csrf;
@@ -194,6 +203,12 @@
     $('settings-fields').disabled = busy || state.running;
     updateStrategyMarket(); updateProgramFields();
     $('mode').disabled = busy || !connected;
+    $('trading-fees').replaceChildren();
+    for (const row of state.fees?.markets || []) {
+      const percent = value => value == null ? '—' : `${number(Number(value)/100)}%`;
+      textRow($('trading-fees'), row.symbol, `${percent(row.maker_bps)} maker · ${percent(row.taker_bps)} taker`);
+    }
+    updateFeeStatus();
     const decision = state.decision;
     const scheduled = deterministic(state.settings.strategy);
     $('assessment-label').textContent = scheduled ? 'Strategy status' : 'Jev assessment';
@@ -339,6 +354,7 @@
     render(state);
   });
   setInterval(() => {
+    updateFeeStatus();
     const candleAge = Math.max(0, Date.now()/1000-candleReceived);
     $('candle-status').textContent = candleError || (candleReceived ? `${candleAge > 15 ? 'STALE · ' : ''}Candles refreshed ${candleAge.toFixed(0)}s ago · latest candle may be forming` : 'Loading candles…');
     marketPicker.updateFreshness();

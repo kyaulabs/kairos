@@ -193,9 +193,10 @@
               <details><summary>Allocation &amp; recovery</summary><p>Default: full starting allocation, fee reserve, and reinvestment. Continuous strategies have no scheduled end or profit target; DCA/TWAP have finite runs. With reinvestment enabled, order and exposure caps scale in proportion to equity versus starting capital. Save a new paper balance, then reset the paper portfolio to apply it.</p><p>Capital recovery is spot-only: above 2× original equity, sell enough inventory if needed and reserve the original allocation once. Reserved cash remains on Kraken but is excluded from this bot. No external withdrawal is made.</p></details>
             </div>
             <div id="execution-settings" role="tabpanel" aria-labelledby="execution-tab" hidden>
+              <p class="settings-hint">Kraken account fees · per side, for saved bot markets. Automatic in paper and live modes; requires fee-query access.</p>
+              <div id="trading-fees"></div>
+              <p id="fees-status" class="muted" role="status">Kraken account fees not loaded.</p>
               <div class="fields">
-                <label>Maker fee · bps<input name="maker_fee_bps" type="number"></label>
-                <label>Taker fee · bps<input name="taker_fee_bps" type="number"></label>
                 <label>Slippage / offset · bps<input name="slippage_bps" type="number"></label>
                 <label>Max spread · bps<input name="max_spread_bps" type="number"></label>
                 <label>Max depth age · sec<input name="stale_seconds" type="number"></label>
