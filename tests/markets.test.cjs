@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const {readFileSync} = require('node:fs');
+const {readFileSync, readdirSync} = require('node:fs');
 const path = require('node:path');
 const {test} = require('node:test');
 const {runInNewContext} = require('node:vm');
@@ -9,6 +9,7 @@ function fixture(saved = null) {
   const warning = {hidden: true};
   const timers = [];
   const browser = {};
+  runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/vendor/crypto-icons/symbols.js'), 'utf8'), {window: browser});
   const storage = {getItem: key => values.get(key), setItem: (key, value) => values.set(key, value)};
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/markets.js'), 'utf8'), {
     window: browser, localStorage: storage,
@@ -16,11 +17,67 @@ function fixture(saved = null) {
     setTimeout: (callback, delay) => timers.push({callback, delay}),
   });
   const picker = Object.assign(Object.create(browser.MarketPicker.prototype), {
-    markets: [], received: 0, error: '', renderRows() {}, renderFooter() {}, updateFreshness() {},
+    markets: [], received: 0, error: '', sortKey: 'symbol', sortDirection: 'ascending',
+    renderRows() {}, renderFooter() {}, updateFreshness() {},
   });
   picker.favorites = picker.loadFavorites();
-  return {picker, values, storage, warning, timers};
+  return {picker, values, storage, warning, timers, browser};
 }
+
+test('market sorting starts A–Z and repeated header clicks reverse the order', () => {
+  const {picker} = fixture();
+  const rows = [{id: 'eth', symbol: 'ETH/USD'}, {id: 'btc', symbol: 'BTC/USD'}, {id: 'ada', symbol: 'ADA/USD'}];
+  const order = () => Array.from(picker.sortedMarkets(rows), row => row.id);
+  assert.deepEqual(order(), ['ada', 'btc', 'eth']);
+  picker.sortBy('symbol');
+  assert.deepEqual(order(), ['eth', 'btc', 'ada']);
+  picker.sortBy('symbol');
+  assert.deepEqual(order(), ['ada', 'btc', 'eth']);
+  assert.equal(rows[0].id, 'eth'); // Sorting cannot mutate the snapshot.
+});
+
+test('price and volume sort numerically, descending first, with missing values always last', () => {
+  for (const key of ['last', 'volume']) {
+    const {picker} = fixture();
+    const rows = [
+      {id: 'small', symbol: 'A/USD', [key]: '2.5'},
+      {id: 'large', symbol: 'B/USD', [key]: '100'},
+      {id: 'zero', symbol: 'C/USD', [key]: '0'},
+      ...[undefined, null, '', 'NaN', Infinity].map((value, i) => ({id: `missing-${i}`, symbol: `Z${i}/USD`, [key]: value})),
+    ];
+    const order = () => Array.from(picker.sortedMarkets(rows), row => row.id);
+    picker.sortBy(key);
+    assert.deepEqual(order().slice(0, 3), ['large', 'small', 'zero']);
+    assert.ok(order().slice(3).every(id => id.startsWith('missing-')));
+    picker.sortBy(key);
+    assert.deepEqual(order().slice(0, 3), ['zero', 'small', 'large']);
+    assert.ok(order().slice(3).every(id => id.startsWith('missing-')));
+    picker.sortBy('symbol');
+    assert.equal(picker.sortDirection, 'ascending');
+  }
+});
+
+test('equal numeric values use deterministic alphabetical ties across refreshes', async () => {
+  const {picker} = fixture();
+  picker.sortBy('volume');
+  picker.request = async () => ({received: 123, markets: [
+    {id: 'eth', symbol: 'ETH/USD', volume: '10'}, {id: 'btc', symbol: 'BTC/USD', volume: '10'},
+  ]});
+  await picker.refresh();
+  assert.equal(picker.sortKey, 'volume');
+  assert.equal(picker.sortDirection, 'descending');
+  assert.deepEqual(Array.from(picker.sortedMarkets(picker.markets), row => row.id), ['btc', 'eth']);
+});
+
+test('currency icons use only bundled local files; unknown symbols have no image request', () => {
+  const {browser} = fixture();
+  assert.equal(browser.MarketPicker.iconPath('BTC'), '/static/vendor/crypto-icons/btc.svg');
+  assert.equal(browser.MarketPicker.iconPath('USD'), '/static/vendor/crypto-icons/usd.svg');
+  assert.equal(browser.MarketPicker.iconPath('UNLISTED'), null);
+  assert.equal(browser.MarketPicker.iconPath('../btc'), null);
+  const files = readdirSync(path.join(__dirname, '../kairos/static/vendor/crypto-icons')).filter(name => name.endsWith('.svg')).map(name => name.slice(0, -4));
+  assert.deepEqual(Array.from(browser.CryptoIconSymbols).sort(), files.sort());
+});
 
 test('favorites persist across page instances; removing one retains the rest', () => {
   const {picker, values} = fixture();

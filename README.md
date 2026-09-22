@@ -182,4 +182,4 @@ OPERATIONS.md            Detailed setup, execution, recovery, and deployment gui
 - [Kraken Exchange API](https://docs.kraken.com/exchange/api-reference/overview)
 - [TypeSafe Jev documentation](https://docs.typesafe.ai/introduction)
 - [Jev Trader](https://github.com/jarrodwatts/jev-trader), the reference project that inspired this bot
-- [Project license](LICENSE) and [bundled D3 license](kairos/static/vendor/D3-LICENSE)
+- [Project license](LICENSE), [bundled D3 license](kairos/static/vendor/D3-LICENSE), and [currency icon source/license](kairos/static/vendor/crypto-icons/NOTICE.md)

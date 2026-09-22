@@ -167,6 +167,8 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             "/static/chart.js",
             "/static/markets.js",
             "/static/vendor/d3.v7.9.0.min.js",
+            "/static/vendor/crypto-icons/symbols.js",
+            "/static/vendor/crypto-icons/btc.svg",
         ):
             response = await self.client.get(path)
             self.assertEqual(response.status, 200)

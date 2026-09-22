@@ -1,5 +1,7 @@
 /* Public market browsing is separate from bot configuration and execution. */
 class MarketPicker {
+  static iconSymbols = new Set(window.CryptoIconSymbols);
+
   constructor(request, select) {
     this.request = request;
     this.select = select;
@@ -8,6 +10,8 @@ class MarketPicker {
     this.error = '';
     this.selected = null;
     this.favoritesOnly = false;
+    this.sortKey = 'symbol';
+    this.sortDirection = 'ascending';
     this.dialog = document.getElementById('market-dialog');
     this.search = document.getElementById('market-search');
     this.rows = document.getElementById('market-rows');
@@ -22,6 +26,9 @@ class MarketPicker {
       if (event.target === this.dialog && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom)) this.dialog.close();
     });
     this.search.addEventListener('input', () => this.renderRows());
+    for (const button of document.querySelectorAll('.market-sort')) {
+      button.addEventListener('click', () => this.sortBy(button.dataset.sort));
+    }
     this.dialog.addEventListener('keydown', event => {
       if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
       const buttons = [...this.rows.querySelectorAll('.market-select:not(:disabled)')];
@@ -41,6 +48,45 @@ class MarketPicker {
       this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows();
     });
     this.renderFooter();
+  }
+  sortBy(key) {
+    if (!['symbol', 'last', 'volume'].includes(key)) return;
+    this.sortDirection = key === this.sortKey
+      ? (this.sortDirection === 'ascending' ? 'descending' : 'ascending')
+      : (key === 'symbol' ? 'ascending' : 'descending');
+    this.sortKey = key;
+    this.renderRows();
+  }
+  sortedMarkets(markets) {
+    const direction = this.sortDirection === 'ascending' ? 1 : -1;
+    const numeric = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+    return [...markets].sort((a, b) => {
+      const byName = a.symbol.localeCompare(b.symbol) || a.id.localeCompare(b.id);
+      if (this.sortKey === 'symbol') return direction * byName;
+      const left = numeric(a[this.sortKey]), right = numeric(b[this.sortKey]);
+      // Unavailable values stay last in both directions; zero is a valid volume.
+      if (left === null || right === null) return left === right ? byName : left === null ? 1 : -1;
+      return direction * (left-right) || byName;
+    });
+  }
+  static iconPath(currency) {
+    const symbol = currency.toLowerCase();
+    return MarketPicker.iconSymbols.has(symbol) ? `/static/vendor/crypto-icons/${symbol}.svg` : null;
+  }
+  static pairIcon(symbol) {
+    const pair = document.createElement('span'); pair.className = 'asset-pair'; pair.setAttribute('aria-hidden', 'true');
+    for (const currency of symbol.split('/').slice(0, 2)) {
+      const fallback = document.createElement('span'); fallback.className = 'asset-icon asset-monogram';
+      fallback.textContent = currency.toUpperCase().slice(0, 3);
+      const path = MarketPicker.iconPath(currency);
+      if (path) {
+        const image = document.createElement('img'); image.className = 'asset-icon'; image.alt = '';
+        image.width = 22; image.height = 22; image.loading = 'lazy';
+        image.addEventListener('error', () => image.replaceWith(fallback), {once: true});
+        image.src = path; pair.append(image);
+      } else pair.append(fallback);
+    }
+    return pair;
   }
   loadFavorites() {
     try {
@@ -70,6 +116,7 @@ class MarketPicker {
   setSelected(pair) {
     if (this.selected === pair.id) return;
     this.selected = pair.id;
+    document.getElementById('market-icons').replaceChildren(MarketPicker.pairIcon(pair.symbol));
     this.renderRows(); this.renderFooter();
   }
   choose(market) {
@@ -93,8 +140,13 @@ class MarketPicker {
     const known = new Set(this.markets.map(market => market.id));
     const candidates = this.favoritesOnly ? [...this.markets, ...this.favorites.filter(id => !known.has(id))
       .map(id => ({id, symbol: id, unavailable: true}))] : this.markets;
-    const matches = candidates.filter(market =>
-      (!this.favoritesOnly || this.favorites.includes(market.id)) && market.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(query));
+    const matches = this.sortedMarkets(candidates.filter(market =>
+      (!this.favoritesOnly || this.favorites.includes(market.id)) && market.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(query)));
+    for (const button of document.querySelectorAll('.market-sort')) {
+      const active = button.dataset.sort === this.sortKey;
+      button.closest('th').setAttribute('aria-sort', active ? this.sortDirection : 'none');
+      button.querySelector('.sort-direction').textContent = active ? (this.sortDirection === 'ascending' ? '↑' : '↓') : '↕';
+    }
     document.getElementById('markets-all').setAttribute('aria-pressed', String(!this.favoritesOnly));
     document.getElementById('markets-favorites').setAttribute('aria-pressed', String(this.favoritesOnly));
     const fragment = document.createDocumentFragment();
@@ -105,7 +157,9 @@ class MarketPicker {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'market-select'; button.dataset.market = market.id;
       button.disabled = market.unavailable === true;
-      button.textContent = market.symbol; button.setAttribute('aria-pressed', String(market.id === this.selected));
+      const label = document.createElement('span'); label.textContent = market.symbol;
+      button.append(MarketPicker.pairIcon(market.symbol), label);
+      button.setAttribute('aria-pressed', String(market.id === this.selected));
       button.addEventListener('click', () => this.choose(market)); name.append(button);
       price.textContent = MarketPicker.number(market.last);
       volume.textContent = MarketPicker.number(market.volume);
@@ -135,7 +189,7 @@ class MarketPicker {
       button.type = 'button'; button.className = 'watch-market'; button.dataset.watch = id; button.disabled = !market;
       button.setAttribute('aria-pressed', String(id === this.selected));
       name.textContent = market?.symbol || id; price.textContent = MarketPicker.number(market?.last);
-      button.append(name, price); button.addEventListener('click', () => this.choose(market));
+      button.append(MarketPicker.pairIcon(market?.symbol || id), name, price); button.addEventListener('click', () => this.choose(market));
       fragment.append(button);
     }
     if (!this.favorites.length) {
@@ -162,7 +216,7 @@ class MarketPicker {
     try {
       const data = await this.request('markets');
       if (!Array.isArray(data.markets) || !Number.isFinite(data.received)) throw new Error('Invalid market snapshot');
-      this.markets = data.markets.sort((a, b) => a.symbol.localeCompare(b.symbol));
+      this.markets = data.markets;
       this.received = data.received; this.error = '';
       this.renderRows(); this.renderFooter();
     } catch {

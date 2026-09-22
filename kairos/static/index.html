@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/vendor/d3.v7.9.0.min.js"></script>
   <script defer src="/static/chart.js"></script>
+  <script defer src="/static/vendor/crypto-icons/symbols.js"></script>
   <script defer src="/static/markets.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
@@ -15,7 +16,7 @@
 <header class="desk-header">
   <a class="brand" href="/" aria-label="Kairos trading desk">K<span>AI</span>ROS</a>
   <h1 class="sr-only">Trading desk</h1>
-  <button id="market-open" class="market-heading" type="button" aria-haspopup="dialog" aria-controls="market-dialog" title="Choose chart market; does not change the bot"><strong id="market-title">BTC/USD</strong><span class="eyebrow">CHART MARKET <span class="icon icon-chevron" aria-hidden="true">▾</span></span></button>
+  <button id="market-open" class="market-heading" type="button" aria-haspopup="dialog" aria-controls="market-dialog" title="Choose chart market; does not change the bot"><span class="market-symbol"><span id="market-icons" aria-hidden="true"></span><strong id="market-title">BTC/USD</strong></span><span class="eyebrow">CHART MARKET <span class="icon icon-chevron" aria-hidden="true">▾</span></span></button>
   <div class="metric market-price"><span>Mid price</span><strong id="price" title="Live bid/ask midpoint">—</strong></div>
   <div class="account-metrics" aria-label="Bot portfolio summary">
     <div class="metric"><span>Equity · USD</span><strong id="equity" aria-describedby="valuation-time">—</strong></div>
@@ -37,7 +38,7 @@
   </nav>
   <div class="workspace" data-view="chart">
     <section id="market-panel" class="panel chart-panel" aria-labelledby="chart-title">
-      <div class="panel-head"><h2 id="chart-title">Market chart</h2><span id="chart-context" class="chart-context">Bot market</span></div>
+      <div class="panel-head"><h2 id="chart-title"><span class="icon icon-chart" aria-hidden="true">↗</span> Market chart</h2><span id="chart-context" class="chart-context">Bot market</span></div>
       <div class="chart-toolbar">
         <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option><option value="5">5m</option><option value="15">15m</option><option value="30">30m</option><option value="60">1h</option><option value="240">4h</option><option value="1440">1d</option></select></label><button id="follow" class="small">Follow live</button></div>
         <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
@@ -47,7 +48,7 @@
     </section>
 
     <section id="assessment-panel" class="panel assessment-panel" aria-labelledby="assessment-title">
-      <div class="panel-head"><h2 id="assessment-title">Jev assessment</h2><span class="eyebrow">MODEL</span></div>
+      <div class="panel-head"><h2 id="assessment-title"><span class="icon icon-brain" aria-hidden="true">◇</span> Jev assessment</h2><span class="eyebrow">MODEL</span></div>
       <div class="assessment-market"><span class="eyebrow">BOT MARKET</span><button id="bot-market" type="button" title="Show the bot’s configured market on the chart">—</button></div>
       <div class="panel-scroll" tabindex="0" role="region" aria-label="Assessment details">
         <div class="decision"><strong id="decision">Waiting</strong><span id="confidence">—</span></div>
@@ -91,9 +92,9 @@
         <span id="engine-strategy" class="muted">—</span>
       </div>
       <div class="tab-list settings-tabs" role="tablist" aria-label="Configuration sections">
-        <button type="button" id="strategy-tab" role="tab" aria-selected="true" aria-controls="strategy-settings">Strategy</button>
-        <button type="button" id="capital-tab" role="tab" aria-selected="false" aria-controls="capital-settings" tabindex="-1">Capital</button>
-        <button type="button" id="execution-tab" role="tab" aria-selected="false" aria-controls="execution-settings" tabindex="-1">Execution</button>
+        <button type="button" id="strategy-tab" role="tab" aria-selected="true" aria-controls="strategy-settings"><span class="icon icon-strategy" aria-hidden="true">♞</span> Strategy</button>
+        <button type="button" id="capital-tab" role="tab" aria-selected="false" aria-controls="capital-settings" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true">▣</span> Capital</button>
+        <button type="button" id="execution-tab" role="tab" aria-selected="false" aria-controls="execution-settings" tabindex="-1"><span class="icon icon-execution" aria-hidden="true">↯</span> Execution</button>
       </div>
       <form id="settings">
         <fieldset id="settings-fields" disabled>
@@ -157,7 +158,7 @@
   <div class="market-dialog-head"><div><h2 id="market-dialog-title">Choose a chart market</h2><p id="market-dialog-note">Browse without changing the bot’s trading market.</p></div><button id="market-close" type="button" aria-label="Close market picker"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
   <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search crypto markets</span><input id="market-search" type="search" placeholder="Search markets, e.g. BTC or ETH/USD" autocomplete="off" spellcheck="false"></label>
   <div class="market-filters" aria-label="Market filters"><button id="markets-all" type="button" aria-pressed="true">All crypto</button><button id="markets-favorites" type="button" aria-pressed="false"><span class="icon icon-star" aria-hidden="true">☆</span> Favorites</button><span id="market-feed-status" role="status">Loading prices…</span></div>
-  <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col">Market</th><th scope="col">Last price</th><th scope="col">24h volume · base</th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
+  <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · base <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
   <p id="market-storage-status" class="warning" role="status" hidden></p>
   <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Prices refresh about every 10s. Favorites are saved in this browser.</p>
 </dialog>

@@ -6,6 +6,10 @@ The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The 
 
 Click the market beside the logo to open the searchable crypto picker. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and save a new market under Settings > Strategy.
 
+The picker starts with Market sorted A–Z. Click Market to reverse it; select Last price or 24h volume to sort highest-first, then click again for lowest-first. Sorting survives search, favorite filtering, and price refreshes for the current page session. Unavailable values stay at the bottom. Volume is in each market's base-asset units, not a common USD notional.
+
+Currency icons appear beside the selected chart pair, picker rows, and footer favorites. Missing artwork uses ticker-letter badges.
+
 Stars add or remove footer favorites. They persist across reloads in this browser's local storage and synchronize between tabs on the same origin; clearing site data removes them. They do not synchronize to other browser profiles or devices. Footer prices update independently of the selected chart. An unavailable market shows no invented price. If storage is blocked, the picker warns that favorites last only for the current page session.
 
 Picker and footer prices are last trades from a public Kraken ticker snapshot refreshed about every ten seconds, with a shared server cache. The volume column is the last 24 hours in base-asset units. The header is a bid/ask midpoint from the newest available snapshot or WebSocket quote, not the candle close. Prices older than 30 seconds are marked stale. Chart snapshots and browsing quotes are not execution inputs; execution fetches its own fresh depth.
@@ -218,4 +222,4 @@ uv run kairos-smoke --jev
 
 This checks public depth, completed candles, a WebSocket tick, authenticated balances/fees, and one real Jev evaluation. The Jev call can incur normal API charges. No order, validation-order, cancellation, or funding call is made. It prints pass/fail summaries, not credentials, balances, or response bodies.
 
-D3 7.9.0 is self-hosted in `kairos/static/vendor/`; its ISC license is included there. Its distribution was checked against the npm package integrity value. There are no browser calls to third-party CDNs.
+D3 7.9.0 is self-hosted in `kairos/static/vendor/`; its ISC license is included there. Its distribution was checked against the npm package integrity value. The currency artwork is a self-hosted subset of spothq/cryptocurrency-icons under CC0; [source revision, attribution, and update notes](kairos/static/vendor/crypto-icons/NOTICE.md) accompany the SVGs. There are no browser calls to third-party CDNs.
