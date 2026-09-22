@@ -29,6 +29,16 @@ test('missing metrics remain unavailable rather than becoming zero', () => {
   assert.equal(View.number('-2.5'),-2.5);
 });
 
+test('Bollinger position uses the assessed bands, not model scores or a configurable sigma', () => {
+  const input={lower:'98',middle:'100',upper:'102',series:[{time:60,close:'100'}]};
+  for (const [close,expected] of [[98,-1],[100,0],[102,1],[96,-2],[104,2]]) {
+    assert.equal(View.bandPosition({...input,series:[{time:60,close}]}),expected);
+  }
+  for (const update of [{series:[]},{series:[{close:null}]},{series:[{close:'NaN'}]},{lower:'100',upper:'100'},{upper:'99'},{middle:null}]) {
+    assert.equal(View.bandPosition({...input,...update}),null);
+  }
+});
+
 // Minimal DOM surface for actual vendored D3 selections; browser checks cover geometry/fonts.
 function documentFixture() {
   const doc = {documentElement:{namespaceURI:'http://www.w3.org/1999/xhtml'}};
@@ -60,12 +70,17 @@ function documentFixture() {
   return doc.createElement('div');
 }
 
-test('real D3 renders model, missing data, program and band instruments without invalid geometry or input mutations', () => {
+function instrumentFixture() {
   const window={};
   runInNewContext(readFileSync(path.join(__dirname,'../kairos/static/assessment.js'),'utf8'),{
     window,d3:require('../kairos/static/vendor/d3.v7.9.0.min.js'),ResizeObserver:class {observe(){}},
   });
   const root=documentFixture(), view=new window.AssessmentView(root);
+  return {root,view};
+}
+
+test('real D3 renders model, missing data, program and band instruments without invalid geometry or input mutations', () => {
+  const {root,view}=instrumentFixture();
   const model={action:'buy',probabilities:{buy:.72,hold:.2,sell:.08},state:{eight_candle_return_bps:'195.4',round_trip_cost_bps:'100',trend:'rising',spread_bps:'10',inventory:'0'}};
   const state={mode:'dry-run',settings:{strategy:'htf',product:'spot',pair:'XXBTZUSD'}};
   const before=JSON.stringify({model,state});
@@ -79,9 +94,43 @@ test('real D3 renders model, missing data, program and band instruments without 
   assert.match(root.querySelector('svg').getAttribute('aria-label'),/Claimed slots/);
   const rule={deterministic:true,state:{window:30,candle_close_time:1800,lower:'99',middle:'100',upper:'101',series:[{time:0,close:'100'},{time:60,close:'98'},{time:120,close:'99.5'}]}};
   view.render(rule,{...state,settings:{...state.settings,strategy:'scalp'}});
-  assert.match(root.querySelector('svg').getAttribute('aria-label'),/one-minute closing prices/);
-  assert.equal(root.querySelectorAll('path').length,1);
+  assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Not confidence or permission to trade/);
+  assert.match(root.querySelector('.bollinger-instrument').getAttribute('aria-label'),/one-minute closing prices/);
+  assert.equal(root.querySelector('.bollinger-instrument').getAttribute('viewBox'),'0 0 360 214');
+  assert.equal(root.querySelectorAll('path').length,31);
   for(const node of root.querySelectorAll('*')) for(const value of node.attributes.values()) assert.doesNotMatch(value,/NaN|Infinity/);
   view.render({...rule,state:{...rule.state,lower:'100',middle:'100',upper:'100'}},{...state,settings:{...state.settings,strategy:'scalp'}});
   assert.ok(root.querySelectorAll('text').some(node=>node.textContent==='FLAT'));
+  assert.equal(root.querySelector('.instrument-needle'),null);
+});
+
+test('mini gauge moves with assessed band position, caps the needle, and labels paused and saved data', () => {
+  const {root,view}=instrumentFixture();
+  const state={running:true,mode:'dry-run',settings:{strategy:'scalp',product:'spot',pair:'XXBTZUSD'}};
+  const input={window:30,candle_close_time:120,lower:'98',middle:'100',upper:'102',z_score:'-2',series:[{time:0,close:'100'},{time:60,close:'98'}]};
+  const decision={deterministic:true,action:'hold',state:input};
+  const before=JSON.stringify({state,decision});
+  view.render(decision,state);
+  const lower=Number(root.querySelector('.instrument-needle').getAttribute('x2'));
+  assert.ok(lower>180);
+  assert.equal(root.querySelector('svg'),root.querySelector('.range-gauge'));
+  assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Latest assessed window/);
+  const plot=root.querySelector('.bollinger-instrument').querySelector('path').getAttribute('d');
+  view.render({...decision,state:{...input,z_score:'2',series:[{time:0,close:'100'},{time:60,close:'102'}]}},state);
+  const upper=Number(root.querySelector('.instrument-needle').getAttribute('x2'));
+  assert.ok(upper<180);
+  assert.notEqual(root.querySelector('.bollinger-instrument').querySelector('path').getAttribute('d'),plot);
+  view.render({...decision,state:{...input,z_score:'4',series:[{time:0,close:'100'},{time:60,close:'104'}]}},state);
+  assert.equal(Number(root.querySelector('.instrument-needle').getAttribute('x2')),upper);
+  assert.equal(root.querySelector('.instrument-score').textContent,'+4.00σ');
+  view.render(decision,{...state,running:false});
+  assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Paused, last assessed/);
+  view.render(null,{...state,running:false,scalp:{position:{signal:input,stop:'97',target:'100',deadline:300}}});
+  assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Saved entry window/);
+  assert.equal(Number(root.querySelector('.instrument-needle').getAttribute('x2')),lower);
+  view.render(null,state);
+  assert.equal(root.querySelector('.instrument-needle'),null);
+  assert.equal(root.querySelector('.bollinger-instrument'),null);
+  assert.equal(root.querySelector('.instrument-score').textContent,'—');
+  assert.equal(JSON.stringify({state,decision}),before);
 });

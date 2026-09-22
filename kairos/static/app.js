@@ -213,6 +213,7 @@
     updateFeeStatus();
     const decision = AssessmentView.matches(state.decision, state) ? state.decision : null;
     const definition = settingsSchema.strategies[state.settings.strategy];
+    $('assessment-panel').dataset.strategy = state.settings.strategy;
     const scheduled = scheduledStrategy(state.settings.strategy);
     const rules = scheduled || definition.deterministic;
     $('mode').querySelector('option[value="trading"]').disabled = !!definition.paper_only;
@@ -235,7 +236,7 @@
       $('confidence').textContent = decision.deterministic ? 'DETERMINISTIC · PAPER · 1 MINUTE' : confidence != null && confidence >= 0 && confidence <= 1 ? `${(confidence*100).toFixed(1)}% confidence in ${decision.action === 'hold' ? 'no trade' : decision.action}` : 'Confidence unavailable';
       $('decision-context').textContent = decisionContext(decision);
       $('decision-market').textContent = `Assessment market: ${decision.state?.symbol || decision.pair}`;
-      $('model-info').textContent = `${decision.model} · ${decision.latency_ms} ms · ${time(decision.ts)} · ${decision.mode}`;
+      $('model-info').textContent = decision.deterministic ? `${time(decision.ts)} · ${decision.mode}` : `${decision.model} · ${decision.latency_ms} ms · ${time(decision.ts)} · ${decision.mode}`;
       $('decision-inputs').textContent = JSON.stringify(decision.state, null, 2);
     } else {
       $('decision').textContent = state.scalp?.position ? 'Saved plan' : 'Waiting'; $('decision').className = '';
