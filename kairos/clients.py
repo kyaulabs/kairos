@@ -15,8 +15,8 @@ class ExchangeRejected(SafetyError):
     pass
 
 
-def signature(path, payload, secret):
-    post = urlencode(payload)
+def signature(path, payload, secret, post=None):
+    post = urlencode(payload) if post is None else post
     digest = hashlib.sha256((str(payload["nonce"]) + post).encode()).digest()
     return base64.b64encode(
         hmac.new(base64.b64decode(secret), path.encode() + digest, hashlib.sha512).digest()
@@ -60,12 +60,25 @@ class Kraken:
                 nonce = max(time.time_ns() // 1000, self.store.get("nonce", 0) + 1)
                 self.store.put("nonce", nonce)
                 params["nonce"] = nonce
-                headers = {"API-Key": self.key, "API-Sign": signature(path, params, self.secret)}
+                # Structured asset-class fee queries require JSON rather than form encoding.
+                encoded = (
+                    json.dumps(params, separators=(",", ":"))
+                    if isinstance(params.get("pair"), list)
+                    else None
+                )
+                headers = {
+                    "API-Key": self.key,
+                    "API-Sign": signature(path, params, self.secret, encoded),
+                }
+                if encoded is not None:
+                    headers["Content-Type"] = "application/json"
+            else:
+                encoded = None
             try:
                 async with self.session.request(
                     "POST" if private else "GET",
                     "https://api.kraken.com" + path,
-                    data=params if private else None,
+                    data=(encoded if encoded is not None else params) if private else None,
                     params=None if private else params,
                     headers=headers,
                     allow_redirects=False,
@@ -290,18 +303,18 @@ class Jev:
                 "action": {
                     "type": "choice",
                     "instructions": (
-                        "Assess the supplied spot strategy state. Choose buy, sell, or hold. "
+                        "Assess the supplied strategy and product state. Choose buy, sell, or hold. "
                         "Use the computed trend and liquidity descriptions; do not calculate sizing "
                         "or invent unseen data. In spot mode there is no leverage or short selling. "
-                        "In paper margin mode buy opens/increases long or reduces short; sell "
-                        "opens/increases short or reduces long. Fees and hard risk "
+                        "In paper margin or Futures mode buy opens/increases long or reduces short; sell "
+                        "opens/increases short or reduces long. Futures have funding and liquidation risk. Fees and hard risk "
                         "checks are enforced by code. For arbitrage, buy means permit the computed "
                         "cycle, hold means abstain, and sell is not applicable. The reported "
                         "probabilities are assessments, not guaranteed future returns."
                     ),
                     "criteria": {
-                        "buy": "Conditions support the proposed long entry, bid quote, or positive-net arbitrage cycle.",
-                        "sell": "Conditions support reducing existing spot inventory or offering an ask quote.",
+                        "buy": "Conditions support the proposed long entry, reducing a permitted short, bid quote, or positive-net arbitrage cycle.",
+                        "sell": "Conditions support reducing existing long inventory, a product-permitted short entry, or offering an ask quote.",
                         "hold": "Conditions are unclear, costs dominate, or no permitted action is justified.",
                     },
                 }

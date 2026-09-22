@@ -46,7 +46,12 @@ class Store:
                 "INSERT OR REPLACE INTO orders VALUES (?, ?)", (order["id"], encode(order))
             )
             if ledger is not None:
-                key = "margin" if order.get("product") == "margin" else "ledger:" + order["mode"]
+                key = (
+                    "margin"
+                    if order.get("product") == "margin"
+                    else ("futures:" if order.get("product") == "futures" else "ledger:")
+                    + order["mode"]
+                )
                 self._put(key, ledger)
 
     def event(self, kind, data):

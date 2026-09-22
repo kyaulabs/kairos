@@ -123,31 +123,42 @@
             <p class="settings-hint">Stop first to change settings. Spot holdings remain tracked when changing markets.</p>
             <div id="strategy-settings" role="tabpanel" aria-labelledby="strategy-tab">
               <div class="fields">
-                <label class="wide">Asset class<select id="asset-class"><option value="crypto">Crypto / currency spot markets</option><option value="xstocks" disabled>xStocks — browse only</option><option value="futures" disabled>Futures — browse only</option><option value="stocks" disabled>Brokerage stocks / ETFs — not integrated</option></select></label>
+                <label class="wide">Asset class<select id="asset-class"><option value="crypto">Crypto / currency spot markets</option><option value="xstocks" disabled>xStocks — browse only</option><option value="futures">Linear crypto perpetuals · USD</option><option value="stocks" disabled>Brokerage stocks / ETFs — not integrated</option></select></label>
                 <div id="strategy-market" class="strategy-market wide">
                   <label id="bot-market-label" for="pair-search">Bot market</label>
                   <input type="hidden" name="pair" id="pair">
                   <input id="pair-search" type="search" role="combobox" aria-expanded="false" aria-controls="pair-options" aria-autocomplete="list" aria-describedby="pair-help" autocomplete="off" spellcheck="false" placeholder="Search all markets…">
                   <div id="pair-options" class="pair-options" role="listbox" aria-label="Bot markets" hidden></div>
                   <p id="pair-status" class="muted" role="status"></p>
-                  <p id="pair-help" class="muted">The full chart-picker catalog is shown. xStocks and futures are browse-only. Quote-currency and margin limitations are Kairos safeguards, not account restrictions. Choose a supported pair, then Save settings.</p>
+                  <p id="pair-help" class="muted">The full chart-picker catalog is shown. xStocks, inverse and dated Futures are browse-only. Choose Futures product for qualified USD linear crypto perpetuals. Quote-currency and margin limitations are Kairos safeguards, not account restrictions. Choose a supported pair, then Save settings.</p>
                 </div>
                 <label class="wide">Strategy<select name="strategy"><option value="htf">Higher-timeframe trend</option><option value="maker">Market making</option><option value="arbitrage">Triangular arbitrage</option><option value="dca">DCA · scheduled accumulation</option><option value="twap">TWAP · bounded order slicing</option><option value="rebalance">Threshold rebalancing</option></select></label>
-                <label class="wide">Product<select name="product"><option value="spot">Spot</option><option value="margin">Margin · paper only</option></select></label>
+                <label class="wide">Product<select name="product"><option value="spot">Spot</option><option value="margin">Margin · paper only</option><option value="futures">Futures · linear perpetuals</option></select></label>
                 <label>Decision interval · sec<input name="interval_seconds" type="number" min="10" max="3600" step="1" required></label>
                 <label>HTF candle interval<select name="candle_minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
                 <label class="wide">Jev minimum confidence<input name="min_confidence" type="number" min="0" max="1" step="0.01" required></label>
               </div>
+              <div id="futures-settings" hidden>
+                <div class="fields">
+                  <label>Local leverage cap<select name="futures_leverage"><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option></select></label>
+                  <label>DCA direction<select name="futures_dca_side"><option value="buy">Buy / long</option><option value="sell">Sell / short</option></select></label>
+                  <label>Futures live collateral · USD<input name="futures_live_budget" type="number" min="0" step="any" required></label>
+                  <label>TWAP parent notional cap · USD<input name="futures_parent_notional" type="number" min="0.01" step="any" required></label>
+                  <label class="check wide"><input name="futures_reduce_only" type="checkbox"> DCA/TWAP reduce existing position only</label>
+                </div>
+                <p class="settings-hint">Separate Futures portfolio. Cross margin with a local leverage cap; no exchange margin-setting changes. USD-only dedicated wallet; no automatic funding, transfers or currency conversion. Caps and DCA amounts are notional USD; quantities are contract units (one base unit per contract). Reserve: 20% of starting collateral plus fees. Published margin tiers may lower effective leverage. Funding and liquidation risk remain while paused; Stop cancels orders, not positions. No Futures arbitrage or basket rebalancing.</p>
+                <button id="close-futures" type="button">Reduce Futures position…</button>
+              </div>
               <div id="program-settings" hidden>
-                <p class="settings-hint">Deterministic spot orders; no Jev calls. Paper and gated live use only bot allocations. Save settings before starting or creating a new run.</p>
+                <p class="settings-hint">Deterministic spot or qualified Futures orders; no Jev calls. Paper and gated live use only bot allocations. Save settings before starting or creating a new run.</p>
                 <div class="fields" data-strategy="dca" hidden>
                   <label>Purchase · USD incl. fees<input name="dca_amount" type="number" min="0.01" step="any" required></label>
                   <label>Purchases<input name="dca_count" type="number" min="1" max="10000" step="1" required></label>
                   <label class="wide">Purchase period · sec<input name="dca_period_seconds" type="number" min="10" max="31536000" step="1" required></label>
                 </div>
                 <div class="fields" data-strategy="twap" hidden>
-                  <label>Side<select name="twap_side"><option value="buy">Buy</option><option value="sell">Sell bot-owned inventory</option></select></label>
-                  <label>Total base quantity<input name="twap_quantity" type="number" min="0.00000001" step="any" required></label>
+                  <label>Side<select name="twap_side"><option value="buy">Buy</option><option value="sell">Sell · spot inventory / Futures short or reduce</option></select></label>
+                  <label><span id="twap-quantity-label">Total base quantity</span><input name="twap_quantity" type="number" min="0.00000001" step="any" required></label>
                   <label>Parent limit · USD<input name="twap_limit" type="number" min="0.00000001" step="any" placeholder="Enter price per unit" required aria-describedby="twap-limit-help"></label>
                   <label>Slices<input name="twap_slices" type="number" min="2" max="10000" step="1" required></label>
                   <label class="wide">Total duration · sec<input name="twap_duration_seconds" type="number" min="20" max="31536000" step="1" required></label>
@@ -164,12 +175,12 @@
                 <p class="settings-hint">First check is immediate on Start. DCA/TWAP skip missed slices and pause on completion; no catch-up burst. Rebalancing sends at most one order per cooldown. No conversions or transfers to fund trades.</p>
                 <button id="new-program" type="button">New strategy run…</button>
               </div>
-              <details><summary>Other Kraken products</summary><p>Kairos now browses spot/FX, margin-eligible pairs, xStocks, and futures, with read-only Exchange accounts. Trading remains the existing currency-spot path and paper margin. xStocks are tokens, not brokerage shares; futures are contracts. DEX and brokerage shares remain unverified. New asset-class execution still requires separate milestones. DCA, TWAP and rebalancing use the existing spot path with pre-funded allocations.</p><a href="https://github.com/krakenfx/kraken-cli#what-you-can-trade" target="_blank" rel="noopener noreferrer">Kraken CLI product coverage</a></details>
+              <details><summary>Other Kraken products</summary><p>Kairos now browses spot/FX, margin-eligible pairs, xStocks, and futures, with read-only Exchange accounts. Trading supports currency spot, paper margin and qualified USD linear crypto perpetuals with separate accounting and live gates. xStocks are tokens, not brokerage shares; futures are contracts. DEX and brokerage shares remain unverified. HTF, market making, DCA and TWAP support linear perpetuals. Basket rebalancing remains spot-only. Inverse, dated and non-crypto Futures remain browse-only.</p><a href="https://github.com/krakenfx/kraken-cli#what-you-can-trade" target="_blank" rel="noopener noreferrer">Kraken CLI product coverage</a></details>
             </div>
             <div id="capital-settings" role="tabpanel" aria-labelledby="capital-tab" hidden>
               <div class="fields">
                 <label>Paper balance · USD<input name="paper_balance" type="number" min="1" step="any" required></label>
-                <label>Live allocation · USD<input name="live_budget" type="number" min="0" step="any" required></label>
+                <label>Spot live allocation · USD<input name="live_budget" type="number" min="0" step="any" required></label>
                 <label>Order cap · USD<input name="order_size" type="number" min="0.01" step="any" required></label>
                 <label>Exposure cap · USD<input name="max_exposure" type="number" min="0.01" step="any" required></label>
                 <label>Daily loss limit · USD<input name="daily_loss" type="number" min="0.01" step="any" required></label>
@@ -211,7 +222,7 @@
   <span id="connection" class="connection" role="status">Connecting</span>
   <button id="favorites-open" class="favorites-open" type="button" aria-haspopup="dialog" aria-controls="market-dialog"><span class="icon icon-star icon-solid" aria-hidden="true">★</span> Favorites</button>
   <div id="watchlist" class="watchlist" role="region" aria-label="Favorite market prices" tabindex="0"><span class="muted">Star markets to watch their prices here.</span></div>
-  <details class="safety-info"><summary>Safety notes</summary><div class="safety-popover">Stop cancels tracked orders; it does not sell holdings. Loss limits stop new trading, not market losses. Never expose the backend port publicly.</div></details>
+  <details class="safety-info"><summary>Safety notes</summary><div class="safety-popover">Stop cancels tracked orders; it does not sell holdings or close Futures positions. Loss limits stop new trading, not market losses. Never expose the backend port publicly.</div></details>
 </footer>
 <dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title" aria-describedby="market-dialog-note">
   <div class="market-dialog-head"><div><h2 id="market-dialog-title">Choose a chart market</h2><p id="market-dialog-note">Browse without changing the bot’s trading market.</p></div><button id="market-close" type="button" aria-label="Close market picker"><span class="icon icon-close" aria-hidden="true">×</span></button></div>

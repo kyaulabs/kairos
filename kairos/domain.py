@@ -145,6 +145,11 @@ DEFAULTS = {
     "rebalance_min_trade": "10",
     "rebalance_daily_turnover": "100",
     "rebalance_cooldown_seconds": 3600,
+    "futures_live_budget": "0",
+    "futures_leverage": 1,
+    "futures_dca_side": "buy",
+    "futures_parent_notional": "1000",
+    "futures_reduce_only": False,
 }
 DECIMAL_BOUNDS = {
     "paper_balance": ("1", "1000000000"),
@@ -167,6 +172,8 @@ DECIMAL_BOUNDS = {
     "rebalance_band_pct": ("0.1", "50"),
     "rebalance_min_trade": ("0.01", "1000000000"),
     "rebalance_daily_turnover": ("0.01", "1000000000"),
+    "futures_live_budget": ("0", "1000000000"),
+    "futures_parent_notional": ("0.01", "1000000000"),
 }
 
 
@@ -188,6 +195,7 @@ def validate_settings(values):
         ("twap_slices", 2, 10000),
         ("twap_duration_seconds", 20, 31536000),
         ("rebalance_cooldown_seconds", 10, 604800),
+        ("futures_leverage", 1, 5),
     ):
         if type(values[key]) is not int or not low <= values[key] <= high:
             raise SafetyError(f"{key} must be an integer between {low} and {high}")
@@ -196,11 +204,14 @@ def validate_settings(values):
         or values["candle_minutes"] not in CANDLE_INTERVALS
     ):
         raise SafetyError("Unsupported candle interval")
-    if any(type(values[key]) is not bool for key in ("reinvest_profits", "recover_initial")):
+    if any(
+        type(values[key]) is not bool
+        for key in ("reinvest_profits", "recover_initial", "futures_reduce_only")
+    ):
         raise SafetyError("Reinvestment and recovery switches must be boolean")
-    if values["product"] == "margin" and values["recover_initial"]:
+    if values["product"] != "spot" and values["recover_initial"]:
         raise SafetyError("One-time capital recovery is supported for spot portfolios only")
-    if values["product"] not in ("spot", "margin"):
+    if values["product"] not in ("spot", "margin", "futures"):
         raise SafetyError("Unknown trading product")
     if type(values["leverage"]) is not int or not 2 <= values["leverage"] <= 5:
         raise SafetyError("Paper leverage must be an integer from 2 to 5")
@@ -208,8 +219,12 @@ def validate_settings(values):
         raise SafetyError("Triangular arbitrage uses spot balances, not margin positions")
     if values["strategy"] not in ("htf", "maker", "arbitrage", "dca", "twap", "rebalance"):
         raise SafetyError("Unknown strategy")
-    if values["product"] != "spot" and values["strategy"] in ("dca", "twap", "rebalance"):
-        raise SafetyError("DCA, TWAP and threshold rebalancing support spot only")
+    if values["product"] == "margin" and values["strategy"] in ("dca", "twap", "rebalance"):
+        raise SafetyError("Scheduled programs do not support margin")
+    if values["product"] == "futures" and values["strategy"] not in ("htf", "maker", "dca", "twap"):
+        raise SafetyError("Futures support HTF, market making, DCA and TWAP only")
+    if values["futures_dca_side"] not in ("buy", "sell"):
+        raise SafetyError("Futures DCA side must be buy or sell")
     if values["twap_side"] not in ("buy", "sell"):
         raise SafetyError("TWAP side must be buy or sell")
     if not isinstance(values["rebalance_targets"], str) or len(values["rebalance_targets"]) > 1000:

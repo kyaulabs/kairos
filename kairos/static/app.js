@@ -10,7 +10,7 @@
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
-  const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds', 'dca_count', 'dca_period_seconds', 'twap_slices', 'twap_duration_seconds', 'rebalance_cooldown_seconds']);
+  const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds', 'dca_count', 'dca_period_seconds', 'twap_slices', 'twap_duration_seconds', 'rebalance_cooldown_seconds', 'futures_leverage']);
   const deterministic = strategy => ['dca', 'twap', 'rebalance'].includes(strategy);
   const strategyNames = {htf: 'Higher-timeframe trend', maker: 'Rate-limited market making', arbitrage: 'Triangular arbitrage', dca: 'DCA · scheduled accumulation', twap: 'TWAP · bounded order slicing', rebalance: 'Threshold rebalancing'};
   const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); }, markets => {
@@ -127,9 +127,19 @@
       leverage: Number(form.elements.namedItem('leverage').value), mode: state.mode,
     });
   }
-  for (const name of ['product', 'leverage']) form.elements.namedItem(name).addEventListener('change', () => { if (state) updateStrategyMarket(); });
+  for (const name of ['product', 'leverage']) form.elements.namedItem(name).addEventListener('change', () => { if (state) { updateStrategyMarket(); updateProgramFields(); } });
+  $('asset-class').addEventListener('change', () => {
+    form.elements.namedItem('product').value = $('asset-class').value === 'futures' ? 'futures' : 'spot';
+    if (state) { updateStrategyMarket(); updateProgramFields(); }
+  });
   function updateProgramFields() {
     const strategy = form.elements.namedItem('strategy').value;
+    const derivative = form.elements.namedItem('product').value === 'futures';
+    $('asset-class').value = derivative ? 'futures' : 'crypto';
+    $('futures-settings').hidden = !derivative;
+    $('twap-quantity-label').textContent = derivative ? 'Total contract quantity' : 'Total base quantity';
+    for (const input of $('futures-settings').querySelectorAll('input, select')) input.disabled = !derivative;
+    $('close-futures').disabled = busy || state?.running || state?.settings.product !== 'futures';
     $('program-settings').hidden = !deterministic(strategy);
     $('bot-market-label').textContent = strategy === 'rebalance' ? 'Anchor market · basket configured below' : 'Bot market';
     for (const group of form.querySelectorAll('[data-strategy]')) {
@@ -236,7 +246,15 @@
       $('model-info').textContent = $('decision-inputs').textContent = 'No assessment yet.';
     }
     $('holdings').replaceChildren();
-    if (state.settings.product === 'margin') {
+    if (state.settings.product === 'futures') {
+      const ledger = state.futures;
+      $('portfolio-label').textContent = `${state.mode === 'trading' ? 'Live' : 'Paper'} Futures · separate USD collateral / linear perpetuals`;
+      if (ledger) {
+        textRow($('holdings'), 'Collateral cash · USD', money(ledger.cash));
+        for (const [pair, position] of Object.entries(ledger.positions)) if (Number(position.quantity) !== 0) textRow($('holdings'), pair, `${number(position.quantity)} contracts @ ${number(position.entry)}`);
+        $('margin-info').textContent = `Fees ${money(ledger.fees)} USD · realized funding ${money(ledger.funding)} USD · local leverage cap ${state.settings.futures_leverage}×. Stop does not close positions.`;
+      } else $('margin-info').textContent = 'Allocate a dedicated USD-only Futures wallet and explicitly arm live Futures.';
+    } else if (state.settings.product === 'margin') {
       const ledger = state.margin;
       $('portfolio-label').textContent = 'Paper margin · simplified cross-collateral simulation';
       if (ledger) {
@@ -301,11 +319,11 @@
     event.preventDefault();
     const values = {...state.settings};
     for (const [key, value] of new FormData(form)) values[key] = integerFields.has(key) ? Number(value) : value;
-    for (const key of ['reinvest_profits', 'recover_initial']) values[key] = form.elements.namedItem(key).checked;
+    for (const key of ['reinvest_profits', 'recover_initial', 'futures_reduce_only']) values[key] = form.elements.namedItem(key).checked;
     action('settings', values, true);
   });
   $('full-allocation').addEventListener('click', () => {
-    const amount = form.elements.namedItem(state.mode === 'trading' ? 'live_budget' : 'paper_balance').value;
+    const amount = form.elements.namedItem(state.mode === 'trading' ? (form.elements.namedItem('product').value === 'futures' ? 'futures_live_budget' : 'live_budget') : 'paper_balance').value;
     if (!(Number(amount) > 0)) { message('Set a positive starting allocation first.'); return; }
     form.elements.namedItem('order_size').value = amount;
     form.elements.namedItem('max_exposure').value = amount;
@@ -314,6 +332,9 @@
   });
   $('new-program').addEventListener('click', () => {
     if (confirm('Create a new run using the SAVED strategy settings? This resets that run’s schedule/budget allowance, not balances or holdings. Existing history and today’s rebalance turnover remain. Review settings before pressing Start.')) action('reset-program', {confirmation: 'NEW STRATEGY RUN'});
+  });
+  $('close-futures').addEventListener('click', () => {
+    if (confirm('Submit one bounded reduce-only order for the saved Futures market? The order cap and available liquidity may leave a residual position. Live mode sends a REAL order.')) action('close-futures', {confirmation: 'REDUCE FUTURES POSITION'});
   });
   $('start').addEventListener('click', () => action('start'));
   $('stop').addEventListener('click', () => action('stop'));
@@ -326,8 +347,10 @@
   });
   $('mode').addEventListener('change', () => {
     const mode = $('mode').value;
-    if (mode === 'trading' && !confirm('Enable REAL Kraken spot trading with the saved limits? If the engine is running, it will resume in live mode after reconciliation.')) { $('mode').value = state.mode; return; }
-    action('mode', {mode, confirmation: mode === 'trading' ? 'ENABLE LIVE TRADING' : ''});
+    const derivative = state.settings.product === 'futures';
+    const warning = derivative ? 'Enable REAL linear Futures trading? This uses a dedicated USD collateral wallet and can open shorts. Funding and liquidation can cause losses while paused. Confirm the saved notional caps and collateral allocation. Futures remain paused until you press Start.' : 'Enable REAL Kraken spot trading with the saved limits? If the engine is running, it will resume in live mode after reconciliation.';
+    if (mode === 'trading' && !confirm(warning)) { $('mode').value = state.mode; return; }
+    action('mode', {mode, confirmation: mode === 'trading' ? (derivative ? 'ENABLE LIVE FUTURES' : 'ENABLE LIVE TRADING') : ''});
   });
   $('candle-interval').addEventListener('change', () => {
     priceChart.setCandleInterval(Number($('candle-interval').value));

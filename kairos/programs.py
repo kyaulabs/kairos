@@ -1,4 +1,4 @@
-"""Persisted, deterministic spot programs; all orders still pass Engine.place."""
+"""Persisted deterministic programs; product-specific guards stay in Engine.place."""
 
 import time
 import uuid
@@ -29,11 +29,27 @@ FIELDS = {
 
 
 def key(engine):
-    return f"program:{engine.mode}:{engine.settings['strategy']}"
+    product = "futures:" if engine.settings["product"] == "futures" else ""
+    return f"program:{product}{engine.mode}:{engine.settings['strategy']}"
 
 
 def configuration(settings):
-    return {name: settings[name] for name in FIELDS[settings["strategy"]]}
+    result = {name: settings[name] for name in FIELDS[settings["strategy"]]}
+    if settings["product"] == "futures":
+        result.update(
+            {
+                key: settings[key]
+                for key in (
+                    "product",
+                    "futures_leverage",
+                    "futures_reduce_only",
+                    "futures_dca_side"
+                    if settings["strategy"] == "dca"
+                    else "futures_parent_notional",
+                )
+            }
+        )
+    return result
 
 
 def targets(settings, resolve):
@@ -122,7 +138,9 @@ def prepare(engine):
             )
         return
     fee = dec(settings["taker_fee_bps"]) / BPS
-    if settings["strategy"] == "dca":
+    if settings["product"] == "futures":
+        engine.futures.prepare_program(pairs[0])
+    elif settings["strategy"] == "dca":
         if engine.balance(settings["quote"]) < dec(settings["dca_amount"]) * settings["dca_count"]:
             raise SafetyError("Pre-fund the entire DCA run in the bot's allocated quote balance")
     elif settings["strategy"] == "twap":
@@ -217,8 +235,14 @@ async def run(engine):
 async def scheduled_order(engine, program, slot):
     settings = engine.settings
     pair = engine.resolve(settings["pair"])
-    side = "buy" if settings["strategy"] == "dca" else settings["twap_side"]
-    book = await engine.kraken.book(pair)
+    derivative = settings["product"] == "futures"
+    side = (
+        (settings["futures_dca_side"] if derivative else "buy")
+        if settings["strategy"] == "dca"
+        else settings["twap_side"]
+    )
+    client = engine.futures.client if derivative else engine.kraken
+    book = await client.book(pair)
     book.fresh(settings["stale_seconds"])
     if book.spread_bps > dec(settings["max_spread_bps"]):
         report(engine, program, "Skipped scheduled slot: spread exceeds maximum")
@@ -253,18 +277,25 @@ async def scheduled_order(engine, program, slot):
     _, exposure = await engine.valuation(enforce=True)
     order_cap, exposure_cap = engine.limits()
     notional = volume * price
+    if derivative:
+        if settings["strategy"] == "twap" and sum(
+            (dec(o["cost"]) for o in children), ZERO
+        ) + notional > dec(settings["futures_parent_notional"]):
+            report(engine, program, "Skipped Futures TWAP slice: parent notional cap")
+            return
     if (
         volume < pair.minimum
         or notional < pair.cost_minimum
         or notional > order_cap
         or (
-            side == "buy"
+            not derivative
+            and side == "buy"
             and (
                 notional * (1 + fee) > engine.balance(pair.quote)
                 or exposure + notional > exposure_cap
             )
         )
-        or (side == "sell" and volume > engine.balance(pair.base))
+        or (not derivative and side == "sell" and volume > engine.balance(pair.base))
     ):
         report(
             engine,
@@ -280,6 +311,15 @@ async def scheduled_order(engine, program, slot):
         book,
         program={"id": program["id"], "slot": slot, "deadline": program["next_at"]},
     )
+    if (
+        derivative
+        and settings["strategy"] == "twap"
+        and sum((dec(o["cost"]) for o in orders(engine, program)), ZERO)
+        > dec(settings["futures_parent_notional"])
+    ):
+        raise SafetyError(
+            "Futures fill notional exceeded parent cap after price improvement; inspect position"
+        )
     report(
         engine,
         program,

@@ -16,7 +16,8 @@ from kairos.accounts import SOURCES, account_snapshot
 from kairos.clients import Jev, Kraken, ticker_feed
 from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
-from kairos.retail import Futures, RetailMarkets
+from kairos.futures_client import FuturesTrading
+from kairos.retail import RetailMarkets
 from kairos.store import Store, encode
 
 STATIC = Path(__file__).parent / "static"
@@ -222,6 +223,8 @@ async def command(request):
         await engine.reset_paper()
     elif action == "reset-program":
         await engine.reset_program(data.get("confirmation"))
+    elif action == "close-futures":
+        await engine.close_futures(data.get("confirmation"))
     else:
         raise web.HTTPNotFound()
     return web.json_response(engine.snapshot())
@@ -260,9 +263,11 @@ async def events(request):
 async def feeds(app):
     while True:
         engine = app["engine"]
-        symbols = list(
-            dict.fromkeys([engine.resolve(engine.settings["pair"]).symbol, "BTC/USD", "ETH/USD"])
-        )
+        symbols = ["BTC/USD", "ETH/USD"]
+        if engine.settings["product"] != "futures":
+            symbols = list(
+                dict.fromkeys([engine.resolve(engine.settings["pair"]).symbol, *symbols])
+            )
         task = asyncio.create_task(ticker_feed(app["session"], symbols, app["hub"].publish))
         try:
             await app["feed_restart"].wait()
@@ -294,13 +299,15 @@ async def lifecycle(app):
         jev = Jev(
             session, os.environ.get("JEV_API_KEY", ""), os.environ.get("JEV_MODEL", "jev-latest")
         )
-        engine = Engine(store, kraken, jev, app["hub"].publish)
-        app["engine"], app["session"] = engine, session
-        futures = Futures(
+        futures = FuturesTrading(
             session,
             os.environ.get("KRAKEN_FUTURES_API_KEY", ""),
             os.environ.get("KRAKEN_FUTURES_PRIVATE_KEY", ""),
+            kraken.allow_live
+            and os.environ.get("ALLOW_FUTURES_TRADING", "false").lower() == "true",
         )
+        engine = Engine(store, kraken, jev, app["hub"].publish, futures=futures)
+        app["engine"], app["session"] = engine, session
         app["retail"] = RetailMarkets(kraken, futures)
         app["feed_restart"] = asyncio.Event()
         feed_task = None

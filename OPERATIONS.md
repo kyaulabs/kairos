@@ -4,7 +4,7 @@ Kairos runs Jev-assisted trading strategies against Kraken market data. The work
 
 The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices and volume in base-asset, token, or contract units. Matching volume bars share the candle timeline. The current-price badge and dashed line follow the candle color; there is no candle dot. Portfolio equity remains a line chart in the Equity tab.
 
-Click the market beside the logo to open the searchable retail-market picker. Filter crypto spot, margin-eligible crypto, FX, xStocks, or Futures. Public listings and margin metadata do not establish account eligibility. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and search the custom Bot market dropdown under Settings > Strategy. It shows the same full catalog as the chart picker, including pairs quoted in other currencies. Unsupported quote currencies, margin/leverage combinations, xStocks, and Futures remain visible with reasons. These are Kairos execution restrictions, not account-access determinations. Use arrow keys and Enter to choose, or Escape to discard a search. Selection changes a draft only; Save settings applies it. Changing products/leverage updates the limitations without discarding other draft fields. The portfolio's accounting currency remains fixed, and the backend still rejects unsupported configurations.
+Click the market beside the logo to open the searchable retail-market picker. Filter crypto spot, margin-eligible crypto, FX, xStocks, or Futures. Public listings and margin metadata do not establish account eligibility. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and search the custom Bot market dropdown under Settings > Strategy. It shows the same full catalog as the chart picker, including pairs quoted in other currencies. Unsupported quote currencies, margin/leverage combinations, xStocks, and unsupported Futures remain visible with reasons. Choose the Futures product for a qualified USD linear crypto perpetual; its USD collateral ledger is separate from spot. These are Kairos execution restrictions, not account-access determinations. Use arrow keys and Enter to choose, or Escape to discard a search. Selection changes a draft only; Save settings applies it. Changing products/leverage updates the limitations without discarding other draft fields. The portfolio's accounting currency remains fixed, and the backend still rejects unsupported configurations.
 
 The picker starts with Market sorted A–Z. Click Market to reverse it; select Last price, 24h change, or 24h volume to sort highest-first, then click again for lowest-first. Sorting survives search, favorite filtering, and price refreshes for the current page session. Unavailable values stay at the bottom. Volume uses each market's native asset or contract units, not a common USD notional. Comparing volumes across products does not compare turnover.
 
@@ -16,7 +16,7 @@ Picker and footer prices are last trades from a public Kraken ticker snapshot re
 
 HOLD means no new trade. With no position in the assessed market, the display calls it WAIT. Confidence is confidence in that assessment, not a probability of profit. The HTF panel shows the historical move and existing fee/slippage threshold when its buy filter is not met.
 
-This is an experimental trading application, not evidence of a profitable strategy. Live spot execution is implemented but has not been verified with real orders. Test it with paper funds before installing a trade-capable key.
+This is an experimental trading application, not evidence of a profitable strategy. Live spot and qualified linear Futures execution are implemented but have not been verified with real orders. Test it with paper funds before installing a trade-capable key.
 
 ## Supported trading
 
@@ -26,9 +26,10 @@ This is an experimental trading application, not evidence of a profitable strate
 | Crypto margin | Simplified long/short simulation | Blocked |
 | Direct US stocks and ETFs | Not implemented | No brokerage integration verified |
 | xStocks | Browse-only tokens; no simulator | Read-only account data; execution blocked |
-| Futures | Browse-only contracts; no simulator | Read-only account data; execution blocked |
+| USD linear crypto perpetuals | Separate long/short simulation with funding and maintenance checks | Explicitly gated, prefunded cross-margin execution |
+| Inverse, dated and other Futures | Browse-only | Execution blocked |
 
-Kraken offers direct equities in its US product. No applicable retail brokerage order path was found in the official CLI or public Exchange documentation reviewed; this is not a claim that no partner or institutional equities API exists. The CLI supports xStocks and equity/index futures, neither of which is brokerage share ownership. Futures and xStocks now have market data and read-only account views, but no execution or simulation. DEX is not integrated. See the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for product coverage, tested public endpoints, and integration requirements. Do not reuse Kairos's API key with the CLI: their different nonce units can break Kairos authentication. CLI timeout retries also conflict with Kairos's ambiguous-order recovery safeguards.
+Kraken offers direct equities in its US product. No applicable retail brokerage order path was found in the official CLI or public Exchange documentation reviewed; this is not a claim that no partner or institutional equities API exists. The CLI supports xStocks and equity/index futures, neither of which is brokerage share ownership. xStocks remain read-only. Qualified linear crypto perpetuals support HTF, market making, DCA and TWAP through a separate Futures adapter; see [Futures setup, recovery and limitations](FUTURES.md). DEX is not integrated. See the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for product coverage, tested public endpoints, and integration requirements. Do not reuse Kairos's API key with the CLI: their different nonce units can break Kairos authentication. CLI timeout retries also conflict with Kairos's ambiguous-order recovery safeguards.
 
 References:
 
@@ -45,7 +46,7 @@ Open **Exchange accounts** in the bottom dock, choose a source, and use **Refres
 
 Spot-family views use the existing server-side Spot client and nonce sequence. Query Funds covers balances, collateral, and Earn allocations; order/position and trade-history views need the corresponding open/closed order query permissions. Deposit and withdrawal ledger views need Query Ledger Entries. They show recorded transactions, not pending funding status. Never grant withdrawal permission to make a read view work. Kairos's endpoint allowlist rejects transfers, withdrawals, and Earn writes regardless of key permissions.
 
-Futures account views need separately issued, read-only Derivatives credentials in `KRAKEN_FUTURES_API_KEY` and `KRAKEN_FUTURES_PRIVATE_KEY`. They are not Spot credentials and do not use Spot nonces. Public Futures browsing works without them. Missing credentials, permission errors, and unavailable venues are reported without enabling writes or exposing keys. Authenticated private reads have been tested with fixtures, not a real account; verify your entitlements before relying on these views.
+For Futures account views alone, use separately issued, read-only Derivatives credentials in `KRAKEN_FUTURES_API_KEY` and `KRAKEN_FUTURES_PRIVATE_KEY`. They are not Spot credentials and do not use Spot nonces. Public Futures browsing works without them. Missing credentials, permission errors, and unavailable venues are reported without enabling writes or exposing keys. Authenticated private reads have been tested with fixtures, not a real account; verify your entitlements before relying on these views.
 
 Reads share a 30-second server cache. They run only when opening an unloaded view, changing sources, or pressing Refresh. Successful snapshots show their timestamp; failed refreshes retain old rows with an explicit warning. History is the first returned page, not a complete export, and each table is capped at 1,000 rows. The API reads the account available to the configured key; there is no wallet/subaccount selector. See the [coverage and roadmap](RETAIL-ROADMAP.md) for omitted endpoints and planned strategies.
 
@@ -83,10 +84,11 @@ The existing variable names are preserved:
 | --- | --- |
 | `KRAKEN_API_KEY` | Kraken API key |
 | `KRAKEN_PRIVATE_KEY` | Kraken base64 signing secret |
-| `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Optional separate read-only Derivatives credentials |
+| `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Separate Derivatives credentials; order permission only for gated live Futures |
 | `JEV_API_KEY` | TypeSafe API key |
 | `JEV_MODEL` | Defaults to `jev-latest`; pin a version for comparable experiments |
 | `ALLOW_LIVE_TRADING` | Defaults to `false`; only `true` permits exchange writes |
+| `ALLOW_FUTURES_TRADING` | Defaults to `false`; Futures require both flags and explicit separate arming |
 | `PUBLIC_ORIGIN` | Exact browser origin, including scheme and nonstandard port |
 | `PORT` | Loopback listener port; defaults to `8000` |
 | `DATA_DIR` | SQLite database and process lock; defaults to `data` |
@@ -145,7 +147,9 @@ Recovery happens once per portfolio, persists across restarts, and does not regi
 
 Rebalancing acts only when a weight differs from its target by more than the configured percentage-point band. It considers overweight sells before underweight buys and sends at most one settled order per cooldown. Later checks revalue confirmed fills rather than assuming sale proceeds. Defaults are a 5-point band, one-hour cooldown, $10 minimum trade, and $100 UTC-day turnover including fees. The turnover cap counts buys and sells across run IDs, so rearming cannot erase today's trading. It uses the UTC day of order submission. No currency conversion or wallet transfer is made to fund an order.
 
-For any of these programs:
+The descriptions above cover spot programs. Futures DCA/TWAP use contract quantities, notional budgets and reserved margin, with optional reduce-only operation. Follow the separate [Futures instructions](FUTURES.md).
+
+For spot programs:
 
 1. Stop and reconcile orders, select Spot and the strategy, configure its fields and risk limits, then Save settings.
 2. Start in paper mode first. All three also support the existing explicitly confirmed live-spot path. Live program orders recheck current Kraken fees against the configured reserve before submitting.
@@ -161,7 +165,7 @@ Switch the bot's strategy or market by stopping, changing settings, saving, and 
 
 ## Dry-run and Trading
 
-Dry-run uses real Kraken data. HTF, market making, and arbitrage use real Jev evaluations; DCA, TWAP, and rebalancing are deterministic and make no model calls. It never calls `AddOrder`, including `validate=true`, and does not submit exchange cancellations for paper orders. The current read-only key is sufficient for authenticated read checks. Paper trading itself does not need private Kraken calls.
+Dry-run uses real Kraken data. HTF, market making, and arbitrage use real Jev evaluations; DCA, TWAP, and rebalancing are deterministic and make no model calls. Paper execution never calls `AddOrder`, including `validate=true`, or Futures `sendorder`, and does not submit exchange cancellations for paper orders. The current read-only key is sufficient for authenticated read checks. Paper trading itself does not need private Kraken calls.
 
 Paper taker fills walk displayed depth up to the limit. Paper maker fills require a later public trade strictly through the resting limit on the opposing aggressor side, capped at 10% of that trade's volume. These estimates do not reconstruct queue priority, hidden liquidity, rebates, or your market impact. Simulated results cannot establish live profitability.
 

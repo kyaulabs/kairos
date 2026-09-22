@@ -43,6 +43,16 @@ test('product filters distinguish margin eligibility from new product execution'
   assert.equal(browser.StrategyMarketPicker.limitation({...rows[3], execution_reason: reason}, {quote: 'ZUSD', product: 'spot'}), reason);
 });
 
+test('Strategy requires a matching Futures product and a qualified linear perpetual', () => {
+  const {limitation} = fixture().browser.StrategyMarketPicker;
+  const pair = {id: 'futures:PF_XBTUSD', symbol: 'PF_XBTUSD', kind: 'futures', quote: 'USD', linear_perpetual: true};
+  assert.equal(limitation(pair, {product: 'futures', quote: 'ZUSD'}), '');
+  assert.match(limitation(pair, {product: 'spot', quote: 'ZUSD'}), /Choose the Futures product/);
+  assert.match(limitation({...pair, linear_perpetual: false}, {product: 'futures'}), /browse-only/);
+  assert.match(limitation({id: 'BTC', symbol: 'BTC/USD', quote: 'ZUSD'}, {product: 'futures'}), /qualified USD/);
+  assert.equal(limitation({...pair, execution_reason: 'Unsupported contract'}, {product: 'futures'}), 'Unsupported contract');
+});
+
 test('chart selection keeps product identity and restrictions, not just the display symbol', () => {
   const {picker} = fixture();
   const market = {id: 'futures:PF_XBTUSD', symbol: 'PF_XBTUSD', kind: 'futures', execution_reason: 'Browse only'};
