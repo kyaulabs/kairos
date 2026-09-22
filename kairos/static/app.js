@@ -61,7 +61,12 @@
     if (panel) selectTab($(panel.getAttribute('aria-labelledby')));
   }, true);
 
-  function message(text) { $('message').textContent = text; }
+  let messageTimer;
+  function message(text) {
+    clearTimeout(messageTimer);
+    $('message').textContent = text;
+    messageTimer = setTimeout(() => { $('message').textContent = ''; }, 15000);
+  }
   async function request(path, body, signal) {
     const options = body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf}, body: JSON.stringify(body)};
     const response = await fetch(`/api/${path}`, {...options, credentials: 'same-origin', signal});
