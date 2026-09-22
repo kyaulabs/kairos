@@ -34,7 +34,12 @@
     <div class="metric"><span>Day P&amp;L · USD</span><strong id="pnl" title="Marked to market · UTC day">—</strong></div>
     <div class="metric"><span>Exposure · USD</span><strong id="exposure" aria-describedby="exposure-cap">—</strong></div>
   </div>
-  <span id="mode-badge" class="pill">DRY-RUN</span>
+  <div class="header-controls">
+    <span id="mode-badge" class="pill">DRY-RUN</span>
+    <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" title="Switch to light theme"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
+    <label class="header-accent"><span class="sr-only">Interface accent</span><select id="appearance-accent" title="Interface accent · browser-local"><option value="violet">Violet</option><option value="green">Green</option><option value="red">Red</option></select></label>
+    <span id="appearance-status" class="sr-only" role="status">Appearance is local to this browser. Gains remain green; losses remain red.</span>
+  </div>
 </header>
 <main class="desk">
   <div class="notices">
@@ -111,7 +116,7 @@
       <div class="panel-head"><h2 id="settings-title"><span class="icon icon-settings" aria-hidden="true">☷</span> Kairos settings</h2><strong id="engine-status" class="engine-status">Paused</strong></div>
       <div class="execution-controls" aria-label="Trading controls">
         <label class="execution-mode">Execution<select id="mode"><option value="dry-run">Dry-run</option><option value="trading">Trading — real funds</option></select></label>
-        <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="stop" class="danger">Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
+        <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
         <span id="engine-strategy" class="muted">—</span>
       </div>
       <div class="tab-list settings-tabs" role="tablist" aria-label="Configuration sections">
@@ -215,11 +220,6 @@
                 <label>Margin rollover / 4h · bps<input name="margin_rollover_bps" type="number"></label>
                 <label>Margin maintenance ratio<input name="maintenance_ratio" type="number"></label>
               </div>
-              <div class="fields appearance-controls">
-                <label>Color theme<select id="appearance-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
-                <label>Interface accent<select id="appearance-accent"><option value="violet">Violet · signature</option><option value="green">Green</option><option value="red">Red</option></select></label>
-              </div>
-              <p id="appearance-status" class="muted" role="status">Appearance is local to this browser. Gains remain green; losses remain red.</p>
               <p class="disclaimer">100 bps = 1%. Paper fills are estimates, not a backtest. Margin uses a simplified cross-collateral model, not Kraken’s exact borrowing or liquidation rules.</p>
             </div>
           </div>

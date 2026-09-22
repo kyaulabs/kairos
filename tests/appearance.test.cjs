@@ -9,7 +9,7 @@ function fixture(saved, blocked = false) {
   const nodes = new Map(), listeners = {};
   const root = {dataset: {}};
   const node = id => {
-    if (!nodes.has(id)) nodes.set(id, {listeners: {}, addEventListener(name, callback) { this.listeners[name] = callback; }});
+    if (!nodes.has(id)) nodes.set(id, {listeners: {}, attributes: {}, setAttribute(name, value) { this.attributes[name] = value; }, addEventListener(name, callback) { this.listeners[name] = callback; }});
     return nodes.get(id);
   };
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/appearance.js'), 'utf8'), {
@@ -32,6 +32,23 @@ test('brand mode and accent persist independently without touching favorites or 
   assert.equal(values.size, 2);
 });
 
+test('sun/moon button toggles the theme with matching accessible labels and keeps the accent', () => {
+  const {root,node,values}=fixture('{"theme":"dark","accent":"red"}');
+  assert.equal(node('appearance-sun').hidden,false);
+  assert.equal(node('appearance-moon').hidden,true);
+  assert.equal(node('appearance-theme').attributes['aria-label'],'Switch to light theme');
+  node('appearance-theme').listeners.click();
+  assert.equal(root.dataset.theme,'light');
+  assert.equal(node('appearance-theme').title,'Switch to dark theme');
+  assert.equal(node('appearance-sun').hidden,true);
+  assert.equal(node('appearance-moon').hidden,false);
+  assert.deepEqual(JSON.parse(values.get('kairos:appearance')),{theme:'light',accent:'red'});
+  node('appearance-theme').listeners.click();
+  assert.equal(root.dataset.theme,'dark');
+  assert.equal(root.dataset.accent,'red');
+  assert.equal(node('appearance-theme').attributes['aria-label'],'Switch to light theme');
+});
+
 test('corrupt and blocked preference storage cannot prevent branded initialization', () => {
   for (const saved of ['malformed', '{"theme":"external-url","accent":"invalid"}']) {
     const {root} = fixture(saved);
@@ -39,7 +56,7 @@ test('corrupt and blocked preference storage cannot prevent branded initializati
     assert.equal(root.dataset.accent, 'violet');
   }
   const {root, node} = fixture(null, true);
-  node('appearance-theme').listeners.change({target: {value: 'light'}});
+  node('appearance-theme').listeners.click();
   assert.equal(root.dataset.theme, 'light');
   assert.match(node('appearance-status').textContent, /page session/);
 });
@@ -49,7 +66,9 @@ test('cross-tab preference changes update artwork and controls, not unrelated st
   listeners.storage({key: 'kairos:favorites', newValue: '["ETH"]'});
   assert.equal(root.dataset.theme, 'dark');
   listeners.storage({key: 'kairos:appearance', newValue: '{"theme":"light","accent":"green"}'});
-  assert.equal(node('appearance-theme').value, 'light');
+  assert.equal(node('appearance-theme').attributes['aria-label'], 'Switch to dark theme');
+  assert.equal(node('appearance-sun').hidden, true);
+  assert.equal(node('appearance-moon').hidden, false);
   assert.equal(root.dataset.accent, 'green');
   assert.match(node('brand-icon').src, /on-light.svg$/);
   listeners.storage({key: null, newValue: null});

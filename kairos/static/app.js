@@ -201,6 +201,8 @@
     $('engine-strategy').textContent = settingsSchema.strategies[state.settings.strategy].label;
     $('engine-error').hidden = !state.error;
     $('engine-error').textContent = state.error || '';
+    $('start').hidden = state.running;
+    $('stop').hidden = !state.running;
     $('start').disabled = busy || !connected || state.running || !state.ready;
     $('settings-fields').disabled = busy || state.running;
     updateStrategyMarket(); updateProgramFields();
@@ -302,6 +304,7 @@
   }
   async function action(path, body = {}, refreshForm = false) {
     if (busy) return;
+    const focusedAction = ['start', 'stop'].includes(path) && document.activeElement === $(path);
     busy = true; message('Working…');
     if (state) render(state);
     try {
@@ -313,7 +316,12 @@
     } catch (error) {
       message(error.message);
       try { render(await request('state')); } catch { /* Keep existing state visibly disconnected. */ }
-    } finally { busy = false; if (state) render(state); }
+    } finally {
+      busy = false; if (state) render(state);
+      if (focusedAction && state && [document.body, $(path)].includes(document.activeElement)) {
+        $(state.running ? 'stop' : 'start').focus();
+      }
+    }
   }
   form.addEventListener('submit', event => {
     event.preventDefault();

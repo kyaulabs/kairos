@@ -2,7 +2,7 @@
 
 The complete supplied v1 pack is preserved in [`brand/`](brand/README.md): 235 files, including the logo masters, icon variants, palettes, boards, PDF guides, template, previews, source configuration, and verification reports. The files match the supplied handoff byte-for-byte. Open `brand/index.html` to browse the catalog.
 
-The production dashboard uses the #09 wordmark, KAI mobile mark, favicons, Apple touch icon, launcher/maskable icons, and semantic palette. **Execution settings → Color theme / Interface accent** selects dark or light with violet, green, or red. Violet/dark is the default. Preferences persist locally under `kairos:appearance`, synchronize between same-origin tabs, and never enter bot settings. The logo capsule stays lilac; gains stay green and losses red in every variant.
+The production dashboard uses the #09 wordmark, KAI mobile mark, favicons, Apple touch icon, launcher/maskable icons, and semantic palette. The sun/moon toggle and accent dropdown beside the header's execution badge select dark or light with violet, green, or red. Violet/dark is the default. Preferences persist locally under `kairos:appearance`, synchronize between same-origin tabs, and never enter bot settings. The logo capsule stays lilac; gains stay green and losses red in every variant.
 
 Neo Sans Pro, OperatorMonoLig Nerd Font, and the existing OperatorMonoSSmLig bold mapping are unchanged. The production font-face declarations and fallback stacks are retained. The archive's Noto fallbacks and demo font configuration are not loaded by the application; no standalone licensed primary font files are added. The original PDF guides retain their supplied embedded/subset typography.
 
