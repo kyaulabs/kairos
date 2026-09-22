@@ -14,6 +14,9 @@ data/
 dist/
 *.egg-info/
 
+# Locally licensed Font Awesome Pro webfonts; do not redistribute in Git.
+kairos/static/fonts/*.woff2
+
 # Visual Studio cache directory
 */.vs/
 .vs/

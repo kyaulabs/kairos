@@ -12,7 +12,7 @@ from kairos.domain import SafetyError
 from kairos.engine import Engine
 from kairos.store import Store
 from kairos.web import create_app
-from tests.helpers import BTC, ETH, candle_rows, fake_jev, fake_kraken
+from tests.helpers import BTC, CROSS, ETH, candle_rows, fake_jev, fake_kraken
 
 
 class Response:
@@ -95,6 +95,22 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["headers"], {})
         store.close()
 
+    async def test_market_tickers_are_public_and_use_24_hour_volume(self):
+        store = Store(":memory:")
+        row = {"a": ["101"], "b": ["99"], "c": ["100"], "v": ["2", "12.5"]}
+        session = Session({"error": [], "result": {BTC.id: row, "UNKNOWN": row}})
+        client = Kraken(session, store)
+        client.pairs = {BTC.id: BTC}
+        self.assertEqual(
+            await client.market_tickers(),
+            {BTC.id: {"bid": "99", "ask": "101", "last": "100", "volume": "12.5"}},
+        )
+        args, kwargs = session.calls[0]
+        self.assertEqual(args, ("GET", "https://api.kraken.com/0/public/Ticker"))
+        self.assertEqual(kwargs["params"], {})
+        self.assertEqual(kwargs["headers"], {})
+        store.close()
+
     async def test_jev_response_validation(self):
         good = {
             "model": "test",
@@ -145,7 +161,13 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         return {"Origin": "https://kairos.example.test", "X-CSRF-Token": self.app["csrf"]}
 
     async def test_page_assets_and_security_headers(self):
-        for path in ("/", "/static/app.js", "/static/chart.js", "/static/vendor/d3.v7.9.0.min.js"):
+        for path in (
+            "/",
+            "/static/app.js",
+            "/static/chart.js",
+            "/static/markets.js",
+            "/static/vendor/d3.v7.9.0.min.js",
+        ):
             response = await self.client.get(path)
             self.assertEqual(response.status, 200)
             self.assertIn("frame-ancestors 'none'", response.headers["Content-Security-Policy"])
@@ -221,11 +243,11 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["candles"][0]["time"], rows[1][0])
         self.assertEqual(data["candles"][-1]["time"], rows[-1][0])
 
-    async def test_chart_rejects_unsupported_intervals_and_wrong_markets(self):
+    async def test_chart_rejects_unsupported_intervals_and_unknown_markets(self):
         for query in ("interval=10", "interval=0", "interval=no", "interval=1.0", ""):
             response = await self.client.get(f"/api/candles?pair={BTC.id}&{query}")
             self.assertIn(response.status, (400, 409))
-        response = await self.client.get(f"/api/candles?pair={ETH.id}&interval=1")
+        response = await self.client.get("/api/candles?pair=UNKNOWN&interval=1")
         self.assertEqual(response.status, 409)
         self.engine.kraken.ohlc.assert_not_awaited()
 
@@ -246,17 +268,64 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await response.json())["received"], 1006)
         self.assertEqual(self.engine.kraken.ohlc.await_count, 3)
 
-    async def test_chart_cache_separates_intervals_and_discards_previous_market(self):
+    async def test_chart_cache_separates_markets_and_intervals_without_changing_bot(self):
         for interval in (1, 5):
             response = await self.client.get(f"/api/candles?pair={BTC.id}&interval={interval}")
             data = await response.json()
             self.assertEqual(data["interval"], interval)
             self.assertEqual(data["candles"][1]["time"] - data["candles"][0]["time"], interval * 60)
-        await self.engine.configure({**self.engine.settings, "pair": ETH.id})
-        response = await self.client.get(f"/api/candles?pair={ETH.id}&interval=1")
-        self.assertEqual((await response.json())["pair"], ETH.id)
-        self.assertEqual(list(self.app["candle_cache"]), [(ETH.id, 1)])
-        self.engine.kraken.ohlc.assert_awaited_with(ETH, 1)
+        await self.engine.start()
+        for pair in (ETH, CROSS):
+            response = await self.client.get(f"/api/candles?pair={pair.id}&interval=1")
+            self.assertEqual((await response.json())["pair"], pair.id)
+            self.engine.kraken.ohlc.assert_awaited_with(pair, 1)
+        self.assertEqual(
+            set(self.app["candle_cache"]), {(BTC.id, 1), (BTC.id, 5), (ETH.id, 1), (CROSS.id, 1)}
+        )
+        self.assertEqual(self.engine.settings["pair"], BTC.id)
+        self.assertTrue(self.engine.running)
+        self.engine.kraken.add.assert_not_awaited()
+        self.engine.jev.decide.assert_not_awaited()
+
+    async def test_chart_cache_is_bounded_while_browsing(self):
+        with patch("kairos.web.time") as clock:
+            clock.monotonic.return_value = 100
+            clock.time.return_value = 1000
+            self.app["candle_cache"].update({(str(i), 1): (200, {}) for i in range(32)})
+            response = await self.client.get(f"/api/candles?pair={BTC.id}&interval=1")
+            self.assertEqual(response.status, 200)
+            self.assertEqual(len(self.app["candle_cache"]), 32)
+            self.assertIn((BTC.id, 1), self.app["candle_cache"])
+
+    async def test_market_snapshots_are_shared_and_do_not_change_trading_catalog(self):
+        responses = await asyncio.gather(
+            self.client.get("/api/markets"), self.client.get("/api/markets")
+        )
+        data = [await response.json() for response in responses]
+        self.assertEqual(data[0], data[1])
+        self.assertEqual({row["id"] for row in data[0]["markets"]}, {BTC.id, ETH.id, CROSS.id})
+        self.engine.kraken.market_tickers.assert_awaited_once()
+        response = await self.client.get("/api/pairs")
+        self.assertEqual({row["id"] for row in await response.json()}, {BTC.id, ETH.id})
+        self.assertEqual(self.engine.settings["pair"], BTC.id)
+        self.engine.kraken.add.assert_not_awaited()
+        self.engine.jev.decide.assert_not_awaited()
+
+    async def test_failed_market_refresh_does_not_relabel_stale_prices_as_fresh(self):
+        with patch("kairos.web.time") as clock:
+            clock.monotonic.return_value = 100
+            clock.time.return_value = 1000
+            response = await self.client.get("/api/markets")
+            self.assertEqual((await response.json())["received"], 1000)
+            clock.monotonic.return_value = 111
+            self.engine.kraken.market_tickers.side_effect = SafetyError("Market data unavailable")
+            response = await self.client.get("/api/markets")
+            self.assertEqual(response.status, 409)
+            self.assertEqual(self.app["market_cache"]["data"]["received"], 1000)
+            self.engine.kraken.market_tickers.side_effect = None
+            clock.time.return_value = 1011
+            response = await self.client.get("/api/markets")
+            self.assertEqual((await response.json())["received"], 1011)
 
     async def test_sse_snapshot_and_buffering_header(self):
         response = await self.client.get("/api/events")

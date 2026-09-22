@@ -7,10 +7,51 @@
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
-  let state, csrf, pairs = [], initialized = false, busy = false, events = [], lastSymbol, lastPortfolio;
+  let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastSymbol, lastPortfolio;
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
   const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds']);
+  const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); });
+  Promise.all([document.fonts.load('400 12px "Kairos Icons"'), document.fonts.load('900 12px "Kairos Icons"')])
+    .then(faces => { if (faces.every(loaded => loaded.length)) document.documentElement.classList.add('icons-ready'); })
+    .catch(() => { /* Licensed Pro files are optional; keep the text icon fallbacks. */ });
+
+  function selectTab(tab) {
+    for (const sibling of tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')) {
+      const selected = sibling === tab;
+      sibling.setAttribute('aria-selected', String(selected));
+      sibling.tabIndex = selected ? 0 : -1;
+      $(sibling.getAttribute('aria-controls')).hidden = !selected;
+    }
+    const panel = $(tab.getAttribute('aria-controls'));
+    const scroll = panel.closest('.settings-scroll');
+    if (scroll) scroll.scrollTop = 0;
+  }
+  for (const list of document.querySelectorAll('[role="tablist"]')) {
+    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    for (const tab of tabs) {
+      tab.addEventListener('click', () => selectTab(tab));
+      tab.addEventListener('keydown', event => {
+        const i = tabs.indexOf(tab);
+        const next = {ArrowRight: (i+1)%tabs.length, ArrowLeft: (i+tabs.length-1)%tabs.length, Home: 0, End: tabs.length-1}[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        selectTab(tabs[next]); tabs[next].focus();
+      });
+    }
+  }
+  for (const button of document.querySelectorAll('.workspace-switcher button')) {
+    button.addEventListener('click', () => {
+      document.querySelector('.workspace').dataset.view = button.dataset.view;
+      for (const sibling of document.querySelectorAll('.workspace-switcher button')) sibling.setAttribute('aria-pressed', String(sibling === button));
+    });
+  }
+  // Reveal the first invalid field before native validation tries to focus it.
+  form.addEventListener('invalid', event => {
+    if (event.target !== form.querySelector('input:invalid, select:invalid')) return;
+    const panel = event.target.closest('[role="tabpanel"]');
+    if (panel) selectTab($(panel.getAttribute('aria-labelledby')));
+  }, true);
 
   function message(text) { $('message').textContent = text; }
   async function request(path, body, signal) {
@@ -20,7 +61,7 @@
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
     return data;
   }
-  function symbol() { return pairs.find(pair => pair.id === state?.settings.pair)?.symbol; }
+  function symbol() { return chartPair?.symbol; }
   function decisionLabel(decision) {
     const inventory = decision.state?.inventory;
     return decision.action === 'hold' && inventory != null && Number(inventory) === 0 ? 'wait' : decision.action;
@@ -43,7 +84,7 @@
     clearTimeout(candleTimer);
     candleController?.abort();
     const generation = ++candleGeneration;
-    const pair = state.settings.pair, interval = Number($('candle-interval').value);
+    const pair = chartPair.id, interval = Number($('candle-interval').value);
     candleReceived = 0; candleError = '';
     $('candle-status').textContent = 'Loading candles…';
     async function refresh() {
@@ -81,8 +122,18 @@
     if (next.csrf) csrf = next.csrf;
     if (next.tickers) tickers = next.tickers;
     if (!initialized) { loadForm(); initialized = true; }
+    const botPair = pairs.find(pair => pair.id === state.settings.pair) || {id: state.settings.pair, symbol: state.settings.pair};
+    if (!chartPair) chartPair = botPair;
     const selected = symbol();
-    if (lastSymbol !== selected) { priceChart.clear(); lastSymbol = selected; restartCandles(); }
+    marketPicker.setSelected(chartPair);
+    $('bot-market').textContent = botPair.symbol;
+    $('chart-context').textContent = chartPair.id === botPair.id ? 'Bot market' : `Chart only · bot: ${botPair.symbol}`;
+    $('chart-context').classList.toggle('browsing', chartPair.id !== botPair.id);
+    if (lastSymbol !== selected) {
+      priceChart.clear(); lastSymbol = selected;
+      $('price').textContent = '—'; $('bid-ask').textContent = 'Waiting for prices'; $('feed-age').textContent = '—';
+      restartCandles();
+    }
     const portfolio = `${state.mode}:${state.settings.product}`;
     if (lastPortfolio !== portfolio) {
       equityChart.clear(); priceChart.fills = []; priceChart.draw(); lastPortfolio = portfolio;
@@ -99,6 +150,7 @@
     $('valuation-time').textContent = state.valuation_ts ? `Valued ${time(state.valuation_ts)}` : 'Not yet valued';
     if (state.valuation_ts && state.equity != null) equityChart.add(state.valuation_ts, Number(state.equity));
     $('engine-status').textContent = state.running ? 'Running' : 'Paused';
+    $('engine-status').classList.toggle('running', state.running);
     $('engine-strategy').textContent = {htf: 'Higher-timeframe trend', maker: 'Rate-limited market making', arbitrage: 'Triangular arbitrage'}[state.settings.strategy];
     $('engine-error').hidden = !state.error;
     $('engine-error').textContent = state.error || '';
@@ -108,8 +160,10 @@
     const decision = state.decision;
     if (decision) {
       $('decision').textContent = decisionLabel(decision);
+      $('decision').className = decision.action === 'buy' ? 'buy' : decision.action === 'sell' ? 'sell' : '';
       $('confidence').textContent = `${(decision.confidence*100).toFixed(1)}% confidence in ${decision.action === 'hold' ? 'no trade' : decision.action}`;
       $('decision-context').textContent = decisionContext(decision);
+      $('decision-market').textContent = `Assessment market: ${decision.state?.symbol || decision.pair}`;
       $('model-info').textContent = `${decision.model} · ${decision.latency_ms} ms · ${time(decision.ts)} · ${decision.mode}`;
       $('decision-inputs').textContent = JSON.stringify(decision.state, null, 2);
       $('probabilities').replaceChildren();
@@ -141,6 +195,8 @@
       $('margin-info').textContent = `Fees: ${Object.entries(state.ledger?.fees || {}).map(([a,v]) => `${number(v)} ${a}`).join(', ') || 'none'}. Recovery: ${recovery?.recovered ? 'original recovered; reserve excluded from orders' : recovery?.pending ? 'raising cash' : state.settings.recover_initial ? 'waiting for >2× original equity' : 'disabled'}.`;
     }
     $('orders').replaceChildren();
+    $('orders-count').textContent = state.orders.length;
+    $('orders-empty').hidden = state.orders.length > 0;
     for (const order of [...state.orders].reverse()) {
       const row = document.createElement('tr');
       const values = [time(order.created), `${order.mode} / ${order.product || 'spot'}`, order.pair, order.side,
@@ -153,7 +209,7 @@
   }
   function plotFill(event) {
     const d = event.data;
-    if (event.kind !== 'fill' || !state || d.pair !== state.settings.pair || d.mode !== state.mode || (d.product || 'spot') !== state.settings.product || !(Number(d.volume) > 0)) return;
+    if (event.kind !== 'fill' || !state || d.pair !== chartPair?.id || d.mode !== state.mode || (d.product || 'spot') !== state.settings.product || !(Number(d.volume) > 0)) return;
     priceChart.fill({id: event.id, time: event.ts*1000, value: Number(d.cost)/Number(d.volume), side: d.side});
   }
   function addEvent(event) {
@@ -216,14 +272,20 @@
     if (state) restartCandles();
   });
   $('follow').addEventListener('click', () => priceChart.follow());
+  $('bot-market').addEventListener('click', () => {
+    if (!state) return;
+    chartPair = pairs.find(pair => pair.id === state.settings.pair) || {id: state.settings.pair, symbol: state.settings.pair};
+    render(state);
+  });
   setInterval(() => {
     const candleAge = Math.max(0, Date.now()/1000-candleReceived);
     $('candle-status').textContent = candleError || (candleReceived ? `${candleAge > 15 ? 'STALE · ' : ''}Candles refreshed ${candleAge.toFixed(0)}s ago · latest candle may be forming` : 'Loading candles…');
-    const ticker = tickers[symbol()];
-    if (!ticker) { $('price').textContent = '—'; $('feed-age').textContent = 'No market feed'; return; }
+    marketPicker.updateFreshness();
+    const ticker = [tickers[symbol()], marketPicker.ticker(symbol())].filter(Boolean).sort((a, b) => b.received-a.received)[0];
+    if (!ticker) { $('price').textContent = '—'; $('bid-ask').textContent = 'Waiting for prices'; $('feed-age').textContent = 'No market feed'; return; }
     const age = Math.max(0, (Date.now()/1000-ticker.received));
-    $('feed-age').textContent = `${age > 15 ? 'STALE · ' : ''}${age.toFixed(0)}s ago`;
-    $('price').textContent = number((ticker.bid+ticker.ask)/2);
+    $('feed-age').textContent = `${age > 30 ? 'STALE · ' : ''}${age.toFixed(0)}s ago`;
+    $('price').textContent = number((Number(ticker.bid)+Number(ticker.ask))/2);
     $('bid-ask').textContent = `BID ${number(ticker.bid)}  /  ASK ${number(ticker.ask)}`;
   }, 500);
   async function boot() {
@@ -231,14 +293,15 @@
     pairs.sort((a,b) => a.symbol.localeCompare(b.symbol));
     for (const pair of pairs) { const option = document.createElement('option'); option.value = pair.id; option.textContent = pair.symbol; $('pair').append(option); }
     render(await request('state'));
+    marketPicker.refresh();
     for (const event of await request('history')) addEvent(event);
     const stream = new EventSource('/api/events');
     stream.onopen = async () => {
-      connected = true; $('connection').textContent = 'DESK CONNECTED';
+      connected = true; $('connection').textContent = 'DESK CONNECTED'; $('connection').classList.add('connected');
       try { render(await request('state')); for (const event of await request('history')) addEvent(event); }
       catch (error) { message(error.message); }
     };
-    stream.onerror = () => { connected = false; $('connection').textContent = 'RECONNECTING'; if (state) render(state); };
+    stream.onerror = () => { connected = false; $('connection').textContent = 'RECONNECTING'; $('connection').classList.remove('connected'); if (state) render(state); };
     stream.addEventListener('state', event => render(JSON.parse(event.data)));
     stream.addEventListener('ticker', event => { const ticker = JSON.parse(event.data); tickers[ticker.symbol] = ticker; });
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });

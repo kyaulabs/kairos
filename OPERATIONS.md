@@ -1,8 +1,16 @@
 # Kairos
 
-Kairos runs Jev-assisted trading strategies against Kraken market data. The browser shows prices, assessments, orders, fills, and portfolio equity through a live event stream. D3 charts support pan, zoom, crosshairs, and fill markers. Bid/ask quotes stream over WebSocket; live fills are detected during the order-reconciliation cycle, not through a private execution stream.
+Kairos runs Jev-assisted trading strategies against Kraken market data. The workspace fits the viewport: chart on the left, Jev assessment beside it, settings on the right, and bottom tabs for Orders, Activity, Portfolio, and Equity. Long content scrolls inside panels. Smaller screens use panel navigation instead of columns. Settings have Strategy, Capital, and Execution tabs; switching tabs preserves unsaved edits. Live fills are detected during order reconciliation, not through a private execution stream.
 
-The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices. The header price remains the live bid/ask midpoint. Portfolio equity remains a separate line chart.
+The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices and base-asset volume. Matching volume bars share the candle timeline. The current-price badge and dashed line follow the candle color; there is no candle dot. Portfolio equity remains a line chart in the Equity tab.
+
+Click the market beside the logo to open the searchable crypto picker. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and save a new market under Settings > Strategy.
+
+Stars add or remove footer favorites. They persist across reloads in this browser's local storage and synchronize between tabs on the same origin; clearing site data removes them. They do not synchronize to other browser profiles or devices. Footer prices update independently of the selected chart. An unavailable market shows no invented price. If storage is blocked, the picker warns that favorites last only for the current page session.
+
+Picker and footer prices are last trades from a public Kraken ticker snapshot refreshed about every ten seconds, with a shared server cache. The volume column is the last 24 hours in base-asset units. The header is a bid/ask midpoint from the newest available snapshot or WebSocket quote, not the candle close. Prices older than 30 seconds are marked stale. Chart snapshots and browsing quotes are not execution inputs; execution fetches its own fresh depth.
+
+HOLD means no new trade. With no position in the assessed market, the display calls it WAIT. Confidence is confidence in that assessment, not a probability of profit. The HTF panel shows the historical move and existing fee/slippage threshold when its buy filter is not met.
 
 This is an experimental trading application, not evidence of a profitable strategy. Live spot execution is implemented but has not been verified with real orders. Test it with paper funds before installing a trade-capable key.
 
@@ -37,6 +45,19 @@ uv run kairos
 
 The process loads `.env` without overwriting exported environment variables. Do not copy `.env.example` over an existing `.env`. The server binds only to `127.0.0.1:8000`. Local access is for development; use authenticated nginx for network access.
 
+Text uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with OperatorMonoSSmLig Nerd Font for bold monospace. Install your licensed copies on the computer running the browser, for example under `~/.local/share/fonts/` on Linux, then run `fc-cache -f`. CSS references their local face names; these fonts are not uploaded or bundled in Git. System fonts are the fallback.
+
+Font Awesome Pro icons use two self-hosted webfonts. Install your licensed v7.2.0 files on the server:
+
+```sh
+FONT_AWESOME='/path/to/Font Awesome v7.2.0'
+install -d kairos/static/fonts
+install -m 644 "$FONT_AWESOME/fonts/fontawesome/fa-regular-400.woff2" kairos/static/fonts/
+install -m 644 "$FONT_AWESOME/fonts/fontawesome/fa-solid-900.woff2" kairos/static/fonts/
+```
+
+The Pro files are ignored by Git and must be supplied separately for each deployment. Only install fonts you are licensed to serve. Without them, buttons keep their text icon fallbacks and accessible labels. Do not publish the licensed binaries in the repository.
+
 The app always starts **paused in Dry-run**, even if the previous process was trading. A browser disconnect does not stop a running engine. A process restart does.
 
 The existing variable names are preserved:
@@ -61,11 +82,11 @@ The initial paper profile is $1,000, full-allocation sizing, and reinvestment en
 To start with $100:
 
 1. Stop the engine.
-2. Set **Paper starting balance** to `100`.
+2. Open Settings > Capital and set **Paper balance** to `100`.
 3. Click **Use full starting allocation**. This sets the starting order and exposure caps to `100` and enables reinvestment.
 4. Set the daily loss limit and fee assumptions you want.
 5. Save settings, then **Reset selected paper portfolio** to apply the new starting balance.
-6. Choose the market, strategy, and Spot product; save and press Start.
+6. In Settings > Strategy, choose the bot's market, strategy, and Spot product; save and press Start. The header market picker does not configure trading.
 
 Reinvestment scales both caps by `current active equity / initial allocation`. A $100 starting order cap becomes $150 when equity is $150, or $80 when equity is $80. Sizing reserves fees and rounds to Kraken's lot size; it cannot invest literally every last fractional cent. The daily loss limit is an absolute USD amount and does not scale. Turning reinvestment off makes the caps fixed USD amounts.
 
@@ -98,7 +119,7 @@ Recovery happens once per portfolio, persists across restarts, and does not regi
 
 **Triangular arbitrage:** considers both directions of one BTC/ETH-bridged triangle for the selected USD pair. Code calculates the three legs using visible depth, lot rounding, fees, and bounded worst-case prices. Jev may veto the opportunity, but does not perform the arithmetic. The entire route is rechecked after inference. Orders execute sequentially; the cycle is not atomic. A failed or partial leg stops the engine with its intermediate inventory preserved for review. Not every pair has a suitable triangle, and retail fees may eliminate every observed opportunity.
 
-Switch strategies or markets by stopping, changing settings, saving, and starting again. Existing spot holdings stay in the ledger and count toward portfolio exposure. A new strategy does not automatically manage or liquidate positions in a previously selected market.
+Switch the bot's strategy or market by stopping, changing settings, saving, and starting again. Browsing another chart does not change either setting. Existing spot holdings stay in the ledger and count toward portfolio exposure. A new strategy does not automatically manage or liquidate positions in a previously selected market.
 
 ## Dry-run and Trading
 
@@ -184,8 +205,9 @@ uv sync --locked --dev
 uv run ruff check kairos tests
 uv run python -m unittest discover -v
 node --check kairos/static/chart.js
-node --test tests/chart.test.cjs
+node --test tests/*.test.cjs
 node --check kairos/static/app.js
+node --check kairos/static/markets.js
 ```
 
 Stop the app before the bounded integration check so authenticated nonces remain ordered:

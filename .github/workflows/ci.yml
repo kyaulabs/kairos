@@ -49,8 +49,9 @@ jobs:
         run: |
           node --check kairos/static/app.js
           node --check kairos/static/chart.js
-      - name: Test chart data and viewport
-        run: node --test tests/chart.test.cjs
+          node --check kairos/static/markets.js
+      - name: Test chart data, viewport, and market favorites
+        run: node --test tests/*.test.cjs
 
   tests:
     name: Tests (Python ${{ matrix.python }})

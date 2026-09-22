@@ -22,9 +22,10 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 
 ## Capabilities
 
-- Switch markets and strategies from the dashboard after stopping and reconciling orders.
+- Change the bot's market and strategy in Settings after stopping and reconciling orders; browse charts independently through the market picker.
 - Use real Kraken data and Jev assessments in dry-run, without submitting exchange orders.
-- Monitor prices with self-hosted D3 candlesticks, including pan/zoom, OHLC crosshairs, buy/sell markers, and a separate equity line chart.
+- Use a single-screen workspace with a chart, Jev assessment, settings sidebar, and bottom tabs for orders, activity, portfolio, and equity.
+- Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
 - Configure starting capital, order and exposure caps, daily loss limits, fee assumptions, and reinvestment.
 - Persist settings, order intents, fills, and portfolio accounting in SQLite.
 - Protect network access with nginx Basic Auth over TLS.
@@ -38,7 +39,9 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 
 Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) for the API limitation.
 
-Bid/ask quotes stream over WebSocket. The candle chart defaults to 1m bars and refreshes native Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Live fills are detected during the order-reconciliation cycle, then sent to the browser; they are not streamed directly from Kraken's private execution channel.
+The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search crypto markets without changing the bot, even while it is running. The Jev panel identifies the bot's configured market and the market of its latest assessment.
+
+The header shows the chart market's bid/ask midpoint, using the newest available WebSocket quote or public ticker snapshot. Picker and footer last-trade prices refresh about every ten seconds; stale prices are marked. Favorites are stored in this browser, not the bot database. Live fills are detected during order reconciliation, not streamed directly from Kraken's private execution channel.
 
 ## Quick start
 
@@ -77,8 +80,8 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 
 ## Your first dry-run
 
-1. Choose a crypto market, strategy, and the **Spot** product.
-2. Set **Paper starting balance** to the amount you want to simulate, such as `100` USD.
+1. In **Kairos settings > Strategy**, choose the bot's market, strategy, and **Spot** product. The header picker changes only the chart.
+2. In **Capital**, set **Paper balance** to the amount you want to simulate, such as `100` USD.
 3. Click **Use full starting allocation**, then review the order cap, exposure cap, daily loss limit, and fee assumptions.
 4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
 5. Press **Start** and watch the assessments, fills, and equity chart.
@@ -124,6 +127,8 @@ Stop cancels tracked orders; **it does not sell spot holdings**. Loss limits als
 
 Use [deploy/nginx.conf](deploy/nginx.conf) for TLS, Basic Auth, and unbuffered dashboard events. Protect the entire site, including API routes and static assets. Set `PUBLIC_ORIGIN` to the HTTPS hostname and keep the backend port inaccessible from the network.
 
+The UI uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with OperatorMonoSSmLig Nerd Font for bold monospace. Font Awesome Pro webfonts are optional, locally supplied assets excluded from Git. See [font setup](OPERATIONS.md#run-locally); missing fonts fall back to system text and text icons.
+
 [deploy/kairos.service](deploy/kairos.service) provides an unprivileged systemd service example. Adapt the hostname, certificates, password file, user, and paths before installing either configuration. Full instructions are in [nginx and systemd](OPERATIONS.md#nginx-and-systemd).
 
 Run only one process per data directory and do not share the bot's Kraken key with another order manager. Back up state while the process is stopped; losing the database loses the bot's allocation and reconciliation history.
@@ -141,7 +146,8 @@ uv run --no-sync ruff format --check --output-format concise kairos tests
 uv run --no-sync python -m unittest discover -v
 node --check kairos/static/app.js
 node --check kairos/static/chart.js
-node --test tests/chart.test.cjs
+node --check kairos/static/markets.js
+node --test tests/*.test.cjs
 ```
 
 The tests use mocked exchange/model responses and local HTTP fixtures. They cover execution gates, partial fills, uncertain submissions, risk limits, arbitrage recovery, principal recovery, paper margin, and API security. They do not verify live profitability or real-order execution.
