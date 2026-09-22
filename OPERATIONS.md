@@ -2,9 +2,9 @@
 
 Kairos runs Jev-assisted trading strategies against Kraken market data. The workspace fits the viewport: chart on the left, Jev assessment beside it, settings on the right, and bottom tabs for Orders, Activity, Portfolio, Exchange accounts, and Equity. Long content scrolls inside panels. Smaller screens use panel navigation instead of columns. Settings have Strategy, Capital, and Execution tabs; switching tabs preserves unsaved edits. Execution also contains browser-local dark/light and violet/green/red appearance choices from the [brand pack](BRANDING.md). The layout and Neo Sans Pro / OperatorMonoLig fonts are unchanged. Live fills are detected during order reconciliation, not through a private execution stream.
 
-Product is the single execution-product selector under Strategy. Capital contains paper/live allocations, risk caps, reinvestment and product-specific leverage. Execution contains fee, spread, slippage and freshness assumptions. DCA/TWAP controls appear with their strategy; model and margin controls appear only where applicable. Unsupported strategies remain labeled, not silently substituted. A checked spot-only recovery switch stays visible until explicitly turned off before switching products. Hidden fields keep their saved values; an inactive draft is not submitted while saving another product or strategy.
+Product is the single execution-product selector under Strategy. Capital contains paper/live allocations, risk caps, reinvestment and product-specific leverage. Execution displays read-only Kraken account trading fees and contains spread, slippage and freshness limits. DCA/TWAP controls appear with their strategy; model and margin controls appear only where applicable. Unsupported strategies remain labeled, not silently substituted. A checked spot-only recovery switch stays visible until explicitly turned off before switching products. Hidden fields keep their saved values; an inactive draft is not submitted while saving another product or strategy.
 
-The bot-settings contract lives in `kairos/settings.py`. The read-only `/api/settings-schema` endpoint supplies the browser's types, bounds and choices; it contains no credentials or live permissions. Saved setting names, portfolios and program identities are unchanged. See the [refactor analysis](REFACTOR-ANALYSIS.md) for duplicate controls removed and safeguards deliberately kept separate. Deploy the backend and static files together; the form stays unavailable if its contract cannot load.
+The bot-settings contract lives in `kairos/settings.py`. The read-only `/api/settings-schema` endpoint supplies the browser's types, bounds and choices; it contains no credentials or live permissions. Legacy manual `maker_fee_bps` and `taker_fee_bps` settings are discarded on load. Other settings, portfolios, program identities and existing orders' fee snapshots are retained. See the [refactor analysis](REFACTOR-ANALYSIS.md) for duplicate controls removed and safeguards deliberately kept separate. Deploy the backend and static files together; the form stays unavailable if its contract cannot load.
 
 The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices and volume in base-asset, token, or contract units. Matching volume bars share the candle timeline. The current-price badge and dashed line follow the candle color; there is no candle dot. Portfolio equity remains a line chart in the Equity tab.
 
@@ -108,7 +108,7 @@ To start with $100:
 1. Stop the engine.
 2. Open Settings > Capital and set **Paper starting balance** to `100`.
 3. Set **Order cap** and **Exposure cap** to `100` if you intend full-allocation sizing. Choose **Scale order/exposure caps with equity (reinvest)** explicitly. No shortcut changes these settings together.
-4. Set the daily loss limit and fee assumptions you want.
+4. Set the daily loss limit and review the account-reported trading fees in Execution.
 5. Save settings, then **Reset selected paper portfolio** to apply the new starting balance.
 6. In Settings > Strategy, choose the bot's market, strategy, and Spot product; save and press Start. The header market picker does not configure trading.
 
@@ -143,7 +143,7 @@ Recovery happens once per portfolio, persists across restarts, and does not regi
 
 **Triangular arbitrage:** considers both directions of one BTC/ETH-bridged triangle for the selected USD pair. Code calculates the three legs using visible depth, lot rounding, fees, and bounded worst-case prices. Jev may veto the opportunity, but does not perform the arithmetic. The entire route is rechecked after inference. Orders execute sequentially; the cycle is not atomic. A failed or partial leg stops the engine with its intermediate inventory preserved for review. Not every pair has a suitable triangle, and retail fees may eliminate every observed opportunity.
 
-**DCA:** buys a fixed USD amount including the configured taker-fee reserve. Set the purchase amount, count, and period in seconds. The total run budget is amount × count and must already exist in the bot's allocated cash when the run first starts. Defaults are $100 × 10 purchases, one day apart. The first slot is immediate; later slots follow the persisted start time. Each slot attempts one bounded IOC limit order. Unfilled amounts and missed slots are not added to later purchases.
+**DCA:** buys a fixed USD amount including the account-reported taker-fee reserve. Set the purchase amount, count, and period in seconds. The total run budget is amount × count and must already exist in the bot's allocated cash when the run first starts. Defaults are $100 × 10 purchases, one day apart. The first slot is immediate; later slots follow the persisted start time. Each slot attempts one bounded IOC limit order. Unfilled amounts and missed slots are not added to later purchases.
 
 **TWAP:** set buy/sell, total base-asset quantity, a positive parent limit, slice count, and total duration in seconds. Defaults are 0.001 base units, 12 slices, and one hour; the zero default price must be replaced with your explicit limit before saving TWAP. The complete parent needs allocated cash at its worst-case limit plus fees, or bot-owned inventory for a sell. Slices are lot-rounded; only the final slice receives rounding dust. A buy never exceeds the parent limit; a sell never goes below it. Nonmarketable limits skip that slice. Partial or missed slices are not stacked onto later ones, so completion can leave quantity unexecuted. Each slice must span at least one configured engine interval.
 
@@ -156,7 +156,7 @@ The descriptions above cover spot programs. Futures DCA/TWAP use contract quanti
 For spot programs:
 
 1. Stop and reconcile orders, select Spot and the strategy, configure its fields and risk limits, then Save settings.
-2. Start in paper mode first. All three also support the existing explicitly confirmed live-spot path. Live program orders recheck current Kraken fees against the configured reserve before submitting.
+2. Start in paper mode first. All three also support the existing explicitly confirmed live-spot path. Every live order rechecks Kraken fees against the account-rate snapshot used to plan it before submitting.
 3. Inspect **Strategy status** in the existing assessment panel and the Orders/Activity tabs. These programs do not call Jev, require a Jev key, or fabricate confidence values.
 4. Stop to pause. Progress is separate for each mode and strategy. After restart, the engine remains paused in Dry-run; starting again resumes the saved schedule, skipping missed slots. Expired/completed finite runs pause without catch-up orders.
 5. To change a saved program's parameters or repeat a completed run, stop, save the new settings, and explicitly confirm **New strategy run…**, then Start. This creates a new schedule/budget allowance, not money. It never changes balances or holdings. Unrelated risk-setting changes do not reset progress. Resetting the paper spot portfolio clears its paper program progress, not live runs or history.
@@ -169,15 +169,15 @@ Switch the bot's strategy or market by stopping, changing settings, saving, and 
 
 ## Dry-run and Trading
 
-Dry-run uses real Kraken data. HTF, market making, and arbitrage use real Jev evaluations; DCA, TWAP, and rebalancing are deterministic and make no model calls. Paper execution never calls `AddOrder`, including `validate=true`, or Futures `sendorder`, and does not submit exchange cancellations for paper orders. The current read-only key is sufficient for authenticated read checks. Paper trading itself does not need private Kraken calls.
+Dry-run uses real Kraken data. HTF, market making, and arbitrage use real Jev evaluations; DCA, TWAP, and rebalancing are deterministic and make no model calls. Paper execution never calls `AddOrder`, including `validate=true`, or Futures `sendorder`, and does not submit exchange cancellations for paper orders. Paper trading requires a Spot key with authenticated fee-query access, but no order permissions. Browsing public markets needs no private key.
 
-Paper taker fills walk displayed depth up to the limit. Paper maker fills require a later public trade strictly through the resting limit on the opposing aggressor side, capped at 10% of that trade's volume. These estimates do not reconstruct queue priority, hidden liquidity, rebates, or your market impact. Simulated results cannot establish live profitability.
+Paper taker fills walk displayed depth up to the limit. Paper maker fills require a later public trade strictly through the resting limit on the opposing aggressor side, capped at 10% of that trade's volume. These estimates do not reconstruct queue priority, hidden liquidity, promotional rebates outside the returned trading-fee schedule, or your market impact. Simulated results cannot establish live profitability.
 
 For real spot trading:
 
 1. Install a dedicated trade-capable key with balance/fee queries, open/closed order queries, create/modify orders, and cancel/close permissions. Do **not** grant withdrawal permissions.
 2. Set `ALLOW_LIVE_TRADING=true` on the server and restart. The engine still starts paused in Dry-run.
-3. Configure a positive **Live capital allocation**, order/exposure caps, daily loss limit, and fee assumptions. Caps must fit the live allocation. For full allocation, set both starting caps equal to the live allocation and keep reinvestment enabled.
+3. Configure a positive **Live capital allocation**, order/exposure caps, and daily loss limit. Review the read-only Kraken trading fees in Execution. Caps must fit the live allocation. For full allocation, set both starting caps equal to the live allocation and keep reinvestment enabled.
 4. Change **Execution** to **Trading — real funds** and confirm. Kraken balances, status, and fees are checked. A read-only key cannot execute an order; order authorization remains Kraken's responsibility.
 5. Press Start if paused. If the engine was already running when you changed modes, it resumes after successful reconciliation and preflight.
 
@@ -186,6 +186,14 @@ The switch uses the same engine, not a mock live implementation. Directional/arb
 Changing back to Dry-run stops the loop and reconciles tracked orders first. If cancellation or submission status is uncertain, the switch fails closed and retains its previous mode, paused. No blind write retries occur. Use Reconcile and inspect the client ID at Kraken; a missing order after an ambiguous submission is not proof that it was never accepted.
 
 Live allocation tracks only funds assigned to this bot and assets bought by it. Pre-existing account crypto is not imported or sold. Fee preference is quote currency (`fciq`); the application records Kraken's quote-denominated cumulative fees. Balance discrepancies stop execution rather than silently inventing funds.
+
+Trading fees come from authenticated Kraken `TradeVolume` responses for each saved bot market, not public base-tier examples or operator-entered rates. The same source drives paper fills, Jev's cost context, sizing, program budgets and per-leg arbitrage/rebalance calculations. Futures queries specify the derivatives asset class and require a Spot key for the same account as the Futures wallet. Chart browsing never changes the queried bot markets.
+
+Fee snapshots are memory-only and valid for less than 60 seconds. Startup, Save and engine checks refresh due snapshots; Start refreshes them explicitly. Paused engine checks also refresh rates without placing orders. Failed reads are paced, invalidate cached rates for trading, and retain the previous rates visibly marked stale. Missing permissions, incomplete/malformed data or expired snapshots block new orders in both modes; there is no fixed-tier fallback. Setup and public browsing remain available.
+
+Live submission rechecks the planned rate. An increase stops the order for replanning rather than silently spending more; Futures openings also recheck their closing-fee reserve. Existing order snapshots remain fixed for paper fills and recovery. Confirmed live fills use Kraken's reported fees. Negative maker rates are displayed and simulated as rebates, but reserves never assume an uncredited rebate is spendable cash. If Kraken returns a single fee schedule rather than separate maker/taker rates, that schedule applies to both sides.
+
+Displayed percentages are per side, not round-trip costs. They exclude spread, slippage, funding and margin borrowing. Paper margin opening/rollover assumptions and the additional estimated Futures liquidation charge remain simulation assumptions, not verified account charges. Real account fee responses have not been probed during development.
 
 ## Margin simulation
 

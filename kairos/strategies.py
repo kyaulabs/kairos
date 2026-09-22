@@ -22,13 +22,13 @@ def limit_price(book, side, slippage_bps, *, maker_fee_bps=None, parent=None):
     return book.pair.price(raw, side)
 
 
-def trend_state(rows, settings):
+def trend_state(rows, settings, taker_fee_bps):
     if len(rows) < 30:
         raise SafetyError("Need at least 30 completed candles")
     closes = [dec(row[4]) for row in rows[-30:]]
     fast, slow = sum(closes[-8:]) / 8, sum(closes[-21:]) / 21
     move = (closes[-1] / closes[-9] - 1) * BPS
-    costs = dec(settings["taker_fee_bps"]) * 2 + dec(settings["slippage_bps"]) * 2
+    costs = taker_fee_bps * 2 + dec(settings["slippage_bps"]) * 2
     return {
         "candle_close_time": int(rows[-1][0]) + settings["candle_minutes"] * 60,
         "candle_minutes": settings["candle_minutes"],
@@ -88,7 +88,7 @@ def plan_leg(leg, book, amount, fee_bps, slippage_bps):
     return volume, limit, output
 
 
-def plan_cycle(legs, books, amount, settings):
+def plan_cycle(legs, books, amount, settings, fees):
     output = amount
     planned = []
     for leg in legs:
@@ -96,7 +96,7 @@ def plan_cycle(legs, books, amount, settings):
             leg,
             books[leg.pair.id],
             output,
-            dec(settings["taker_fee_bps"]),
+            fees.reserve(leg.pair),
             dec(settings["slippage_bps"]),
         )
         planned.append(

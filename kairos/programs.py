@@ -138,7 +138,7 @@ def prepare(engine):
                 "Strategy run is complete; explicitly create a new run to trade again"
             )
         return
-    fee = dec(settings["taker_fee_bps"]) / BPS
+    fee = engine.fees.reserve(pairs[0]) / BPS
     if settings["product"] == "futures":
         engine.futures.prepare_program(pairs[0])
     elif settings["strategy"] == "dca":
@@ -257,7 +257,7 @@ async def scheduled_order(engine, program, slot):
     if (side == "buy" and price < book.asks[0][0]) or (side == "sell" and price > book.bids[0][0]):
         report(engine, program, "Skipped TWAP slot: parent limit is not marketable")
         return
-    fee = dec(settings["taker_fee_bps"]) / BPS
+    fee = engine.fees.reserve(pair) / BPS
     children = orders(engine, program)
     if settings["strategy"] == "dca":
         spent = sum((dec(order["cost"]) + dec(order["fee"]) for order in children), ZERO)
@@ -367,7 +367,6 @@ async def rebalance(engine, program):
         ZERO,
     )
     allowance = max(ZERO, dec(settings["rebalance_daily_turnover"]) - turnover)
-    fee = dec(settings["taker_fee_bps"]) / BPS
     _, exposure = await engine.valuation(enforce=True)
     order_cap, exposure_cap = engine.limits()
     deltas = [
@@ -381,6 +380,7 @@ async def rebalance(engine, program):
             continue
         pair, _ = basket[identifier]
         book = books[identifier]
+        fee = engine.fees.reserve(pair) / BPS
         side = "sell" if delta > 0 else "buy"
         price = limit_price(book, side, settings["slippage_bps"])
         budget = min(abs(delta), order_cap, allowance / (1 + fee))

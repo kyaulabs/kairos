@@ -289,6 +289,8 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_settings_api_rejects_bypassed_form_rules(self):
         for change in (
+            {"taker_fee_bps": "0"},
+            {"maker_fee_bps": "0"},
             {"order_size": "1000000001"},
             {"product": "margin", "strategy": "dca"},
             {"futures_leverage": True},

@@ -85,7 +85,12 @@ def fake_kraken():
     fake.balances = AsyncMock(
         return_value={"ZUSD": dec("10000"), "XXBT": dec("1"), "XETH": dec("10")}
     )
-    fake.fees = AsyncMock(return_value=({BTC.id: dec(25)}, {BTC.id: dec(40)}))
+    fake.fees = AsyncMock(
+        return_value=(
+            {p.id: dec(25) for p in (BTC, ETH, CROSS)},
+            {p.id: dec(40) for p in (BTC, ETH, CROSS)},
+        )
+    )
     fake.request = AsyncMock(return_value={"status": "online"})
     fake.add = AsyncMock(return_value={"txid": ["TEST-ORDER"]})
     fake.query = AsyncMock(

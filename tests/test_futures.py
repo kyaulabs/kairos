@@ -298,8 +298,6 @@ class FuturesTests(unittest.IsolatedAsyncioTestCase):
             "product": "futures",
             "pair": PAIR.id,
             "futures_leverage": 2,
-            "maker_fee_bps": "10",
-            "taker_fee_bps": "10",
             "order_size": "200",
             "max_exposure": "1500",
             "futures_live_budget": "1000",
@@ -565,6 +563,18 @@ class FuturesTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(SafetyError, "fees"):
             await self.place()
         self.assertFalse(any(c.args[0] == "sendorder" for c in self.client.request.call_args_list))
+
+    async def test_maker_opening_rechecks_taker_closing_fee_reserve(self):
+        self.spot.allow_live = True
+        await self.engine.set_mode("trading", "ENABLE LIVE FUTURES")
+        self.engine.running = True
+        self.client.fees.return_value = (dec(10), dec(100))
+        with self.assertRaisesRegex(SafetyError, "closing fees"):
+            await self.engine.place(
+                PAIR, "buy", dec(1), dec("99.9"), await self.client.book(PAIR), maker=True
+            )
+        self.assertEqual(self.store.orders(), [])
+        self.client.request.assert_not_awaited()
 
     async def test_stop_during_live_preparation_prevents_submission(self):
         self.spot.allow_live = True

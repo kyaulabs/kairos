@@ -249,7 +249,7 @@ class FuturesDesk:
         im, _ = self.margin_rates(pair, exposure + cap)
         reserve = dec(self.ledger()["initial"]) * dec("0.2")
         if dec(self.engine.equity) - exposure * im - reserve < cap * (
-            im + 2 * dec(settings["taker_fee_bps"]) / BPS
+            im + 2 * self.engine.fees.reserve(pair) / BPS
         ):
             raise SafetyError(
                 "Pre-fund entire Futures parent margin, round-trip fees and 20% collateral reserve"
@@ -264,11 +264,7 @@ class FuturesDesk:
         await self.client.catalog()
         pair = engine.resolve(self.settings["pair"])
         await self.client.market(pair)
-        maker, taker = await self.client.fees(engine.kraken, pair)
-        if maker > dec(self.settings["maker_fee_bps"]) or taker > dec(
-            self.settings["taker_fee_bps"]
-        ):
-            raise SafetyError("Configured Futures fees underestimate current account fees")
+        await engine.refresh_fees(force=True)
         budget = dec(self.settings["futures_live_budget"])
         if budget <= 0:
             raise SafetyError("Explicit positive Futures collateral allocation required")
@@ -362,7 +358,7 @@ class FuturesDesk:
                         order,
                         filled,
                         cost,
-                        cost * (dec(self.settings["taker_fee_bps"]) + 50) / BPS,
+                        cost * (engine.fees.rate(pair) + 50) / BPS,
                         "canceled",
                     )
                 engine.event(
@@ -399,7 +395,7 @@ class FuturesDesk:
             "reduce_only": reducing,
             "created": now,
             "expires": now + 30,
-            "fee_bps": self.settings["maker_fee_bps" if maker else "taker_fee_bps"],
+            "fee_bps": str(self.engine.fees.rate(pair, maker)),
             "status": "submitting",
             "filled": "0",
             "cost": "0",
@@ -428,7 +424,7 @@ class FuturesDesk:
                 },
             )
 
-        if order["mode"] == "trading" and fee > cost * dec(order["fee_bps"]) / BPS + dec(
+        if order["mode"] == "trading" and fee > cost * max(ZERO, dec(order["fee_bps"])) / BPS + dec(
             "0.00000001"
         ):
             raise SafetyError(
@@ -498,6 +494,7 @@ class FuturesDesk:
         stop_generation = engine.stop_generation
         if (not engine.running and not close) or engine.orders(active=True):
             raise SafetyError("Futures engine stopped or previous order unresolved")
+        engine.fees.rate(pair, maker)
         await self.client.catalog()
         if self.client.pairs.get(pair.id) != pair:
             raise SafetyError("Futures contract rules changed; reload settings before trading")
@@ -519,14 +516,15 @@ class FuturesDesk:
         mark = dec(market["markPrice"])
         if not maker and (market.get("postOnly") or self.client.metadata[pair.id].get("postOnly")):
             raise SafetyError("Futures market currently permits post-only orders")
-        fee_bps = dec(self.settings["maker_fee_bps" if maker else "taker_fee_bps"])
+        fee_bps = engine.fees.rate(pair, maker)
+        closing_fee = engine.fees.reserve(pair)
         if not reducing:
             risk_notional = volume * max(price, mark)
             im, _ = self.margin_rates(pair, exposure + risk_notional)
             # Reserve 20% of original collateral and closing fees. Never borrow/consolidate cash.
             required = (
                 max(ZERO, (exposure + risk_notional) * im - values["initial"])
-                + notional * (fee_bps + dec(self.settings["taker_fee_bps"])) / BPS
+                + notional * (max(ZERO, fee_bps) + closing_fee) / BPS
             )
             reserve = dec(self.ledger()["initial"]) * dec("0.2")
             if exposure + risk_notional > exposure_cap or values["free"] - reserve < required:
@@ -536,9 +534,9 @@ class FuturesDesk:
         if engine.mode == "trading":
             if not self.client.allow_live or not engine.kraken.allow_live:
                 raise SafetyError("Futures live writes disabled")
-            maker_fee, taker_fee = await self.client.fees(engine.kraken, pair)
-            if (maker_fee if maker else taker_fee) > fee_bps:
-                raise SafetyError("Current Futures fees exceed the configured reserve")
+            fee_bps = await engine.fees.recheck(pair, maker, fee_bps)
+            if not reducing and engine.fees.reserve(pair) > closing_fee:
+                raise SafetyError("Kraken closing fees increased beyond the planned fee reserve")
             # Account-wide switch is permitted only for the dedicated wallet validated above.
             switch = await self.client.request("cancelallordersafter", {"timeout": 60})
             trigger = switch.get("status", {}).get("triggerTime")
@@ -644,6 +642,7 @@ class FuturesDesk:
                 trend_state(
                     await self.client.completed_candles(pair, self.settings["candle_minutes"]),
                     self.settings,
+                    engine.fees.reserve(pair),
                 )
             )
             state["short_entry_eligible"] = state["exit_eligible"] and dec(
@@ -658,8 +657,8 @@ class FuturesDesk:
         state.update(
             mid=str(book.mid),
             spread_bps=str(book.spread_bps),
-            maker_fee_bps=self.settings["maker_fee_bps"],
-            taker_fee_bps=self.settings["taker_fee_bps"],
+            maker_fee_bps=str(engine.fees.rate(pair, True)),
+            taker_fee_bps=str(engine.fees.rate(pair)),
             equity=engine.equity,
             leverage_cap=self.settings["futures_leverage"],
         )
@@ -680,7 +679,7 @@ class FuturesDesk:
             book,
             side,
             self.settings["slippage_bps"],
-            maker_fee_bps=self.settings["maker_fee_bps"] if maker else None,
+            maker_fee_bps=engine.fees.reserve(pair, True) if maker else None,
         )
         values, exposure = await self.valuation(True)
         cap, maximum = engine.limits()
@@ -693,7 +692,7 @@ class FuturesDesk:
                 cap,
                 maximum - exposure,
                 max(ZERO, values["free"] - dec(self.ledger()["initial"]) * dec("0.2"))
-                / (im + 2 * dec(self.settings["taker_fee_bps"]) / BPS),
+                / (im + 2 * engine.fees.reserve(pair) / BPS),
             )
             volume = floor(max(ZERO, budget) / price, pair.lot)
         if volume < pair.minimum:
