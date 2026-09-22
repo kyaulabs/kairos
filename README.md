@@ -37,9 +37,12 @@ Kairos is an experimental Kraken trading bot with Jev-assisted strategies and de
 | Crypto margin | Separate long/short simulation | Disabled |
 | Direct US stocks and ETFs | Not yet supported | No brokerage integration verified |
 | xStocks | Market data only; no simulator | Read-only accounts; execution disabled |
-| Futures | Market data only; no simulator | Read-only accounts; execution disabled |
+| USD linear crypto perpetuals | Separate funding-aware long/short simulation | Gated IOC/post-only orders; dedicated USD collateral |
+| Inverse, dated and other Futures | Browse-only | Execution disabled |
 
 Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) and the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for verified coverage and integration limitations.
+
+HTF, market making, DCA and TWAP support qualified linear perpetuals. Futures need separate collateral accounting, live credentials and arming; see [Futures operation and limitations](FUTURES.md). Neither live spot nor Futures execution has been verified with real orders.
 
 The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search spot/FX, margin-eligible crypto, xStocks, and Futures without changing the bot, even while it is running. The Jev panel identifies the bot's configured market and the market of its latest assessment.
 
@@ -68,9 +71,10 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 | --- | --- |
 | `JEV_API_KEY` | TypeSafe API access; assessments can incur charges |
 | `KRAKEN_API_KEY`, `KRAKEN_PRIVATE_KEY` | Kraken API key and signing secret |
-| `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Optional separate read-only Derivatives credentials; public browsing needs neither |
+| `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Separate Derivatives credentials; read-only for browsing/accounts, order permission only for gated live Futures |
 | `JEV_MODEL` | Defaults to `jev-latest` |
 | `ALLOW_LIVE_TRADING` | Defaults to `false`; leave disabled for dry-run |
+| `ALLOW_FUTURES_TRADING` | Defaults to `false`; live Futures require both flags and separate UI confirmation |
 | `PUBLIC_ORIGIN` | Exact browser origin; defaults to `http://127.0.0.1:8000` |
 | `PORT` | Loopback HTTP port, default `8000` |
 | `DATA_DIR` | Persistent state directory, default `data` |
@@ -83,7 +87,7 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 
 ## Your first dry-run
 
-1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks, and Futures remain visible with explanations. The header picker changes only the chart.
+1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks and unsupported Futures remain visible with explanations. Select the Futures product separately for a qualified linear perpetual. The header picker changes only the chart.
 2. In **Capital**, set **Paper balance** to the amount you want to simulate, such as `100` USD.
 3. Click **Use full starting allocation**, then review the order cap, exposure cap, daily loss limit, and fee assumptions.
 4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
@@ -91,7 +95,7 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 
 The default paper profile starts with $1,000 and reinvestment enabled. Changing the starting balance does not change an existing portfolio until you reset it. A reset discards simulated holdings, not live holdings, and retains labeled order/event history.
 
-Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Taker fills are estimated from visible depth; maker fills require later crossing trades and assume limited participation. Neither model reconstructs actual queue priority or market impact.
+Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Taker fills are estimated from visible depth; spot maker fills require later crossing trades, while Futures maker fills use later strictly crossing depth. Both assume limited participation. Neither model reconstructs actual queue priority or market impact.
 
 ## Strategies
 

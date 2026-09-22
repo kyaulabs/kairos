@@ -38,6 +38,8 @@ class StrategyMarketPicker {
   }
   static limitation(pair, context) {
     if (pair.execution_reason) return pair.execution_reason;
+    if (pair.kind === 'futures') return context.product !== 'futures' ? 'Choose the Futures product to configure a linear perpetual.' : !pair.linear_perpetual ? 'This Futures contract is browse-only.' : '';
+    if (context.product === 'futures') return 'Choose a qualified USD linear perpetual for the Futures product.';
     if (pair.quote !== context.quote) return `Quoted in ${pair.symbol.split('/')[1]}; this portfolio uses ${context.quoteLabel || context.quote}.`;
     if (context.product === 'margin') {
       if (context.mode === 'trading') return 'Margin is paper-only in Kairos.';

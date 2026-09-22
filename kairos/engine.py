@@ -7,21 +7,25 @@ from datetime import UTC, datetime, timedelta
 from kairos import margin, programs
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, DEFAULTS, TERMINAL, ZERO, SafetyError, dec, floor, validate_settings
+from kairos.futures import FuturesDesk
+from kairos.futures import new_ledger as futures_ledger
 from kairos.strategies import plan_cycle, plan_leg, trend_state, triangle
 
 
 class Engine:
-    def __init__(self, store, kraken, jev, publish):
+    def __init__(self, store, kraken, jev, publish, futures=None):
         self.store, self.kraken, self.jev, self.publish = store, kraken, jev, publish
+        self.futures = FuturesDesk(self, futures)
         # Migrate only newly introduced program fields; missing legacy risk fields still fail.
         program_defaults = {
             key: value
             for key, value in DEFAULTS.items()
-            if key.startswith(("dca_", "twap_", "rebalance_"))
+            if key.startswith(("dca_", "twap_", "rebalance_", "futures_"))
         }
         self.settings = validate_settings({**program_defaults, **store.get("settings", DEFAULTS)})
         self.mode = "dry-run"  # Never auto-resume live trading after a restart.
         self.running = False
+        self.stop_generation = 0
         self.ready = False
         self.lock = asyncio.Lock()
         self.last_error = None
@@ -52,7 +56,13 @@ class Engine:
 
     def limits(self):
         scale = dec(1)
-        ledger = self.store.get("margin") if self.settings["product"] == "margin" else self.ledger()
+        ledger = (
+            self.store.get("margin")
+            if self.settings["product"] == "margin"
+            else self.futures.ledger()
+            if self.settings["product"] == "futures"
+            else self.ledger()
+        )
         if self.settings["reinvest_profits"] and ledger and self.equity is not None:
             initial = dec(ledger["initial"])
             if initial > 0:
@@ -65,8 +75,14 @@ class Engine:
             "running": self.running,
             "mode": self.mode,
             "live_enabled": self.kraken.allow_live,
+            "futures_live_enabled": bool(self.futures.client and self.futures.client.allow_live),
             "settings": self.settings,
-            "error": self.last_error,
+            "error": self.last_error
+            or (
+                "Live Futures positions remain. Dry-run does not close them; arm Trading to reconcile/manage them."
+                if self.mode == "dry-run" and self.futures.has_live_position()
+                else None
+            ),
             "effective_order_cap": str(self.limits()[0]),
             "effective_exposure_cap": str(self.limits()[1]),
             "decision": self.latest_decision,
@@ -79,6 +95,7 @@ class Engine:
             "orders": self.store.orders()[-100:],
             "cycle": self.store.get("cycle"),
             "margin": self.store.get("margin"),
+            "futures": self.futures.ledger(),
             "program": programs.snapshot(self),
             "capabilities": {
                 "crypto_spot": "paper-and-live",
@@ -86,7 +103,7 @@ class Engine:
                 "retail_market_data": "spot-fx-xstocks-futures",
                 "exchange_accounts": "read-only; separate from bot allocations",
                 "xstocks_execution": "blocked",
-                "futures_execution": "blocked",
+                "futures_execution": "USD linear crypto perpetuals: paper and explicitly gated live",
                 "funding_policy": "pre-funded allocations; no automatic conversions or transfers",
                 "us_stocks": "not integrated: reviewed CLI offers xStocks, not brokerage stock orders",
             },
@@ -96,6 +113,11 @@ class Engine:
         self.publish("state", self.snapshot())
 
     def resolve(self, name):
+        if name.startswith("futures:"):
+            pair = self.futures.client.pairs.get(name) if self.futures.client else None
+            if not pair:
+                raise SafetyError("Not a qualified USD linear crypto perpetual")
+            return pair
         pair = self.kraken.pairs.get(name)
         if pair:
             return pair
@@ -109,6 +131,11 @@ class Engine:
 
     async def initialize(self):
         await self.kraken.catalog()
+        self.futures.ensure_paper()
+        if self.settings["product"] == "futures":
+            if not self.futures.client:
+                raise SafetyError("Futures adapter unavailable")
+            await self.futures.client.catalog()
         self.settings["pair"] = self.resolve(self.settings["pair"]).id
         self.store.put("settings", self.settings)
         if not self.ledger("dry-run"):
@@ -122,6 +149,11 @@ class Engine:
             self.last_error = (
                 "Restart recovery: reconcile tracked live orders/cycle before starting"
             )
+        if any(
+            dec(p["quantity"])
+            for p in (self.futures.ledger("trading") or {}).get("positions", {}).values()
+        ):
+            self.last_error = "Live Futures positions remain after restart; arm Trading to reconcile/manage them. Dry-run does not close them."
         self.ready = True
         self.event("system", {"message": "Ready; paused in dry-run mode"})
         self.emit_state()
@@ -149,9 +181,32 @@ class Engine:
             if self.running or self.orders(active=True):
                 raise SafetyError("Stop and reconcile outstanding orders before changing settings")
             new = validate_settings(values)
+            if new["product"] != self.settings["product"] and self.mode == "trading":
+                raise SafetyError("Switch to Dry-run before changing trading product")
+            if new["product"] == "futures":
+                if not self.futures.client:
+                    raise SafetyError("Futures adapter unavailable")
+                await self.futures.client.catalog()
             pair = self.resolve(new["pair"])
             new["pair"] = pair.id
-            if pair.quote != new["quote"]:
+            if pair.id.startswith("futures:") != (new["product"] == "futures"):
+                raise SafetyError("Select the matching Futures or spot product and market")
+            for mode in ("dry-run", "trading"):
+                ledger = self.futures.ledger(mode)
+                if (
+                    ledger
+                    and any(dec(p["quantity"]) for p in ledger["positions"].values())
+                    and any(
+                        new[k] != self.settings[k] for k in ("pair", "product", "futures_leverage")
+                    )
+                ):
+                    raise SafetyError(
+                        "Close Futures positions before changing market, product or leverage"
+                    )
+            live = self.futures.ledger("trading")
+            if live and dec(new["futures_live_budget"]) != dec(live["initial"]):
+                raise SafetyError("Live Futures allocation cannot be silently resized")
+            if new["product"] != "futures" and pair.quote != new["quote"]:
                 raise SafetyError("Selected pair must use the configured quote currency")
             if new["quote"] != self.settings["quote"]:
                 raise SafetyError(
@@ -210,7 +265,13 @@ class Engine:
         async with self.lock:
             if self.running or self.orders("dry-run", True):
                 raise SafetyError("Stop paper trading before resetting")
-            if self.settings["product"] == "margin":
+            if self.settings["product"] == "futures":
+                self.store.put("futures:dry-run", futures_ledger(self.settings["paper_balance"]))
+                self.store.put("day:futures:dry-run", None)
+                self.store.put("candle:futures:dry-run", None)
+                for strategy in ("dca", "twap"):
+                    self.store.put(f"program:futures:dry-run:{strategy}", None)
+            elif self.settings["product"] == "margin":
                 self.store.put("margin", margin.new_ledger(self.settings["paper_balance"]))
                 self.store.put("day:margin", None)
             else:
@@ -239,6 +300,8 @@ class Engine:
             self.emit_state()
 
     async def live_preflight(self):
+        if self.settings["product"] == "futures":
+            return await self.futures.preflight()
         if self.settings["product"] == "margin":
             raise SafetyError("Real margin trading is not enabled; margin is paper-only")
         if not self.kraken.allow_live:
@@ -287,13 +350,18 @@ class Engine:
                 if self.orders("trading", True) or self.recovery_required:
                     raise SafetyError("Reconcile live orders/cycle before changing mode")
                 if mode == "trading":
-                    if confirmation != "ENABLE LIVE TRADING":
+                    expected = (
+                        "ENABLE LIVE FUTURES"
+                        if self.settings["product"] == "futures"
+                        else "ENABLE LIVE TRADING"
+                    )
+                    if confirmation != expected:
                         raise SafetyError("Explicit live-trading confirmation is required")
                     await self.live_preflight()
                 self.mode = mode
                 self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
                 self.last_error = None
-                if was_running:
+                if was_running and self.settings["product"] != "futures":
                     await self.valuation(enforce=True)
                     programs.prepare(self)
                     self.running = True
@@ -307,6 +375,17 @@ class Engine:
                 raise SafetyError("Market catalog is not ready")
             if self.orders(active=True) or self.recovery_required:
                 raise SafetyError("Reconcile outstanding orders/cycle before starting")
+            if (
+                self.settings["product"] == "futures"
+                and self.mode == "dry-run"
+                and any(
+                    dec(p["quantity"])
+                    for p in (self.futures.ledger("trading") or {}).get("positions", {}).values()
+                )
+            ):
+                raise SafetyError(
+                    "Live Futures positions remain; arm Trading to reconcile or reduce them before running paper"
+                )
             if self.mode == "trading":
                 await self.live_preflight()
             if self.settings["strategy"] not in programs.STRATEGIES and not self.jev.key:
@@ -319,6 +398,7 @@ class Engine:
 
     async def stop(self):
         # Latch the stop before waiting for an in-flight data/model request.
+        self.stop_generation += 1
         self.running = False
         async with self.lock:
             try:
@@ -328,6 +408,34 @@ class Engine:
                 )
             finally:
                 self.emit_state()
+
+    async def close_futures(self, confirmation):
+        async with self.lock:
+            if (
+                self.running
+                or self.settings["product"] != "futures"
+                or confirmation != "REDUCE FUTURES POSITION"
+            ):
+                raise SafetyError("Pause Futures and explicitly confirm a reduce-only exit")
+            await self.cancel_active()
+            if self.recovery_required:
+                raise SafetyError("Reconcile recovery before reducing a Futures position")
+            pair = self.resolve(self.settings["pair"])
+            await self.futures.valuation(False, exit_only=True)
+            quantity = self.futures.position(pair)
+            if not quantity:
+                raise SafetyError("No bot Futures position to reduce")
+            side = "sell" if quantity > 0 else "buy"
+            book = await self.futures.client.book(pair)
+            slip = dec(self.settings["slippage_bps"]) / BPS
+            price = pair.price(
+                book.bids[0][0] * (1 - slip) if side == "sell" else book.asks[0][0] * (1 + slip),
+                side,
+            )
+            volume = floor(min(abs(quantity), self.limits()[0] / price), pair.lot)
+            await self.futures.place(pair, side, volume, price, book, close=True)
+            await self.futures.valuation(False)
+            self.emit_state()
 
     async def reconcile(self, acknowledge=False):
         async with self.lock:
@@ -341,12 +449,16 @@ class Engine:
                         "Interrupted cycle left inventory. Review balances, then acknowledge recovery"
                     )
                 self.store.put("cycle", None)
+            if self.settings["product"] == "futures" and self.futures.ledger("trading"):
+                await self.futures.live_sync()
             self.recovery_required = False
             self.last_error = None
             self.event("system", {"message": "Reconciliation completed; holdings retained"})
             self.emit_state()
 
     async def valuation(self, enforce=False):
+        if self.settings["product"] == "futures":
+            return await self.futures.valuation(enforce)
         if self.settings["product"] == "margin":
             return await self.margin_valuation(enforce)
         ledger = self.ledger()
@@ -454,6 +566,9 @@ class Engine:
     async def refresh_order(self, order):
         if order["mode"] == "dry-run":
             return order
+        if order.get("product") == "futures":
+            await self.futures.refresh(order)
+            return order
         if not order["txid"]:
             order["txid"], row = await self.kraken.find_order(order["id"], order["created"])
             self.store.save_order(order)
@@ -467,6 +582,9 @@ class Engine:
             if order["mode"] == "dry-run":
                 order["status"] = "canceled"
                 self.store.save_order(order)
+                continue
+            if order.get("product") == "futures":
+                await self.futures.cancel(order)
                 continue
             await self.refresh_order(order)
             if order["status"] in TERMINAL:
@@ -484,7 +602,11 @@ class Engine:
                 raise SafetyError("Cancellation not confirmed; no further orders")
 
     async def paper_makers(self):
+        if self.futures.client:
+            await self.futures.paper_makers()
         for order in self.orders("dry-run", True):
+            if order.get("product") == "futures":
+                continue
             if not order["maker"]:
                 raise SafetyError("Unexpected unfinished paper taker order")
             pair = self.resolve(order["pair"])
@@ -641,6 +763,8 @@ class Engine:
         if self.orders(self.mode, True):
             raise SafetyError("Previous order must settle before placing another")
         pair.validate(volume, price)
+        if self.settings["product"] == "futures":
+            return await self.futures.place(pair, side, volume, price, book, maker, program=program)
         if self.settings["product"] == "margin":
             return await self.place_margin(pair, side, volume, price, book, maker)
         prices, exposure = await self.valuation(enforce=True)
@@ -803,6 +927,8 @@ class Engine:
         )
 
     async def directional(self, pair):
+        if self.settings["product"] == "futures":
+            return await self.futures.directional(pair)
         maker = self.settings["strategy"] == "maker"
         is_margin = self.settings["product"] == "margin"
         position = dec(
@@ -1060,11 +1186,15 @@ class Engine:
     async def tick(self):
         async with self.lock:
             if not self.running:
-                if self.settings["product"] == "margin":
+                if self.settings["product"] in {"margin", "futures"}:
                     try:
-                        await self.margin_valuation(False)
-                    except SafetyError as exc:
-                        self.last_error = str(exc)
+                        await self.valuation(False)
+                    except Exception as exc:
+                        self.last_error = (
+                            str(exc)
+                            if isinstance(exc, SafetyError)
+                            else "Portfolio valuation unavailable; remain stopped"
+                        )
                     self.emit_state()
                 return
             try:

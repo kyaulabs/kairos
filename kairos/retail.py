@@ -1,4 +1,4 @@
-"""Read-only retail market discovery. These instruments never enter the execution catalog."""
+"""Retail discovery; qualified Futures use a separate derivatives execution catalog."""
 
 import asyncio
 import base64
@@ -15,9 +15,24 @@ from kairos.domain import CANDLE_INTERVALS, SafetyError, dec
 FIAT = {"USD", "EUR", "GBP", "CAD", "JPY", "AUD", "CHF", "AED", "BRL", "ARS", "MXN"}
 
 
-def futures_signature(path, secret):
-    # GETs below have no query parameters. Futures permits omission of Nonce.
-    digest = hashlib.sha256(path.encode()).digest()
+def linear_perpetual(row):
+    return (
+        row.get("type") == "flexible_futures"
+        and row.get("symbol", "").startswith("PF_")
+        and row.get("quote") == "USD"
+        and type(row.get("contractSize")) in (int, float)
+        and row["contractSize"] == 1
+        and row.get("tradeable") is True
+        and row.get("isExpired") is False
+        and row.get("tradfi", False) is False
+        and "contractValueTradePrecision" in row
+        and bool(row.get("marginLevels"))
+    )
+
+
+def futures_signature(path, secret, post_data=""):
+    # Futures permits omission of Nonce. Hash the encoded bytes actually sent.
+    digest = hashlib.sha256((post_data + path).encode()).digest()
     return base64.b64encode(
         hmac.new(base64.b64decode(secret), digest, hashlib.sha512).digest()
     ).decode()
@@ -175,7 +190,10 @@ class RetailMarkets:
                                 "contract_size": str(dec(row["contractSize"])),
                                 "volume_unit": "contracts",
                                 "chart_volume_unit": "contract units",
-                                "execution_reason": "Futures are browse-only; derivatives execution is not integrated.",
+                                "linear_perpetual": linear_perpetual(row),
+                                "execution_reason": ""
+                                if linear_perpetual(row)
+                                else "Only qualified USD linear crypto perpetuals support execution; inverse, dated and other contracts are browse-only.",
                             }
                     self.extra[kind] = records
                     self.catalog_errors.pop(kind, None)
