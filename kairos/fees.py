@@ -5,6 +5,8 @@ import time
 from kairos.domain import ZERO, SafetyError, dec
 
 MAX_AGE = 60
+# Refresh before planning has to share the last seconds of a valid snapshot.
+REFRESH_AFTER = 30
 
 
 class AccountFees:
@@ -20,7 +22,9 @@ class AccountFees:
             for pair in pairs
             if force
             or pair.id not in self.attempts
-            or not 0 <= now - self.attempts[pair.id] < MAX_AGE
+            or not 0
+            <= now - self.attempts[pair.id]
+            < (MAX_AGE if pair.id in self.errors else REFRESH_AFTER)
         ]
         if due:
             for pair in due:

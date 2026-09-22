@@ -154,6 +154,26 @@ class ScalpingTests(unittest.IsolatedAsyncioTestCase):
         self.jev.decide.assert_not_awaited()
         self.spot.add.assert_not_awaited()
 
+    async def test_near_expiry_fees_refresh_before_slow_entry_planning(self):
+        await self.engine.start()
+        self.clock.return_value += 59
+        self.spot.fees.return_value = ({BTC.id: dec(10)}, {BTC.id: dec(20)})
+
+        async def delayed_candles(*args):
+            self.clock.return_value += 2
+            return candles()
+
+        self.spot.candles.side_effect = delayed_candles
+        before = self.spot.fees.await_count
+        await self.engine.tick()
+        self.assertTrue(self.engine.running, self.engine.last_error)
+        self.assertEqual(self.spot.fees.await_count, before + 1)
+        self.assertGreater(self.engine.balance(BTC.base), 0)
+        self.assertEqual(self.store.orders()[0]["fee_bps"], "20")
+        self.assertEqual(self.snapshot()["position"]["signal"]["entry_fee_bps"], "20")
+        self.spot.add.assert_not_awaited()
+        self.jev.decide.assert_not_awaited()
+
     async def test_stop_exits_even_when_fees_make_exit_unprofitable(self):
         await self.enter()
         self.bid, self.ask = "97", "97.1"

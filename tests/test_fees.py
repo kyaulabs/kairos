@@ -28,6 +28,39 @@ class FeeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.fees.rate(BTC, True), 40)
         self.assertFalse(any(r["stale"] for r in self.fees.snapshot([BTC, ETH])["markets"]))
 
+    async def test_successful_rates_refresh_early_but_remain_cached_between_checks(self):
+        with patch("kairos.fees.time.time", return_value=1000) as clock:
+            await self.fees.refresh([BTC])
+            self.spot.fees.return_value = ({BTC.id: dec(10)}, {BTC.id: dec(20)})
+            clock.return_value = 1029
+            await self.fees.refresh([BTC])
+            self.assertEqual(self.spot.fees.await_count, 1)
+            self.assertEqual(self.fees.rate(BTC), 40)
+            clock.return_value = 1030
+            await self.fees.refresh([BTC])
+            self.assertEqual(self.spot.fees.await_count, 2)
+            self.assertEqual(self.fees.rate(BTC), 20)
+            self.assertEqual(self.fees.rates[BTC.id]["received"], 1030)
+
+    async def test_failed_early_refresh_still_invalidates_and_paces_retries_for_a_minute(self):
+        with patch("kairos.fees.time.time", return_value=1000) as clock:
+            await self.fees.refresh([BTC])
+            self.spot.fees.side_effect = SafetyError("Fee lookup unavailable")
+            clock.return_value = 1030
+            with self.assertRaisesRegex(SafetyError, "fees unavailable"):
+                await self.fees.refresh([BTC])
+            self.assertTrue(self.fees.snapshot([BTC])["markets"][0]["stale"])
+            self.assertEqual(self.fees.rates[BTC.id]["received"], 1000)
+            clock.return_value = 1089
+            with self.assertRaisesRegex(SafetyError, "missing or stale"):
+                await self.fees.refresh([BTC])
+            self.assertEqual(self.spot.fees.await_count, 2)
+            self.spot.fees.side_effect = None
+            clock.return_value = 1090
+            await self.fees.refresh([BTC])
+            self.assertEqual(self.spot.fees.await_count, 3)
+            self.assertEqual(self.fees.rate(BTC), 40)
+
     async def test_expired_and_clock_reversed_snapshots_cannot_be_used(self):
         with patch("kairos.fees.time.time", return_value=1000) as clock:
             await self.fees.refresh([BTC])
