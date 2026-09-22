@@ -1,4 +1,6 @@
-# Kairos
+<p align="left">
+  <img src=".github/media/kairos-dark.svg" alt="Kairos" width="360">
+</p>
 
 [https://kyaulabs.com/](https://kyaulabs.com/)
 
@@ -9,18 +11,18 @@ Kairos is an experimental Kraken trading bot with Jev-assisted strategies and de
 
 **Start with dry-run.** Live spot execution is implemented but has not been verified with real orders. Neither model confidence nor simulated returns establish profitability, and full-allocation trading can lose the entire allocation.
 
-- [Capabilities](#capabilities)
-- [Quick start](#quick-start)
-- [Your first dry-run](#your-first-dry-run)
-- [Strategies](#strategies)
-- [Capital and recovery](#capital-and-recovery)
-- [Live trading](#live-trading)
-- [Deployment](#deployment)
-- [Development and CI](#development-and-ci)
-- [Project layout](#project-layout)
-- [Documentation](#documentation)
+- [Capabilities](#-capabilities)
+- [Quick start](#-quick-start)
+- [Your first dry-run](#-your-first-dry-run)
+- [Strategies](#-strategies)
+- [Capital and recovery](#-capital-and-recovery)
+- [Live trading](#-live-trading)
+- [Deployment](#-deployment)
+- [Development and CI](#-development-and-ci)
+- [Project layout](#-project-layout)
+- [Documentation](#-documentation)
 
-## Capabilities
+## ✨ Capabilities
 
 - Change the bot's market and strategy in Settings after stopping and reconciling orders; browse charts independently through the market picker.
 - Use real Kraken data in dry-run without exchange orders; model-assisted strategies use Jev, while Bollinger scalping, DCA, TWAP, and rebalancing need no model calls.
@@ -48,7 +50,7 @@ The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly
 
 The header shows the chart market's bid/ask midpoint, using the newest available WebSocket quote or public ticker snapshot. Picker and footer last-trade prices refresh about every ten seconds; stale prices are marked. The picker includes sortable rolling 24h change: spot/xStocks snapshots refresh about once a minute; Futures changes arrive with venue quotes. Volumes retain native asset or contract units. Favorites are stored in this browser, not the bot database. Live fills are detected during order reconciliation, not streamed directly from Kraken's private execution channel.
 
-## Quick start
+## 🚀 Quick start
 
 Requires Linux, Python 3.12 or later, and [uv](https://docs.astral.sh/uv/). Model-assisted strategies also require a Jev API key. A Kraken Spot key with fee-query access is required even for paper trading; read-only permissions are enough. Futures fee queries use that same account's Spot key. There is no frontend build step; Node.js is needed only for development checks.
 
@@ -83,9 +85,9 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 uv run kairos
 ```
 
-Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused in Dry-run**. Do not expose it directly to the network; use [nginx](#deployment) for authenticated access.
+Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused in Dry-run**. Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
 
-## Your first dry-run
+## 🧪 Your first dry-run
 
 1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks and unsupported Futures remain visible with explanations. Select the Futures product separately for a qualified linear perpetual. The header picker changes only the chart.
 2. In **Capital**, set **Paper starting balance** to the amount you want to simulate, such as `100` USD.
@@ -97,7 +99,7 @@ The default paper profile starts with $1,000 and reinvestment enabled. Changing 
 
 Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Taker fills are estimated from visible depth; spot maker fills require later crossing trades, while Futures maker fills use later strictly crossing depth. Both assume limited participation. Neither model reconstructs actual queue priority or market impact.
 
-## Strategies
+## 📈 Strategies
 
 | Strategy | Behavior |
 | --- | --- |
@@ -115,7 +117,7 @@ DCA, TWAP, and rebalancing support paper and explicitly gated live spot. They ma
 
 Existing spot holdings remain tracked when you change markets, but the newly selected strategy does not automatically trade the previous market's holdings. Paper margin uses separate accounting and does not support triangular arbitrage. Read [strategy details](OPERATIONS.md#strategies) and [margin assumptions](OPERATIONS.md#margin-simulation) before using them.
 
-## Capital and recovery
+## 💰 Capital and recovery
 
 HTF, market making, arbitrage, and rebalancing have no scheduled end or profit target. DCA and TWAP stop after their finite run; their budgets do not grow automatically with profits. Continuous strategies reuse available capital and proceeds without forcing a trade when none qualifies. With reinvestment enabled, order and exposure caps scale with current equity relative to the initial allocation. Sizing reserves fees and respects exchange minimums.
 
@@ -123,7 +125,7 @@ For spot portfolios, **Recover original allocation once above 2× equity** can p
 
 Recovery happens once and persists across restarts. It is a local accounting exclusion, not a separate Kraken wallet or external withdrawal. The cash stays on Kraken for you to withdraw manually. See [capital recovery](OPERATIONS.md#recover-the-original-investment) for timing and limitations.
 
-## Live trading
+## 🔴 Live trading
 
 Keep the server live-write gate disabled until you have reviewed the [operating guide](OPERATIONS.md#dry-run-and-trading) and tested the strategy with paper funds.
 
@@ -136,11 +138,11 @@ The switch cannot make a read-only key trade. The bot records order intents befo
 
 Stop cancels tracked orders; **it does not sell spot holdings**. Loss limits also stop new trading rather than guarantee a maximum loss. Closing the browser does not stop the engine. Restarting the process does, and unresolved live orders require reconciliation before trading resumes.
 
-## Deployment
+## 📦 Deployment
 
 Use [deploy/nginx.conf](deploy/nginx.conf) for TLS, Basic Auth, and unbuffered dashboard events. Protect the entire site, including API routes and static assets. Set `PUBLIC_ORIGIN` to the HTTPS hostname and keep the backend port inaccessible from the network.
 
-The complete supplied brand pack is in [`brand/`](brand/README.md). The application uses its artwork and six palettes while retaining the viewport layout; select appearance under Execution settings. See [brand integration](BRANDING.md).
+The complete supplied brand pack is in [`brand/`](brand/README.md). The application uses its artwork and six palettes while retaining the viewport layout; use the sun/moon toggle and accent dropdown beside the header's execution badge. See [brand integration](BRANDING.md).
 
 The UI uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with OperatorMonoSSmLig Nerd Font for bold monospace. Font Awesome Pro webfonts are optional, locally supplied assets excluded from Git. See [font setup](OPERATIONS.md#run-locally); missing fonts fall back to system text and text icons.
 
@@ -148,7 +150,7 @@ The UI uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with O
 
 Run only one process per data directory and do not share the bot's Kraken key with another order manager. Back up state while the process is stopped; losing the database loses the bot's allocation and reconciliation history.
 
-## Development and CI
+## 💻 Development and CI
 
 [GitHub Actions CI](.github/workflows/ci.yml) runs on pushes and pull requests, with a manual dispatch trigger. It checks Ruff lint and formatting, JavaScript syntax using Node.js 22, and the regression suite on Python 3.12, 3.13, and 3.14. Dependencies come from `uv.lock`; action revisions are pinned. CI has read-only repository permissions, no trading credentials, and does not run the real-API smoke test.
 
@@ -182,7 +184,7 @@ git config --local core.hooksPath .github/hooks
 
 The executable hooks scan staged changes for secrets and validate conventional commit messages. Commits require GPG signatures and detailed bodies. Work on a branch, commit and push each verified change separately, and use a pull request into `develop`; do not commit or push directly to `main` or `develop`.
 
-## Project layout
+## 📁 Project layout
 
 ```text
 kairos/                  Exchange/model clients, strategies, accounting, and server
@@ -194,7 +196,7 @@ deploy/                  Nginx and systemd examples
 OPERATIONS.md            Detailed setup, execution, recovery, and deployment guide
 ```
 
-## Documentation
+## 📚 Documentation
 
 - [Operating guide](OPERATIONS.md)
 - [Retail API coverage and strategy roadmap](RETAIL-ROADMAP.md)

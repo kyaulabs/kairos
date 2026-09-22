@@ -65,6 +65,10 @@ small, .muted { color: var(--muted); }
 .account-metrics { display: flex; gap: clamp(18px, 3vw, 48px); flex: 1; min-width: 0; padding-left: 24px; border-left: 1px solid var(--line); overflow-x: auto; }
 .pill { border: 1px solid var(--control-border); color: var(--info); background: var(--surface-raised); border-radius: var(--radius-control); padding: 5px 8px; font-size: 10px; letter-spacing: .6px; white-space: nowrap; }
 .pill.live { border-color: var(--danger); color: var(--danger); }
+.header-controls { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-shrink: 0; }
+.appearance-toggle { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: var(--accent); background: var(--surface-raised); }
+.header-accent select { width: 82px; height: 30px; padding: 3px 6px; font-size: 11px; color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.header-accent option { color: var(--text); background: var(--surface-raised); }
 .desk { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 8px; gap: 8px; }
 .notices { flex-shrink: 0; max-height: 18vh; overflow: auto; }
 .notices:has(#message:empty):has(#engine-error[hidden]) { display: none; }
@@ -172,7 +176,7 @@ tbody tr:hover { background: var(--surface-raised); }
 .execution-mode select { width: auto; max-width: 75%; }
 .engine-actions { display: flex; gap: 6px; margin: 10px 0 6px; }
 .engine-actions button { font-size: 10px; padding: 7px 8px; }
-.engine-actions .danger { flex: 1; }
+.engine-actions #reconcile { margin-left: auto; }
 #engine-strategy { font-size: 10px; }
 .settings-tabs { justify-content: space-between; }
 .settings-tabs button { flex: 1; padding-left: 8px; padding-right: 8px; }
@@ -182,7 +186,7 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .settings-hint { color: var(--muted); font-size: 10px; margin-bottom: 14px; }
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
 .fields label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 10px; }
-#program-settings, .appearance-controls { margin-top: 12px; }
+#program-settings { margin-top: 12px; }
 #program-settings .fields { margin-bottom: 12px; }
 #basket-help, #appearance-status { font-size: 10px; }
 .fields .wide { grid-column: 1 / -1; }
@@ -233,6 +237,8 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .icon-brain { --glyph: '\f5dc'; }
 .icon-strategy { --glyph: '\f441'; }
 .icon-execution { --glyph: '\f0e7'; }
+.icon-sun { --glyph: '\f185'; }
+.icon-moon { --glyph: '\f186'; }
 .market-symbol { display: flex; align-items: center; gap: 7px; min-width: 0; }
 #market-title { overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
 .chart-context { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
@@ -308,6 +314,12 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
   .settings-scroll { padding: 14px; }
   .assessment-panel .panel-scroll { padding: 16px; }
 }
+@media (max-width: 1000px) {
+  .desk-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 12px; }
+  .header-controls { grid-column: 3; grid-row: 1; }
+  .market-price { grid-column: 1; grid-row: 2; }
+  .account-metrics { grid-column: 2 / 4; grid-row: 2; padding-left: 0; border: 0; justify-content: space-between; }
+}
 @media (max-height: 600px) {
   .settings-panel { overflow: auto; overscroll-behavior: contain; }
   .settings-panel #settings, .settings-panel #settings-fields, .settings-panel .settings-scroll { flex: none; }
@@ -326,7 +338,6 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
   .pill { font-size: 9px; padding: 4px 6px; }
   .market-price { grid-column: 1; }
   .account-metrics { grid-column: 2 / 4; grid-row: 2; padding-left: 0; border: 0; gap: 16px; justify-content: space-between; }
-  #mode-badge { grid-column: 3; grid-row: 1; }
   .metric > span { font-size: 8px; letter-spacing: 0; }
   .metric strong { font-size: 11px; }
   .desk { padding: 5px; gap: 5px; }
@@ -340,4 +351,9 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
   .market-dialog-head { padding: 12px; }
   .market-select { font-size: 12px; }
   .market-sort { white-space: normal; max-width: 76px; }
+}
+@media (max-width: 520px) {
+  .market-heading { grid-column: 2 / 4; grid-row: 1; }
+  .header-controls { grid-column: 1 / 4; grid-row: 2; }
+  .market-price, .account-metrics { grid-row: 3; }
 }
