@@ -11,6 +11,7 @@
   <script defer src="/static/vendor/crypto-icons/symbols.js"></script>
   <script defer src="/static/markets.js"></script>
   <script defer src="/static/strategy-market.js"></script>
+  <script defer src="/static/accounts.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -44,7 +45,7 @@
         <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option><option value="5">5m</option><option value="15">15m</option><option value="30">30m</option><option value="60">1h</option><option value="240">4h</option><option value="1440">1d</option></select></label><button id="follow" class="small">Follow live</button></div>
         <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
       </div>
-      <div class="chart-stage"><svg id="chart" role="img" tabindex="0" aria-label="Kraken candlestick chart with aligned trading volume in base-asset units. Drag to pan, scroll to zoom; use Follow live to show recent candles."></svg></div>
+      <div class="chart-stage"><svg id="chart" role="img" tabindex="0" aria-label="Kraken candlestick chart with aligned volume in the selected market's native units. Drag to pan, scroll to zoom; use Follow live to show recent candles."></svg></div>
       <div class="chart-footer"><div class="market-info"><span id="bid-ask">Waiting for prices</span><span id="feed-age">—</span></div><p id="candle-status" class="muted" role="status">Loading candles…</p><span class="chart-help">Drag to pan · scroll to zoom · crosshair to inspect</span></div>
     </section>
 
@@ -67,6 +68,7 @@
         <button type="button" id="orders-tab" role="tab" aria-selected="true" aria-controls="orders-view"><span class="icon icon-orders" aria-hidden="true">≡</span> Orders <span id="orders-count" class="count">0</span></button>
         <button type="button" id="activity-tab" role="tab" aria-selected="false" aria-controls="activity-view" tabindex="-1"><span class="icon icon-activity" aria-hidden="true">∿</span> Activity</button>
         <button type="button" id="portfolio-tab" role="tab" aria-selected="false" aria-controls="portfolio-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true">▣</span> Portfolio</button>
+        <button type="button" id="accounts-tab" role="tab" aria-selected="false" aria-controls="accounts-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true">▣</span> Exchange accounts</button>
         <button type="button" id="equity-tab" role="tab" aria-selected="false" aria-controls="equity-view" tabindex="-1"><span class="icon icon-chart" aria-hidden="true">↗</span> Equity</button>
       </div>
       <div id="orders-view" class="dock-view" role="tabpanel" aria-labelledby="orders-tab">
@@ -81,6 +83,17 @@
         <p id="portfolio-label" class="muted">Bot allocation only, not your full Kraken account.</p>
         <div id="holdings"></div><p id="margin-info" class="muted"></p>
         <div class="portfolio-meta"><span id="valuation-time">Not yet valued</span><span id="exposure-cap">—</span></div>
+      </div>
+      <div id="accounts-view" class="dock-view" role="tabpanel" aria-labelledby="accounts-tab" hidden>
+        <div class="account-controls"><label>Live exchange data · read-only<select id="account-source">
+          <option value="spot-balances">Spot / FX / xStocks wallet</option><option value="spot-orders">Spot-family open orders</option><option value="spot-trades">Recent spot-family trades</option>
+          <option value="margin-balance">Spot margin collateral · USD</option><option value="margin-positions">Spot margin positions</option><option value="earn">Earn allocations</option>
+          <option value="deposits">Deposit ledger · recent</option><option value="withdrawals">Withdrawal ledger · recent</option>
+          <option value="futures-balances">Futures wallets</option><option value="futures-positions">Futures positions</option><option value="futures-orders">Futures open orders</option><option value="futures-fills">Recent futures fills</option>
+        </select></label><button id="account-refresh" type="button">Refresh</button></div>
+        <p id="account-status" class="panel-note" role="status">Read-only snapshots load when this tab opens. Credentials stay on the server.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Read-only exchange account records"><table><thead id="account-head"></thead><tbody id="account-rows"></tbody></table></div>
+        <p class="panel-note">Exchange wallet snapshots, not bot allocations. Values retain venue/currency units; no pooled equity. Margin collateral overlaps the spot wallet. No conversions, transfers, withdrawals, or staking actions.</p>
       </div>
       <div id="equity-view" class="dock-view" role="tabpanel" aria-labelledby="equity-tab" hidden><div class="chart-stage"><svg id="equity-chart" role="img" tabindex="0" aria-label="Bot equity over time"></svg></div><p class="panel-note">Session equity · USD · Includes trading fees · Marks updated each cycle</p></div>
     </section>
@@ -103,14 +116,14 @@
             <p class="settings-hint">Stop first to change settings. Spot holdings remain tracked when changing markets.</p>
             <div id="strategy-settings" role="tabpanel" aria-labelledby="strategy-tab">
               <div class="fields">
-                <label class="wide">Asset class<select id="asset-class"><option value="crypto">Crypto / currency spot markets</option><option value="stocks" disabled>Brokerage stocks / ETFs — not integrated</option></select></label>
+                <label class="wide">Asset class<select id="asset-class"><option value="crypto">Crypto / currency spot markets</option><option value="xstocks" disabled>xStocks — browse only</option><option value="futures" disabled>Futures — browse only</option><option value="stocks" disabled>Brokerage stocks / ETFs — not integrated</option></select></label>
                 <div id="strategy-market" class="strategy-market wide">
                   <label for="pair-search">Bot market</label>
                   <input type="hidden" name="pair" id="pair">
                   <input id="pair-search" type="search" role="combobox" aria-expanded="false" aria-controls="pair-options" aria-autocomplete="list" aria-describedby="pair-help" autocomplete="off" spellcheck="false" placeholder="Search all markets…">
                   <div id="pair-options" class="pair-options" role="listbox" aria-label="Bot markets" hidden></div>
                   <p id="pair-status" class="muted" role="status"></p>
-                  <p id="pair-help" class="muted">The full chart-picker catalog is shown. Quote-currency and margin limitations are Kairos safeguards, not account restrictions. Choose a supported pair, then Save settings.</p>
+                  <p id="pair-help" class="muted">The full chart-picker catalog is shown. xStocks and futures are browse-only. Quote-currency and margin limitations are Kairos safeguards, not account restrictions. Choose a supported pair, then Save settings.</p>
                 </div>
                 <label class="wide">Strategy<select name="strategy"><option value="htf">Higher-timeframe trend</option><option value="maker">Market making</option><option value="arbitrage">Triangular arbitrage</option></select></label>
                 <label class="wide">Product<select name="product"><option value="spot">Spot</option><option value="margin">Margin · paper only</option></select></label>
@@ -118,7 +131,7 @@
                 <label>HTF candle interval<select name="candle_minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
                 <label class="wide">Jev minimum confidence<input name="min_confidence" type="number" min="0" max="1" step="0.01" required></label>
               </div>
-              <details><summary>Other Kraken products</summary><p>The official Kraken CLI supports xStocks (tokenized stocks/ETFs), margin, and futures. These are not brokerage stock ownership. Brokerage stock/ETF and DEX execution were not found in the reviewed CLI. Kairos currently supports spot and simulated margin; other products need separate integrations, not just additional market choices.</p><a href="https://github.com/krakenfx/kraken-cli#what-you-can-trade" target="_blank" rel="noopener noreferrer">Kraken CLI product coverage</a></details>
+              <details><summary>Other Kraken products</summary><p>Kairos now browses spot/FX, margin-eligible pairs, xStocks, and futures, with read-only Exchange accounts. Trading remains the existing currency-spot path and paper margin. xStocks are tokens, not brokerage shares; futures are contracts. DEX and brokerage shares remain unverified. New execution and DCA/TWAP/rebalancing require later milestones and pre-funded allocations.</p><a href="https://github.com/krakenfx/kraken-cli#what-you-can-trade" target="_blank" rel="noopener noreferrer">Kraken CLI product coverage</a></details>
             </div>
             <div id="capital-settings" role="tabpanel" aria-labelledby="capital-tab" hidden>
               <div class="fields">
@@ -164,11 +177,12 @@
 </footer>
 <dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title" aria-describedby="market-dialog-note">
   <div class="market-dialog-head"><div><h2 id="market-dialog-title">Choose a chart market</h2><p id="market-dialog-note">Browse without changing the bot’s trading market.</p></div><button id="market-close" type="button" aria-label="Close market picker"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
-  <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search spot markets</span><input id="market-search" type="search" placeholder="Search markets, e.g. BTC or ETH/USD" autocomplete="off" spellcheck="false"></label>
-  <div class="market-filters" aria-label="Market filters"><button id="markets-all" type="button" aria-pressed="true">All spot</button><button id="markets-favorites" type="button" aria-pressed="false"><span class="icon icon-star" aria-hidden="true">☆</span> Favorites</button><div class="market-feed-times"><span id="market-feed-status" role="status">Loading prices…</span><span id="market-change-status">Loading 24h change…</span></div></div>
-  <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="change_pct">24h change <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · base <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
+  <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search Kraken markets</span><input id="market-search" type="search" placeholder="Search BTC, AAPLx or PF_XBTUSD" autocomplete="off" spellcheck="false"></label>
+  <div class="market-filters" aria-label="Market filters"><button id="markets-all" type="button" aria-pressed="true">All markets</button><button id="markets-favorites" type="button" aria-pressed="false"><span class="icon icon-star" aria-hidden="true">☆</span> Favorites</button><label class="market-kind">Product<select id="market-kind"><option value="all">All products</option><option value="spot">Crypto spot</option><option value="margin">Margin-eligible crypto</option><option value="fx">FX spot</option><option value="xstocks">xStocks · tokenized</option><option value="futures">Futures</option></select></label><div class="market-feed-times"><span id="market-feed-status" role="status">Loading prices…</span><span id="market-change-status">Loading 24h change…</span></div></div>
+  <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="change_pct">24h change <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · native <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
+  <p id="market-source-status" class="warning" role="status" hidden></p>
   <p id="market-storage-status" class="warning" role="status" hidden></p>
-  <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Prices refresh about every 10s; rolling 24h change about every minute. — means unavailable. Favorites are saved in this browser.</p>
+  <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Quotes refresh about every 10s; spot/xStocks 24h change about every minute. Volume units vary by product; futures quantities are contracts. — means unavailable. Favorites are saved in this browser.</p>
 </dialog>
 </body>
 </html>

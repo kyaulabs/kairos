@@ -437,12 +437,16 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             clock.monotonic.return_value = 111
             self.engine.kraken.market_tickers.side_effect = SafetyError("Market data unavailable")
             response = await self.client.get("/api/markets")
-            self.assertEqual(response.status, 409)
-            self.assertEqual(self.app["market_cache"]["data"]["received"], 1000)
+            self.assertEqual(response.status, 200)
+            data = await response.json()
+            self.assertTrue(any("Spot quotes unavailable" in error for error in data["errors"]))
+            self.assertTrue(all(row["received"] == 1000 for row in data["markets"]))
+            self.assertEqual(data["received"], 1000)
             self.engine.kraken.market_tickers.side_effect = None
-            clock.time.return_value = 1011
+            clock.monotonic.return_value = 122
+            clock.time.return_value = 1022
             response = await self.client.get("/api/markets")
-            self.assertEqual((await response.json())["received"], 1011)
+            self.assertEqual((await response.json())["received"], 1022)
 
     async def test_sse_snapshot_and_buffering_header(self):
         response = await self.client.get("/api/events")

@@ -24,7 +24,7 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 
 - Change the bot's market and strategy in Settings after stopping and reconciling orders; browse charts independently through the market picker.
 - Use real Kraken data and Jev assessments in dry-run, without submitting exchange orders.
-- Use a single-screen workspace with a chart, Jev assessment, settings sidebar, and bottom tabs for orders, activity, portfolio, and equity.
+- Use a single-screen workspace with a chart, Jev assessment, settings sidebar, and bottom tabs for orders, activity, portfolio, read-only exchange accounts, and equity.
 - Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
 - Configure starting capital, order and exposure caps, daily loss limits, fee assumptions, and reinvestment.
 - Persist settings, order intents, fills, and portfolio accounting in SQLite.
@@ -35,13 +35,14 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 | USD-quoted crypto spot | Simulated fills using real market data | Guarded Kraken limit orders |
 | Crypto margin | Separate long/short simulation | Disabled |
 | Direct US stocks and ETFs | Not yet supported | No brokerage integration verified |
-| xStocks | Not implemented | Not implemented |
+| xStocks | Market data only; no simulator | Read-only accounts; execution disabled |
+| Futures | Market data only; no simulator | Read-only accounts; execution disabled |
 
 Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) and the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for verified coverage and integration limitations.
 
-The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search crypto markets without changing the bot, even while it is running. The Jev panel identifies the bot's configured market and the market of its latest assessment.
+The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search spot/FX, margin-eligible crypto, xStocks, and Futures without changing the bot, even while it is running. The Jev panel identifies the bot's configured market and the market of its latest assessment.
 
-The header shows the chart market's bid/ask midpoint, using the newest available WebSocket quote or public ticker snapshot. Picker and footer last-trade prices refresh about every ten seconds; stale prices are marked. The picker includes sortable rolling 24h change, refreshed separately about once a minute. Favorites are stored in this browser, not the bot database. Live fills are detected during order reconciliation, not streamed directly from Kraken's private execution channel.
+The header shows the chart market's bid/ask midpoint, using the newest available WebSocket quote or public ticker snapshot. Picker and footer last-trade prices refresh about every ten seconds; stale prices are marked. The picker includes sortable rolling 24h change: spot/xStocks snapshots refresh about once a minute; Futures changes arrive with venue quotes. Volumes retain native asset or contract units. Favorites are stored in this browser, not the bot database. Live fills are detected during order reconciliation, not streamed directly from Kraken's private execution channel.
 
 ## Quick start
 
@@ -66,6 +67,7 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 | --- | --- |
 | `JEV_API_KEY` | TypeSafe API access; assessments can incur charges |
 | `KRAKEN_API_KEY`, `KRAKEN_PRIVATE_KEY` | Kraken API key and signing secret |
+| `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Optional separate read-only Derivatives credentials; public browsing needs neither |
 | `JEV_MODEL` | Defaults to `jev-latest` |
 | `ALLOW_LIVE_TRADING` | Defaults to `false`; leave disabled for dry-run |
 | `PUBLIC_ORIGIN` | Exact browser origin; defaults to `http://127.0.0.1:8000` |
@@ -80,7 +82,7 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 
 ## Your first dry-run
 
-1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies and margin combinations remain visible with explanations. The header picker changes only the chart.
+1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks, and Futures remain visible with explanations. The header picker changes only the chart.
 2. In **Capital**, set **Paper balance** to the amount you want to simulate, such as `100` USD.
 3. Click **Use full starting allocation**, then review the order cap, exposure cap, daily loss limit, and fee assumptions.
 4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
@@ -99,6 +101,8 @@ Dry-run uses real feeds and real Jev calls. Taker fills are estimated from visib
 | Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
 
 Arbitrage legs execute sequentially, not atomically. A failed or partial leg stops the engine with intermediate inventory retained for review. Retail fees may eliminate every observed opportunity.
+
+DCA, TWAP, and threshold rebalancing are planned, not enabled. See the [retail API and strategy roadmap](RETAIL-ROADMAP.md) for pre-funded allocations and execution requirements.
 
 Existing spot holdings remain tracked when you change markets, but the newly selected strategy does not automatically trade the previous market's holdings. Paper margin uses separate accounting and does not support triangular arbitrage. Read [strategy details](OPERATIONS.md#strategies) and [margin assumptions](OPERATIONS.md#margin-simulation) before using them.
 
@@ -148,6 +152,7 @@ node --check kairos/static/app.js
 node --check kairos/static/chart.js
 node --check kairos/static/markets.js
 node --check kairos/static/strategy-market.js
+node --check kairos/static/accounts.js
 node --test tests/*.test.cjs
 ```
 
@@ -179,6 +184,7 @@ OPERATIONS.md            Detailed setup, execution, recovery, and deployment gui
 ## Documentation
 
 - [Operating guide](OPERATIONS.md)
+- [Retail API coverage and strategy roadmap](RETAIL-ROADMAP.md)
 - [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
 - [Kraken Exchange API](https://docs.kraken.com/exchange/api-reference/overview)
 - [TypeSafe Jev documentation](https://docs.typesafe.ai/introduction)

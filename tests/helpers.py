@@ -71,6 +71,7 @@ def fake_kraken():
     fake = Fake()
     fake.pairs = {p.id: p for p in (BTC, ETH, CROSS)}
     fake.allow_live = False
+    fake.key = fake.secret = ""
     fake.catalog = AsyncMock(return_value=fake.pairs)
     fake.book = AsyncMock(side_effect=lambda pair: book(pair))
     fake.marks = AsyncMock(side_effect=lambda pairs: {p.id: dec("9990") for p in pairs})

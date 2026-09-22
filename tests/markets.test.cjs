@@ -18,12 +18,41 @@ function fixture(saved = null) {
   });
   const picker = Object.assign(Object.create(browser.MarketPicker.prototype), {
     markets: [], received: 0, error: '', sortKey: 'symbol', sortDirection: 'ascending',
-    renderRows() {}, renderFooter() {}, updateFreshness() {},
+    renderRows() {}, renderFooter() {}, updateFreshness() {}, catalogChanged() {},
   });
   picker.favorites = picker.loadFavorites();
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/strategy-market.js'), 'utf8'), {window: browser});
   return {picker, values, storage, warning, timers, browser};
 }
+
+test('product filters distinguish margin eligibility from new product execution', () => {
+  const {browser} = fixture();
+  const {matchesKind, matches, iconSymbol} = browser.MarketPicker;
+  const rows = [
+    {id: 'BTC', symbol: 'BTC/USD', kind: 'spot', margin: true},
+    {id: 'EUR', symbol: 'EUR/USD', kind: 'fx', margin: true},
+    {id: 'xstocks:AAPLxUSD', symbol: 'AAPLx/USD', kind: 'xstocks', margin: true},
+    {id: 'futures:PF_XBTUSD', symbol: 'PF_XBTUSD', kind: 'futures', underlying: 'BTC:USD'},
+  ];
+  assert.deepEqual(rows.filter(row => matchesKind(row, 'margin')).map(row => row.id), ['BTC']);
+  assert.equal(rows.filter(row => matchesKind(row, 'all')).length, 4);
+  assert.equal(rows.filter(row => matchesKind(row, 'xstocks')).length, 1);
+  assert.equal(matches(rows[3], 'BTC/USD'), true);
+  assert.equal(iconSymbol(rows[3]), 'BTC/USD');
+  const reason = 'Futures are browse-only; derivatives execution is not integrated.';
+  assert.equal(browser.StrategyMarketPicker.limitation({...rows[3], execution_reason: reason}, {quote: 'ZUSD', product: 'spot'}), reason);
+});
+
+test('chart selection keeps product identity and restrictions, not just the display symbol', () => {
+  const {picker} = fixture();
+  const market = {id: 'futures:PF_XBTUSD', symbol: 'PF_XBTUSD', kind: 'futures', execution_reason: 'Browse only'};
+  let selected, closed = false;
+  picker.select = value => { selected = value; };
+  picker.dialog = {close() { closed = true; }};
+  picker.choose(market);
+  assert.equal(selected, market);
+  assert.equal(closed, true);
+});
 
 test('market sorting starts A–Z and repeated header clicks reverse the order', () => {
   const {picker} = fixture();
@@ -176,6 +205,25 @@ test('failed persistence warns instead of pretending favorites were saved', () =
   assert.match(warning.textContent, /only for this page session/);
 });
 
+test('a healthy venue cannot hide stale prices in another venue’s favorites', () => {
+  const {picker, browser} = fixture();
+  const now = Date.now()/1000;
+  const stale = new Map();
+  const buttons = ['BTC', 'futures:BTC'].map(id => ({dataset: {watch: id}, classList: {toggle: (name, value) => stale.set(id, value)}}));
+  picker.received = now;
+  picker.markets = [
+    {id: 'BTC', symbol: 'BTC/USD', kind: 'spot', last: '100', received: now},
+    {id: 'futures:BTC', symbol: 'PF_XBTUSD', kind: 'futures', last: '200', received: now-120},
+  ];
+  picker.rows = {querySelectorAll: () => []};
+  picker.watchlist = {querySelectorAll: () => buttons};
+  browser.MarketPicker.prototype.updateFreshness.call(picker);
+  assert.equal(stale.get('BTC'), false);
+  assert.equal(stale.get('futures:BTC'), true);
+  assert.match(buttons[1].title, /STALE/);
+  assert.doesNotMatch(buttons[0].title, /STALE/);
+});
+
 test('market refresh failures retain the old timestamp and schedule a retry', async () => {
   const {picker, timers} = fixture();
   picker.received = 123;
@@ -194,12 +242,18 @@ test('market refresh failures retain the old timestamp and schedule a retry', as
   assert.equal(picker.error, '');
 });
 
-test('browsing quotes are selected by symbol and never synthesize missing prices', () => {
+test('quotes use instrument identity and preserve per-venue age, not display symbols', () => {
   const {picker} = fixture();
-  picker.received = 123;
-  picker.markets = [{symbol: 'BTC/USD', bid: '99', ask: '101', last: '100'}, {symbol: 'ETH/USD'}];
-  assert.equal(picker.ticker('BTC/USD').bid, 99);
-  assert.equal(picker.ticker('BTC/USD').received, 123);
-  assert.equal(picker.ticker('ETH/USD'), null);
-  assert.equal(picker.ticker('BTC/EUR'), null);
+  picker.received = 999;
+  picker.markets = [
+    {id: 'BTC', symbol: 'BTC/USD', bid: '99', ask: '101', last: '100', received: 123},
+    {id: 'futures:BTC', symbol: 'BTC/USD', bid: '199', ask: '201', received: 456},
+    {id: 'ETH', symbol: 'ETH/USD'},
+  ];
+  assert.equal(picker.ticker('BTC').bid, 99);
+  assert.equal(picker.ticker('BTC').received, 123);
+  assert.equal(picker.ticker('futures:BTC').bid, 199);
+  assert.equal(picker.ticker('futures:BTC').received, 456);
+  assert.equal(picker.ticker('ETH'), null);
+  assert.equal(picker.ticker('BTC/USD'), null);
 });

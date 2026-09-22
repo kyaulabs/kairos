@@ -2,9 +2,11 @@
 class MarketPicker {
   static iconSymbols = new Set(window.CryptoIconSymbols);
 
-  constructor(request, select) {
+  constructor(request, select, catalogChanged = () => {}) {
     this.request = request;
     this.select = select;
+    this.catalogChanged = catalogChanged;
+    this.kind = 'all';
     this.markets = [];
     this.received = 0;
     this.changeReceived = 0;
@@ -27,6 +29,7 @@ class MarketPicker {
       if (event.target === this.dialog && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom)) this.dialog.close();
     });
     this.search.addEventListener('input', () => this.renderRows());
+    document.getElementById('market-kind').addEventListener('change', event => { this.kind = event.target.value; this.renderRows(); });
     for (const button of document.querySelectorAll('.market-sort')) {
       button.addEventListener('click', () => this.sortBy(button.dataset.sort));
     }
@@ -70,9 +73,16 @@ class MarketPicker {
       return direction * (left-right) || byName;
     });
   }
+  static kindLabel(market) {
+    return {spot: 'Crypto spot', fx: 'FX spot', xstocks: 'xStocks · tokenized', futures: 'Futures'}[market.kind] || 'Spot';
+  }
+  static matchesKind(market, kind) {
+    return !kind || kind === 'all' || (kind === 'margin' ? market.margin === true && market.kind === 'spot' : market.kind === kind);
+  }
+  static iconSymbol(market) { return market.kind === 'futures' && market.underlying ? market.underlying.replace(':', '/') : market.symbol; }
   static matches(market, query) {
     const normalize = value => value.toUpperCase().replace(/[^A-Z0-9]/g, '').replaceAll('XBT', 'BTC').replaceAll('XDG', 'DOGE');
-    return [market.symbol, market.id].some(value => normalize(value).includes(normalize(query)));
+    return [market.symbol, market.id, market.underlying || ''].some(value => normalize(value).includes(normalize(query)));
   }
   static percentage(value) {
     return value == null || value === '' || !Number.isFinite(Number(value)) ? '—'
@@ -126,20 +136,20 @@ class MarketPicker {
   setSelected(pair) {
     if (this.selected === pair.id) return;
     this.selected = pair.id;
-    document.getElementById('market-icons').replaceChildren(MarketPicker.pairIcon(pair.symbol));
+    document.getElementById('market-icons').replaceChildren(MarketPicker.pairIcon(MarketPicker.iconSymbol(pair)));
     this.renderRows(); this.renderFooter();
   }
   choose(market) {
-    this.select({id: market.id, symbol: market.symbol});
+    this.select(market);
     this.dialog.close();
   }
   static number(value) {
     return value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   }
-  ticker(symbol) {
-    const market = this.markets.find(row => row.symbol === symbol);
+  ticker(id) {
+    const market = this.markets.find(row => row.id === id);
     if (!market || !(Number(market.bid) > 0) || !(Number(market.ask) > 0)) return null;
-    return {bid: Number(market.bid), ask: Number(market.ask), last: market.last, received: this.received};
+    return {bid: Number(market.bid), ask: Number(market.ask), last: market.last, received: market.received || 0};
   }
   renderRows() {
     if (!this.dialog.open) return;
@@ -151,7 +161,7 @@ class MarketPicker {
     const candidates = this.favoritesOnly ? [...this.markets, ...this.favorites.filter(id => !known.has(id))
       .map(id => ({id, symbol: id, unavailable: true}))] : this.markets;
     const matches = this.sortedMarkets(candidates.filter(market =>
-      (!this.favoritesOnly || this.favorites.includes(market.id)) && MarketPicker.matches(market, query)));
+      (!this.favoritesOnly || this.favorites.includes(market.id)) && MarketPicker.matchesKind(market, this.kind) && MarketPicker.matches(market, query)));
     for (const button of document.querySelectorAll('.market-sort')) {
       const active = button.dataset.sort === this.sortKey;
       button.closest('th').setAttribute('aria-sort', active ? this.sortDirection : 'none');
@@ -163,6 +173,7 @@ class MarketPicker {
     for (const market of matches) {
       const row = document.createElement('tr');
       row.classList.toggle('selected-market', market.id === this.selected);
+      row.dataset.marketRow = market.id;
       const name = document.createElement('td'), price = document.createElement('td'), volume = document.createElement('td'), favorite = document.createElement('td');
       const change = document.createElement('td');
       change.className = `market-change${Number(market.change_pct) > 0 ? ' buy' : Number(market.change_pct) < 0 ? ' sell' : ''}`;
@@ -170,12 +181,15 @@ class MarketPicker {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'market-select'; button.dataset.market = market.id;
       button.disabled = market.unavailable === true;
-      const label = document.createElement('span'); label.textContent = market.symbol;
-      button.append(MarketPicker.pairIcon(market.symbol), label);
+      const label = document.createElement('span'), product = document.createElement('small');
+      label.textContent = market.symbol; product.textContent = MarketPicker.kindLabel(market);
+      label.append(product);
+      button.append(MarketPicker.pairIcon(MarketPicker.iconSymbol(market)), label);
       button.setAttribute('aria-pressed', String(market.id === this.selected));
       button.addEventListener('click', () => this.choose(market)); name.append(button);
       price.textContent = MarketPicker.number(market.last);
       volume.textContent = MarketPicker.number(market.volume);
+      const unit = document.createElement('small'); unit.textContent = market.volume_unit || ''; volume.append(unit);
       const star = document.createElement('button');
       const saved = this.favorites.includes(market.id);
       star.type = 'button'; star.className = 'favorite-star'; star.dataset.favorite = market.id;
@@ -203,7 +217,7 @@ class MarketPicker {
       button.type = 'button'; button.className = 'watch-market'; button.dataset.watch = id; button.disabled = !market;
       button.setAttribute('aria-pressed', String(id === this.selected));
       name.textContent = market?.symbol || id; price.textContent = MarketPicker.number(market?.last);
-      button.append(MarketPicker.pairIcon(market?.symbol || id), name, price); button.addEventListener('click', () => this.choose(market));
+      button.append(MarketPicker.pairIcon(market ? MarketPicker.iconSymbol(market) : id), name, price); button.addEventListener('click', () => this.choose(market));
       fragment.append(button);
     }
     if (!this.favorites.length) {
@@ -217,21 +231,24 @@ class MarketPicker {
   updateFreshness() {
     const age = this.received ? Math.max(0, Date.now()/1000-this.received) : null;
     const stale = age === null || age > 30;
-    const changeAge = this.changeReceived ? Math.max(0, Date.now()/1000-this.changeReceived) : null;
-    const changeStale = changeAge === null || changeAge > 90;
-    const changeStatus = changeAge === null ? '24h change unavailable' : `${changeStale ? 'STALE · ' : ''}24h change updated ${changeAge.toFixed(0)}s ago`;
-    document.getElementById('market-change-status').textContent = changeStatus;
-    for (const cell of this.rows.querySelectorAll('.market-change')) {
-      cell.classList.toggle('stale', changeStale);
-      cell.title = cell.textContent === '—' ? 'Rolling 24h change unavailable' : changeStatus;
+    const byId = new Map(this.markets.map(market => [market.id, market]));
+    document.getElementById('market-change-status').textContent = '24h: venue snapshots · hover for age';
+    for (const row of this.rows.querySelectorAll('[data-market-row]')) {
+      const market = byId.get(row.dataset.marketRow);
+      const quoteAge = market?.received ? Math.max(0, Date.now()/1000-market.received) : Infinity;
+      row.classList.toggle('stale', quoteAge > 30);
+      row.title = Number.isFinite(quoteAge) ? `${MarketPicker.kindLabel(market)} · quote ${quoteAge.toFixed(0)}s ago` : 'Quote unavailable';
+      const changeAge = market?.change_received ? Math.max(0, Date.now()/1000-market.change_received) : Infinity;
+      const cell = row.querySelector('.market-change');
+      cell.classList.toggle('stale', changeAge > 90);
+      cell.title = market?.change_pct == null ? 'Rolling 24h change unavailable' : `${changeAge > 90 ? 'STALE · ' : ''}24h change snapshot ${changeAge.toFixed(0)}s ago`;
     }
-    this.watchlist.classList.toggle('stale', stale);
-    this.watchlist.title = age === null ? 'Waiting for market prices' : `${stale ? 'STALE · ' : ''}Market snapshot ${age.toFixed(0)}s ago`;
-    this.rows.classList.toggle('stale', stale);
     document.getElementById('market-feed-status').textContent = this.error || (age === null ? 'Loading prices…' : `${stale ? 'STALE · ' : ''}Updated ${age.toFixed(0)}s ago`);
     for (const button of this.watchlist.querySelectorAll('.watch-market')) {
       const market = this.markets.find(row => row.id === button.dataset.watch);
-      button.title = `${market?.symbol || button.dataset.watch} · ${market?.last == null ? 'Price unavailable' : this.watchlist.title} · Chart only`;
+      const quoteAge = market?.received ? Math.max(0, Date.now()/1000-market.received) : Infinity;
+      button.classList.toggle('stale', quoteAge > 30);
+      button.title = `${market?.symbol || button.dataset.watch} · ${market ? MarketPicker.kindLabel(market) : 'Unavailable'} · ${market?.last == null ? 'Price unavailable' : `${quoteAge > 30 ? 'STALE · ' : ''}Quote ${quoteAge.toFixed(0)}s ago`} · Chart only`;
     }
   }
   async refresh() {
@@ -241,7 +258,10 @@ class MarketPicker {
       this.markets = data.markets;
       this.received = data.received;
       this.changeReceived = Number.isFinite(data.change_received) ? data.change_received : 0;
-      this.error = '';
+      this.error = data.errors?.length ? 'Some feeds unavailable' : '';
+      const status = document.getElementById('market-source-status');
+      status.textContent = (data.errors || []).join(' · '); status.hidden = !this.error;
+      this.catalogChanged(this.markets);
       this.renderRows(); this.renderFooter();
     } catch {
       this.error = 'Market prices unavailable — retrying'; this.updateFreshness();

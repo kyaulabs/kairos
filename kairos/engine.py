@@ -76,6 +76,11 @@ class Engine:
             "capabilities": {
                 "crypto_spot": "paper-and-live",
                 "crypto_margin": "paper-only",
+                "retail_market_data": "spot-fx-xstocks-futures",
+                "exchange_accounts": "read-only; separate from bot allocations",
+                "xstocks_execution": "blocked",
+                "futures_execution": "blocked",
+                "funding_policy": "pre-funded allocations; no automatic conversions or transfers",
                 "us_stocks": "not integrated: reviewed CLI offers xStocks, not brokerage stock orders",
             },
         }

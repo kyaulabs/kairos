@@ -1,18 +1,18 @@
 # Kairos
 
-Kairos runs Jev-assisted trading strategies against Kraken market data. The workspace fits the viewport: chart on the left, Jev assessment beside it, settings on the right, and bottom tabs for Orders, Activity, Portfolio, and Equity. Long content scrolls inside panels. Smaller screens use panel navigation instead of columns. Settings have Strategy, Capital, and Execution tabs; switching tabs preserves unsaved edits. Live fills are detected during order reconciliation, not through a private execution stream.
+Kairos runs Jev-assisted trading strategies against Kraken market data. The workspace fits the viewport: chart on the left, Jev assessment beside it, settings on the right, and bottom tabs for Orders, Activity, Portfolio, Exchange accounts, and Equity. Long content scrolls inside panels. Smaller screens use panel navigation instead of columns. Settings have Strategy, Capital, and Execution tabs; switching tabs preserves unsaved edits. Live fills are detected during order reconciliation, not through a private execution stream.
 
-The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices and base-asset volume. Matching volume bars share the candle timeline. The current-price badge and dashed line follow the candle color; there is no candle dot. Portfolio equity remains a line chart in the Equity tab.
+The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices and volume in base-asset, token, or contract units. Matching volume bars share the candle timeline. The current-price badge and dashed line follow the candle color; there is no candle dot. Portfolio equity remains a line chart in the Equity tab.
 
-Click the market beside the logo to open the searchable spot-market picker. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and search the custom Bot market dropdown under Settings > Strategy. It shows the same full catalog as the chart picker, including pairs quoted in other currencies. Unsupported quote currencies or margin/leverage combinations remain visible with reasons; they are not account-access restrictions. Use arrow keys and Enter to choose, or Escape to discard a search. Selection changes a draft only; Save settings applies it. Changing products/leverage updates the limitations without discarding other draft fields. The portfolio's accounting currency remains fixed, and the backend still rejects unsupported configurations.
+Click the market beside the logo to open the searchable retail-market picker. Filter crypto spot, margin-eligible crypto, FX, xStocks, or Futures. Public listings and margin metadata do not establish account eligibility. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and search the custom Bot market dropdown under Settings > Strategy. It shows the same full catalog as the chart picker, including pairs quoted in other currencies. Unsupported quote currencies, margin/leverage combinations, xStocks, and Futures remain visible with reasons. These are Kairos execution restrictions, not account-access determinations. Use arrow keys and Enter to choose, or Escape to discard a search. Selection changes a draft only; Save settings applies it. Changing products/leverage updates the limitations without discarding other draft fields. The portfolio's accounting currency remains fixed, and the backend still rejects unsupported configurations.
 
-The picker starts with Market sorted A–Z. Click Market to reverse it; select Last price, 24h change, or 24h volume to sort highest-first, then click again for lowest-first. Sorting survives search, favorite filtering, and price refreshes for the current page session. Unavailable values stay at the bottom. Volume is in each market's base-asset units, not a common USD notional.
+The picker starts with Market sorted A–Z. Click Market to reverse it; select Last price, 24h change, or 24h volume to sort highest-first, then click again for lowest-first. Sorting survives search, favorite filtering, and price refreshes for the current page session. Unavailable values stay at the bottom. Volume uses each market's native asset or contract units, not a common USD notional. Comparing volumes across products does not compare turnover.
 
 Currency icons appear beside the selected chart pair, picker rows, and footer favorites. Missing artwork uses ticker-letter badges.
 
 Stars add or remove footer favorites. They persist across reloads in this browser's local storage and synchronize between tabs on the same origin; clearing site data removes them. They do not synchronize to other browser profiles or devices. Footer prices update independently of the selected chart. An unavailable market shows no invented price. If storage is blocked, the picker warns that favorites last only for the current page session.
 
-Picker and footer prices are last trades from a public Kraken ticker snapshot refreshed about every ten seconds, with a shared server cache. The volume column is the last 24 hours in base-asset units. Rolling 24h change comes directly from WebSocket v2 `change_pct`, collected in batches of at most 100 pairs with a 12-second total budget and cached for 60 seconds across all browser tabs. It has its own refresh timestamp and is marked stale after 90 seconds. Missing values display as —, not zero; partial or failed change snapshots do not remove REST quote prices. A cold refresh can take longer while changes load. REST's midnight-UTC opening price is not used as a 24-hour baseline. The header is a bid/ask midpoint from the newest available snapshot or WebSocket quote, not the candle close. Prices older than 30 seconds are marked stale. Chart snapshots and browsing quotes are not execution inputs; execution fetches its own fresh depth.
+Picker and footer prices are last trades from a public Kraken ticker snapshot refreshed about every ten seconds, with a shared server cache. The volume column covers the last 24 hours. Spot/xStocks rolling 24h change comes directly from WebSocket v2 `change_pct`, collected in batches of at most 100 pairs with a 12-second total budget and cached for 60 seconds across all browser tabs. It has its own refresh timestamp and is marked stale after 90 seconds. Missing values display as —, not zero; partial or failed change snapshots do not remove REST quote prices. Futures use the Derivatives ticker's rolling `change24h`, refreshed with its quote. Failed venue refreshes retain old quotes and timestamps without hiding healthy venues. A cold refresh can take longer while catalogs and changes load. REST's midnight-UTC opening price is not used as a 24-hour baseline. The header is a bid/ask midpoint from the newest available snapshot or WebSocket quote, not the candle close. Prices older than 30 seconds are marked stale. Chart snapshots and browsing quotes are not execution inputs; execution fetches its own fresh depth.
 
 HOLD means no new trade. With no position in the assessed market, the display calls it WAIT. Confidence is confidence in that assessment, not a probability of profit. The HTF panel shows the historical move and existing fee/slippage threshold when its buy filter is not met.
 
@@ -25,9 +25,10 @@ This is an experimental trading application, not evidence of a profitable strate
 | Crypto spot, USD-quoted markets | Real feeds and Jev, simulated fills | Kraken limit orders |
 | Crypto margin | Simplified long/short simulation | Blocked |
 | Direct US stocks and ETFs | Not implemented | No brokerage integration verified |
-| xStocks | Not implemented; not a substitute for US stocks | Not implemented |
+| xStocks | Browse-only tokens; no simulator | Read-only account data; execution blocked |
+| Futures | Browse-only contracts; no simulator | Read-only account data; execution blocked |
 
-Kraken offers direct equities in its US product. No applicable retail brokerage order path was found in the official CLI or public Exchange documentation reviewed; this is not a claim that no partner or institutional equities API exists. The CLI supports xStocks and equity/index futures, neither of which is brokerage share ownership. Futures, DEX, and xStocks are not integrated into Kairos. See the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for product coverage, tested public endpoints, and integration requirements. Do not reuse Kairos's API key with the CLI: their different nonce units can break Kairos authentication. CLI timeout retries also conflict with Kairos's ambiguous-order recovery safeguards.
+Kraken offers direct equities in its US product. No applicable retail brokerage order path was found in the official CLI or public Exchange documentation reviewed; this is not a claim that no partner or institutional equities API exists. The CLI supports xStocks and equity/index futures, neither of which is brokerage share ownership. Futures and xStocks now have market data and read-only account views, but no execution or simulation. DEX is not integrated. See the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for product coverage, tested public endpoints, and integration requirements. Do not reuse Kairos's API key with the CLI: their different nonce units can break Kairos authentication. CLI timeout retries also conflict with Kairos's ambiguous-order recovery safeguards.
 
 References:
 
@@ -37,6 +38,18 @@ References:
 - [TypeSafe evaluation API](https://docs.typesafe.ai/api)
 - [Jev numerical limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13)
 - [Jev Trader reference project](https://github.com/jarrodwatts/jev-trader)
+
+## Exchange account snapshots
+
+Open **Exchange accounts** in the bottom dock, choose a source, and use **Refresh**. These are live exchange reads even when the bot is in Dry-run. They do not import balances into its allocation, manage unrelated orders, or reset paper funds. Tables preserve exchange asset IDs and native units; there is no consolidated equity total. Margin collateral overlaps spot balances and must not be added to them.
+
+Spot-family views use the existing server-side Spot client and nonce sequence. Query Funds covers balances, collateral, and Earn allocations; order/position and trade-history views need the corresponding open/closed order query permissions. Deposit and withdrawal ledger views need Query Ledger Entries. They show recorded transactions, not pending funding status. Never grant withdrawal permission to make a read view work. Kairos's endpoint allowlist rejects transfers, withdrawals, and Earn writes regardless of key permissions.
+
+Futures account views need separately issued, read-only Derivatives credentials in `KRAKEN_FUTURES_API_KEY` and `KRAKEN_FUTURES_PRIVATE_KEY`. They are not Spot credentials and do not use Spot nonces. Public Futures browsing works without them. Missing credentials, permission errors, and unavailable venues are reported without enabling writes or exposing keys. Authenticated private reads have been tested with fixtures, not a real account; verify your entitlements before relying on these views.
+
+Reads share a 30-second server cache. They run only when opening an unloaded view, changing sources, or pressing Refresh. Successful snapshots show their timestamp; failed refreshes retain old rows with an explicit warning. History is the first returned page, not a complete export, and each table is capped at 1,000 rows. The API reads the account available to the configured key; there is no wallet/subaccount selector. See the [coverage and roadmap](RETAIL-ROADMAP.md) for omitted endpoints and planned strategies.
+
+Deploy backend and static changes together. Restart only when safe for the running bot, then reload the browser. A restart leaves the engine paused in Dry-run; resuming requires an explicit Start. No funds are converted, transferred, withdrawn, or assigned to a strategy by activating this feature.
 
 ## Run locally
 
@@ -70,6 +83,7 @@ The existing variable names are preserved:
 | --- | --- |
 | `KRAKEN_API_KEY` | Kraken API key |
 | `KRAKEN_PRIVATE_KEY` | Kraken base64 signing secret |
+| `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Optional separate read-only Derivatives credentials |
 | `JEV_API_KEY` | TypeSafe API key |
 | `JEV_MODEL` | Defaults to `jev-latest`; pin a version for comparable experiments |
 | `ALLOW_LIVE_TRADING` | Defaults to `false`; only `true` permits exchange writes |
@@ -122,6 +136,8 @@ Recovery happens once per portfolio, persists across restarts, and does not regi
 **Market making:** asks Jev which side to quote. It places one post-only order, with a fee-aware offset from the midpoint, and reconciles/cancels before replacing it. Quotes expire at Kraken after 30 seconds. The default cycle is 15 seconds; the configurable minimum is 10 seconds. This is rate-limited market making, not exchange-grade HFT. Wide fee-aware quotes may rarely fill, and filled quotes remain exposed to adverse selection.
 
 **Triangular arbitrage:** considers both directions of one BTC/ETH-bridged triangle for the selected USD pair. Code calculates the three legs using visible depth, lot rounding, fees, and bounded worst-case prices. Jev may veto the opportunity, but does not perform the arithmetic. The entire route is rechecked after inference. Orders execute sequentially; the cycle is not atomic. A failed or partial leg stops the engine with its intermediate inventory preserved for review. Not every pair has a suitable triangle, and retail fees may eliminate every observed opportunity.
+
+DCA, TWAP, and threshold rebalancing remain roadmap work. They require persisted schedules/order identity and explicit pre-funded allocations before implementation; the market/account milestone does not add them to the strategy selector. See [strategy requirements](RETAIL-ROADMAP.md#strategy-requirements).
 
 Switch the bot's strategy or market by stopping, changing settings, saving, and starting again. Browsing another chart does not change either setting. Existing spot holdings stay in the ledger and count toward portfolio exposure. A new strategy does not automatically manage or liquidate positions in a previously selected market.
 
@@ -213,6 +229,7 @@ node --test tests/*.test.cjs
 node --check kairos/static/app.js
 node --check kairos/static/markets.js
 node --check kairos/static/strategy-market.js
+node --check kairos/static/accounts.js
 ```
 
 Stop the app before the bounded integration check so authenticated nonces remain ordered:

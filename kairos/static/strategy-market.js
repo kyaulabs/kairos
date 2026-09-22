@@ -37,6 +37,7 @@ class StrategyMarketPicker {
     this.input.addEventListener('blur', () => this.close());
   }
   static limitation(pair, context) {
+    if (pair.execution_reason) return pair.execution_reason;
     if (pair.quote !== context.quote) return `Quoted in ${pair.symbol.split('/')[1]}; this portfolio uses ${context.quoteLabel || context.quote}.`;
     if (context.product === 'margin') {
       if (context.mode === 'trading') return 'Margin is paper-only in Kairos.';
@@ -78,8 +79,9 @@ class StrategyMarketPicker {
       option.setAttribute('role', 'option'); option.setAttribute('aria-selected', String(pair.id === this.value.value));
       option.setAttribute('aria-disabled', String(Boolean(reason)));
       const name = document.createElement('strong'); name.textContent = pair.symbol; label.append(name);
+      const product = document.createElement('small'); product.textContent = MarketPicker.kindLabel(pair); label.append(product);
       if (reason) { const note = document.createElement('small'); note.textContent = reason; label.append(note); }
-      option.append(MarketPicker.pairIcon(pair.symbol), label); fragment.append(option);
+      option.append(MarketPicker.pairIcon(MarketPicker.iconSymbol(pair)), label); fragment.append(option);
     });
     this.list.replaceChildren(fragment); this.active = -1; this.input.removeAttribute('aria-activedescendant');
     this.status.textContent = this.matches.length ? `${this.matches.length} markets. Unavailable choices include a reason.` : 'No matching markets.';

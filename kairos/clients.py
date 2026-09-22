@@ -39,6 +39,11 @@ class Kraken:
             "QueryOrders",
             "OpenOrders",
             "ClosedOrders",
+            "TradeBalance",
+            "OpenPositions",
+            "TradesHistory",
+            "Earn/Allocations",
+            "Ledgers",
         }:
             if method not in {"AddOrder", "CancelOrder"} or not self.allow_live:
                 raise SafetyError("Exchange write is not authorized")
@@ -63,6 +68,7 @@ class Kraken:
                     data=params if private else None,
                     params=None if private else params,
                     headers=headers,
+                    allow_redirects=False,
                     timeout=aiohttp.ClientTimeout(total=12),
                 ) as response:
                     if response.status != 200:
@@ -148,12 +154,13 @@ class Kraken:
             if key in self.pairs
         }
 
-    async def market_changes(self):
+    async def market_changes(self, extra_pairs=None):
         """Bounded public snapshots: REST's opening price is midnight UTC, not 24h ago."""
         symbols = {
             "/".join("DOGE" if asset == "XDG" else asset for asset in p.symbol.split("/")): p.id
             for p in self.pairs.values()
         }
+        symbols.update(extra_pairs or {})
         changes = {}
         if not symbols:
             return changes
