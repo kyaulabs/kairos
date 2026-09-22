@@ -10,9 +10,8 @@
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
-  const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds', 'dca_count', 'dca_period_seconds', 'twap_slices', 'twap_duration_seconds', 'rebalance_cooldown_seconds', 'futures_leverage']);
-  const deterministic = strategy => ['dca', 'twap', 'rebalance'].includes(strategy);
-  const strategyNames = {htf: 'Higher-timeframe trend', maker: 'Rate-limited market making', arbitrage: 'Triangular arbitrage', dca: 'DCA · scheduled accumulation', twap: 'TWAP · bounded order slicing', rebalance: 'Threshold rebalancing'};
+  let settingsSchema, settingsForm;
+  const deterministic = strategy => settingsSchema.strategies[strategy].scheduled;
   const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); }, markets => {
     strategyMarketPicker.setPairs(markets);
     if (state) updateStrategyMarket();
@@ -127,34 +126,22 @@
       leverage: Number(form.elements.namedItem('leverage').value), mode: state.mode,
     });
   }
-  for (const name of ['product', 'leverage']) form.elements.namedItem(name).addEventListener('change', () => { if (state) { updateStrategyMarket(); updateProgramFields(); } });
-  $('asset-class').addEventListener('change', () => {
-    form.elements.namedItem('product').value = $('asset-class').value === 'futures' ? 'futures' : 'spot';
-    if (state) { updateStrategyMarket(); updateProgramFields(); }
+  for (const event of ['input', 'change']) form.addEventListener(event, () => {
+    if (state) { updateProgramFields(); updateStrategyMarket(); }
   });
   function updateProgramFields() {
     const strategy = form.elements.namedItem('strategy').value;
     const derivative = form.elements.namedItem('product').value === 'futures';
-    $('asset-class').value = derivative ? 'futures' : 'crypto';
+    settingsForm.update();
     $('futures-settings').hidden = !derivative;
     $('twap-quantity-label').textContent = derivative ? 'Total contract quantity' : 'Total base quantity';
-    for (const input of $('futures-settings').querySelectorAll('input, select')) input.disabled = !derivative;
     $('close-futures').disabled = busy || state?.running || state?.settings.product !== 'futures';
     $('program-settings').hidden = !deterministic(strategy);
     $('bot-market-label').textContent = strategy === 'rebalance' ? 'Anchor market · basket configured below' : 'Bot market';
-    for (const group of form.querySelectorAll('[data-strategy]')) {
-      group.hidden = group.dataset.strategy !== strategy;
-      for (const input of group.querySelectorAll('input, select')) input.disabled = group.hidden;
-    }
     $('new-program').disabled = busy || state?.running || strategy !== state?.settings.strategy;
   }
-  form.elements.namedItem('strategy').addEventListener('change', updateProgramFields);
   function loadForm() {
-    for (const [key, value] of Object.entries(state.settings)) {
-      const input = form.elements.namedItem(key);
-      if (input?.type === 'checkbox') input.checked = value;
-      else if (input) input.value = key === 'twap_limit' && Number(value) === 0 ? '' : value;
-    }
+    settingsForm.load(state.settings);
     updateStrategyMarket(); strategyMarketPicker.sync(); updateProgramFields();
   }
   function textRow(container, left, right) {
@@ -200,7 +187,7 @@
     if (state.valuation_ts && state.equity != null) equityChart.add(state.valuation_ts, Number(state.equity));
     $('engine-status').textContent = state.running ? 'Running' : 'Paused';
     $('engine-status').classList.toggle('running', state.running);
-    $('engine-strategy').textContent = strategyNames[state.settings.strategy];
+    $('engine-strategy').textContent = settingsSchema.strategies[state.settings.strategy].label;
     $('engine-error').hidden = !state.error;
     $('engine-error').textContent = state.error || '';
     $('start').disabled = busy || !connected || state.running || !state.ready;
@@ -317,18 +304,7 @@
   }
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const values = {...state.settings};
-    for (const [key, value] of new FormData(form)) values[key] = integerFields.has(key) ? Number(value) : value;
-    for (const key of ['reinvest_profits', 'recover_initial', 'futures_reduce_only']) values[key] = form.elements.namedItem(key).checked;
-    action('settings', values, true);
-  });
-  $('full-allocation').addEventListener('click', () => {
-    const amount = form.elements.namedItem(state.mode === 'trading' ? (form.elements.namedItem('product').value === 'futures' ? 'futures_live_budget' : 'live_budget') : 'paper_balance').value;
-    if (!(Number(amount) > 0)) { message('Set a positive starting allocation first.'); return; }
-    form.elements.namedItem('order_size').value = amount;
-    form.elements.namedItem('max_exposure').value = amount;
-    form.elements.namedItem('reinvest_profits').checked = true;
-    message('Full-allocation sizing selected. Save settings. For a new paper starting balance, reset the paper portfolio after saving.');
+    action('settings', settingsForm.values(state.settings), true);
   });
   $('new-program').addEventListener('click', () => {
     if (confirm('Create a new run using the SAVED strategy settings? This resets that run’s schedule/budget allowance, not balances or holdings. Existing history and today’s rebalance turnover remain. Review settings before pressing Start.')) action('reset-program', {confirmation: 'NEW STRATEGY RUN'});
@@ -375,7 +351,10 @@
     $('bid-ask').textContent = `BID ${number(ticker.bid)}  /  ASK ${number(ticker.ask)}`;
   }, 500);
   async function boot() {
-    pairs = await request('pairs');
+    [settingsSchema, pairs] = await Promise.all([request('settings-schema'), request('pairs')]);
+    settingsForm = new SettingsForm(form, settingsSchema);
+    SettingsForm.choices($('candle-interval'), settingsSchema.fields.candle_minutes.choices, $('candle-interval').value);
+    priceChart.intervals = Object.keys(settingsSchema.fields.candle_minutes.choices).map(Number);
     strategyMarketPicker.setPairs(pairs);
     render(await request('state'));
     marketPicker.refresh();

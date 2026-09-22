@@ -289,7 +289,9 @@ class Kraken:
 
 
 class Jev:
-    def __init__(self, session, key, model="jev-latest"):
+    DEFAULT_MODEL = "jev-latest"
+
+    def __init__(self, session, key, model=DEFAULT_MODEL):
         self.session, self.key, self.model = session, key, model
 
     async def decide(self, state):

@@ -3,8 +3,9 @@ import unittest
 from unittest.mock import patch
 
 from kairos import programs
-from kairos.domain import DEFAULTS, SafetyError, dec
+from kairos.domain import SafetyError, dec
 from kairos.engine import Engine
+from kairos.settings import DEFAULTS
 from kairos.store import Store
 from tests.helpers import BTC, ETH, book, fake_jev, fake_kraken
 

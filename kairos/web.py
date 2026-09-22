@@ -18,6 +18,7 @@ from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
 from kairos.futures_client import FuturesTrading
 from kairos.retail import RetailMarkets
+from kairos.settings import schema
 from kairos.store import Store, encode
 
 STATIC = Path(__file__).parent / "static"
@@ -85,6 +86,10 @@ async def state(request):
     return web.json_response(
         {**engine.snapshot(), "csrf": request.app["csrf"], "tickers": request.app["hub"].tickers}
     )
+
+
+async def settings_schema(request):
+    return web.json_response(schema())
 
 
 async def catalog(request):
@@ -297,7 +302,9 @@ async def lifecycle(app):
             os.environ.get("ALLOW_LIVE_TRADING", "false").lower() == "true",
         )
         jev = Jev(
-            session, os.environ.get("JEV_API_KEY", ""), os.environ.get("JEV_MODEL", "jev-latest")
+            session,
+            os.environ.get("JEV_API_KEY", ""),
+            os.environ.get("JEV_MODEL", Jev.DEFAULT_MODEL),
         )
         futures = FuturesTrading(
             session,
@@ -351,6 +358,7 @@ def create_app(engine=None, origin=None, futures=None):
         app["retail"] = RetailMarkets(engine.kraken, futures)
         app["feed_restart"] = asyncio.Event()
     app.router.add_get("/api/state", state)
+    app.router.add_get("/api/settings-schema", settings_schema)
     app.router.add_get("/api/pairs", catalog)
     app.router.add_get("/api/markets", markets)
     app.router.add_get("/api/history", history)

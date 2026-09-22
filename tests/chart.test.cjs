@@ -11,7 +11,7 @@ const start = 1700000040;
 function chart(intervalMs = 60000) {
   // Exercise the real data/viewport methods without an SVG renderer.
   return Object.assign(Object.create(browser.LiveChart.prototype), {
-    intervalMs, anchor: null, points: [], fills: [], draw() {}, follow() { this.anchor = null; },
+    intervalMs, intervals: [1, 5, 15, 30, 60, 240, 1440], anchor: null, points: [], fills: [], draw() {}, follow() { this.anchor = null; },
   });
 }
 function candle(time = start, close = '102') {

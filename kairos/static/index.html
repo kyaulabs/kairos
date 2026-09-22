@@ -19,6 +19,7 @@
   <script defer src="/static/markets.js"></script>
   <script defer src="/static/strategy-market.js"></script>
   <script defer src="/static/accounts.js"></script>
+  <script defer src="/static/settings.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -49,7 +50,7 @@
     <section id="market-panel" class="panel chart-panel" aria-labelledby="chart-title">
       <div class="panel-head"><h2 id="chart-title"><span class="icon icon-chart" aria-hidden="true">↗</span> Market chart</h2><span id="chart-context" class="chart-context">Bot market</span></div>
       <div class="chart-toolbar">
-        <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option><option value="5">5m</option><option value="15">15m</option><option value="30">30m</option><option value="60">1h</option><option value="240">4h</option><option value="1440">1d</option></select></label><button id="follow" class="small">Follow live</button></div>
+        <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option></select></label><button id="follow" class="small">Follow live</button></div>
         <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
       </div>
       <div class="chart-stage"><svg id="chart" role="img" tabindex="0" aria-label="Kraken candlestick chart with aligned volume in the selected market's native units. Drag to pan, scroll to zoom; use Follow live to show recent candles."></svg></div>
@@ -123,7 +124,7 @@
             <p class="settings-hint">Stop first to change settings. Spot holdings remain tracked when changing markets.</p>
             <div id="strategy-settings" role="tabpanel" aria-labelledby="strategy-tab">
               <div class="fields">
-                <label class="wide">Asset class<select id="asset-class"><option value="crypto">Crypto / currency spot markets</option><option value="xstocks" disabled>xStocks — browse only</option><option value="futures">Linear crypto perpetuals · USD</option><option value="stocks" disabled>Brokerage stocks / ETFs — not integrated</option></select></label>
+                <label class="wide">Product<select name="product"></select></label>
                 <div id="strategy-market" class="strategy-market wide">
                   <label id="bot-market-label" for="pair-search">Bot market</label>
                   <input type="hidden" name="pair" id="pair">
@@ -132,46 +133,38 @@
                   <p id="pair-status" class="muted" role="status"></p>
                   <p id="pair-help" class="muted">The full chart-picker catalog is shown. xStocks, inverse and dated Futures are browse-only. Choose Futures product for qualified USD linear crypto perpetuals. Quote-currency and margin limitations are Kairos safeguards, not account restrictions. Choose a supported pair, then Save settings.</p>
                 </div>
-                <label class="wide">Strategy<select name="strategy"><option value="htf">Higher-timeframe trend</option><option value="maker">Market making</option><option value="arbitrage">Triangular arbitrage</option><option value="dca">DCA · scheduled accumulation</option><option value="twap">TWAP · bounded order slicing</option><option value="rebalance">Threshold rebalancing</option></select></label>
-                <label class="wide">Product<select name="product"><option value="spot">Spot</option><option value="margin">Margin · paper only</option><option value="futures">Futures · linear perpetuals</option></select></label>
-                <label>Decision interval · sec<input name="interval_seconds" type="number" min="10" max="3600" step="1" required></label>
-                <label>HTF candle interval<select name="candle_minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
-                <label class="wide">Jev minimum confidence<input name="min_confidence" type="number" min="0" max="1" step="0.01" required></label>
-              </div>
-              <div id="futures-settings" hidden>
-                <div class="fields">
-                  <label>Local leverage cap<select name="futures_leverage"><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option></select></label>
-                  <label>DCA direction<select name="futures_dca_side"><option value="buy">Buy / long</option><option value="sell">Sell / short</option></select></label>
-                  <label>Futures live collateral · USD<input name="futures_live_budget" type="number" min="0" step="any" required></label>
-                  <label>TWAP parent notional cap · USD<input name="futures_parent_notional" type="number" min="0.01" step="any" required></label>
-                  <label class="check wide"><input name="futures_reduce_only" type="checkbox"> DCA/TWAP reduce existing position only</label>
-                </div>
-                <p class="settings-hint">Separate Futures portfolio. Cross margin with a local leverage cap; no exchange margin-setting changes. USD-only dedicated wallet; no automatic funding, transfers or currency conversion. Caps and DCA amounts are notional USD; quantities are contract units (one base unit per contract). Reserve: 20% of starting collateral plus fees. Published margin tiers may lower effective leverage. Funding and liquidation risk remain while paused; Stop cancels orders, not positions. No Futures arbitrage or basket rebalancing.</p>
-                <button id="close-futures" type="button">Reduce Futures position…</button>
+                <label class="wide">Strategy<select name="strategy"></select></label>
+                <label>Engine cycle · sec<input name="interval_seconds" type="number"></label>
+                <label>HTF candle interval<select name="candle_minutes"></select></label>
+                <label class="wide">Jev minimum confidence<input name="min_confidence" type="number"></label>
+                <label class="wide">Min arbitrage edge · bps<input name="arb_min_profit_bps" type="number"></label>
               </div>
               <div id="program-settings" hidden>
                 <p class="settings-hint">Deterministic spot or qualified Futures orders; no Jev calls. Paper and gated live use only bot allocations. Save settings before starting or creating a new run.</p>
-                <div class="fields" data-strategy="dca" hidden>
-                  <label>Purchase · USD incl. fees<input name="dca_amount" type="number" min="0.01" step="any" required></label>
-                  <label>Purchases<input name="dca_count" type="number" min="1" max="10000" step="1" required></label>
-                  <label class="wide">Purchase period · sec<input name="dca_period_seconds" type="number" min="10" max="31536000" step="1" required></label>
+                <div class="fields" data-settings-group hidden>
+                  <label>Slice notional · USD incl. fees<input name="dca_amount" type="number"></label>
+                  <label>Slices<input name="dca_count" type="number"></label>
+                  <label>Slice period · sec<input name="dca_period_seconds" type="number"></label>
+                  <label>DCA direction<select name="futures_dca_side"></select></label>
                 </div>
-                <div class="fields" data-strategy="twap" hidden>
-                  <label>Side<select name="twap_side"><option value="buy">Buy</option><option value="sell">Sell · spot inventory / Futures short or reduce</option></select></label>
-                  <label><span id="twap-quantity-label">Total base quantity</span><input name="twap_quantity" type="number" min="0.00000001" step="any" required></label>
-                  <label>Parent limit · USD<input name="twap_limit" type="number" min="0.00000001" step="any" placeholder="Enter price per unit" required aria-describedby="twap-limit-help"></label>
-                  <label>Slices<input name="twap_slices" type="number" min="2" max="10000" step="1" required></label>
-                  <label class="wide">Total duration · sec<input name="twap_duration_seconds" type="number" min="20" max="31536000" step="1" required></label>
+                <div class="fields" data-settings-group hidden>
+                  <label>Side<select name="twap_side"></select></label>
+                  <label><span id="twap-quantity-label">Total base quantity</span><input name="twap_quantity" type="number"></label>
+                  <label>Parent limit · USD<input name="twap_limit" type="number" placeholder="Enter price per unit" aria-describedby="twap-limit-help"></label>
+                  <label>Slices<input name="twap_slices" type="number"></label>
+                  <label>Total duration · sec<input name="twap_duration_seconds" type="number"></label>
+                  <label>Futures parent notional cap · USD<input name="futures_parent_notional" type="number"></label>
                   <p id="twap-limit-help" class="wide muted">Required: maximum buy price or minimum sell price per base unit in USD, not the total budget. Enter a positive price before saving TWAP; there is no automatic default.</p>
                 </div>
-                <div class="fields" data-strategy="rebalance" hidden>
-                  <label class="wide">Basket weights · percent<input name="rebalance_targets" type="text" maxlength="1000" placeholder="BTC/USD=50,ETH/USD=30,CASH=20" required aria-describedby="basket-help"></label>
+                <div class="fields" data-settings-group hidden>
+                  <label class="wide">Basket weights · percent<input name="rebalance_targets" type="text" placeholder="BTC/USD=50,ETH/USD=30,CASH=20" aria-describedby="basket-help"></label>
                   <p id="basket-help" class="wide muted">1–10 fixed-quote markets plus CASH; total 100%. Only listed bot-owned assets and allocated cash participate. Other holdings stay untouched; the anchor market does not choose the basket.</p>
-                  <label>Drift band · percentage points<input name="rebalance_band_pct" type="number" min="0.1" max="50" step="any" required></label>
-                  <label>Minimum trade · USD<input name="rebalance_min_trade" type="number" min="0.01" step="any" required></label>
-                  <label>UTC-day turnover · USD incl. fees<input name="rebalance_daily_turnover" type="number" min="0.01" step="any" required></label>
-                  <label>Cooldown · sec<input name="rebalance_cooldown_seconds" type="number" min="10" max="604800" step="1" required></label>
+                  <label>Drift band · percentage points<input name="rebalance_band_pct" type="number"></label>
+                  <label>Minimum trade · USD<input name="rebalance_min_trade" type="number"></label>
+                  <label>UTC-day turnover · USD incl. fees<input name="rebalance_daily_turnover" type="number"></label>
+                  <label>Cooldown · sec<input name="rebalance_cooldown_seconds" type="number"></label>
                 </div>
+                <div class="fields" data-settings-group hidden><label class="check wide"><input name="futures_reduce_only" type="checkbox"> Futures: reduce existing position only</label></div>
                 <p class="settings-hint">First check is immediate on Start. DCA/TWAP skip missed slices and pause on completion; no catch-up burst. Rebalancing sends at most one order per cooldown. No conversions or transfers to fund trades.</p>
                 <button id="new-program" type="button">New strategy run…</button>
               </div>
@@ -179,30 +172,36 @@
             </div>
             <div id="capital-settings" role="tabpanel" aria-labelledby="capital-tab" hidden>
               <div class="fields">
-                <label>Paper balance · USD<input name="paper_balance" type="number" min="1" step="any" required></label>
-                <label>Spot live allocation · USD<input name="live_budget" type="number" min="0" step="any" required></label>
-                <label>Order cap · USD<input name="order_size" type="number" min="0.01" step="any" required></label>
-                <label>Exposure cap · USD<input name="max_exposure" type="number" min="0.01" step="any" required></label>
-                <label>Daily loss limit · USD<input name="daily_loss" type="number" min="0.01" step="any" required></label>
-                <label>Recovery check · sec<input name="recovery_check_seconds" type="number" min="10" max="86400" step="1" required></label>
+                <label>Paper starting balance · USD<input name="paper_balance" type="number"></label>
+                <label>Spot live allocation · USD<input name="live_budget" type="number"></label>
+                <label>Futures live collateral · USD<input name="futures_live_budget" type="number"></label>
+                <label>Order cap · USD<input name="order_size" type="number"></label>
+                <label>Exposure cap · USD<input name="max_exposure" type="number"></label>
+                <label>Daily loss limit · USD<input name="daily_loss" type="number"></label>
+                <label>Paper margin leverage<select name="leverage"></select></label>
+                <label>Futures local leverage cap<select name="futures_leverage"></select></label>
+                <label>Spot recovery check · sec<input name="recovery_check_seconds" type="number"></label>
                 <label class="check wide"><input name="reinvest_profits" type="checkbox"> Scale order/exposure caps with equity (reinvest)</label>
-                <label class="check wide"><input name="recover_initial" type="checkbox"> Recover original allocation once above 2× equity</label>
+                <label class="check wide"><input name="recover_initial" type="checkbox"> Spot only: recover original allocation once above 2× equity</label>
               </div>
-              <div class="capital-actions"><button id="full-allocation" type="button">Use full starting allocation</button><button id="reset" type="button">Reset selected paper portfolio</button></div>
+              <p class="settings-hint">Allocation funds the portfolio; Order cap limits each order and Exposure cap limits total holdings. Edit each here. Save a paper starting balance, then Reset to apply it. Product-specific allocations and leverage remain separate; switching products never copies funds or settings.</p>
+              <div class="capital-actions"><button id="reset" type="button">Reset selected paper portfolio</button></div>
+              <div id="futures-settings" hidden>
+                <p class="settings-hint">Separate Futures portfolio. Cross margin with a local leverage cap; no exchange margin-setting changes. USD-only dedicated wallet; no automatic funding, transfers or currency conversion. Caps and DCA amounts are notional USD; quantities are contract units (one base unit per contract). Reserve: 20% of starting collateral plus fees. Published margin tiers may lower effective leverage. Funding and liquidation risk remain while paused; Stop cancels orders, not positions. No Futures arbitrage or basket rebalancing.</p>
+                <button id="close-futures" type="button">Reduce Futures position…</button>
+              </div>
               <details><summary>Allocation &amp; recovery</summary><p>Default: full starting allocation, fee reserve, and reinvestment. Continuous strategies have no scheduled end or profit target; DCA/TWAP have finite runs. With reinvestment enabled, order and exposure caps scale in proportion to equity versus starting capital. Save a new paper balance, then reset the paper portfolio to apply it.</p><p>Capital recovery is spot-only: above 2× original equity, sell enough inventory if needed and reserve the original allocation once. Reserved cash remains on Kraken but is excluded from this bot. No external withdrawal is made.</p></details>
             </div>
             <div id="execution-settings" role="tabpanel" aria-labelledby="execution-tab" hidden>
               <div class="fields">
-                <label>Maker fee · bps<input name="maker_fee_bps" type="number" min="0" max="1000" step="any" required></label>
-                <label>Taker fee · bps<input name="taker_fee_bps" type="number" min="0" max="1000" step="any" required></label>
-                <label>Slippage / offset · bps<input name="slippage_bps" type="number" min="0" max="100" step="any" required></label>
-                <label>Max spread · bps<input name="max_spread_bps" type="number" min="0.01" max="1000" step="any" required></label>
-                <label>Min arbitrage edge · bps<input name="arb_min_profit_bps" type="number" min="0" max="1000" step="any" required></label>
-                <label>Max depth age · sec<input name="stale_seconds" type="number" min="2" max="30" step="1" required></label>
-                <label>Paper leverage<select name="leverage"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option></select></label>
-                <label>Opening fee · bps<input name="margin_open_fee_bps" type="number" min="0" max="100" step="any" required></label>
-                <label>Rollover / 4h · bps<input name="margin_rollover_bps" type="number" min="0" max="100" step="any" required></label>
-                <label>Maintenance ratio<input name="maintenance_ratio" type="number" min="0.1" max="0.9" step="0.01" required></label>
+                <label>Maker fee · bps<input name="maker_fee_bps" type="number"></label>
+                <label>Taker fee · bps<input name="taker_fee_bps" type="number"></label>
+                <label>Slippage / offset · bps<input name="slippage_bps" type="number"></label>
+                <label>Max spread · bps<input name="max_spread_bps" type="number"></label>
+                <label>Max depth age · sec<input name="stale_seconds" type="number"></label>
+                <label>Margin opening fee · bps<input name="margin_open_fee_bps" type="number"></label>
+                <label>Margin rollover / 4h · bps<input name="margin_rollover_bps" type="number"></label>
+                <label>Margin maintenance ratio<input name="maintenance_ratio" type="number"></label>
               </div>
               <div class="fields appearance-controls">
                 <label>Color theme<select id="appearance-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
