@@ -1,0 +1,22 @@
+# TradingAgents review
+
+Reviewed [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) at [`2d17df8da1536c121e4d7395ac5a5dcec9e96d6f`](https://github.com/TauricResearch/TradingAgents/tree/2d17df8da1536c121e4d7395ac5a5dcec9e96d6f), the source reporting v0.5.0, on 2026-09-22. This was a source review only. No dependencies were installed, models invoked, paid data requested, or exchange credentials supplied.
+
+TradingAgents coordinates technical, news, sentiment, and fundamentals analysts, bullish/bearish researchers, a trader, and a portfolio manager through LangGraph. It can include holdings in its prompts and retain decisions and later reflections. Its final output is a five-tier rating: Buy, Overweight, Hold, Underweight, or Sell. Unparseable output becomes REVIEW, not an invented Hold.
+
+The README describes a simulated exchange, but the reviewed [`backtest.py`](https://github.com/TauricResearch/TradingAgents/blob/2d17df8da1536c121e4d7395ac5a5dcec9e96d6f/tradingagents/backtest.py) explicitly evaluates decision quality rather than portfolio execution. It does not supply quantities, fill prices, or a cash ledger. Ticker/date cells are independent, and a supplied portfolio is not carried forward between them. Its benchmark-relative rating results are therefore not Kraken execution returns or evidence of profitability after fees, spreads, funding, and partial fills.
+
+| Kairos method | Useful contribution | Recommendation |
+| --- | --- | --- |
+| HTF trend | Slower news/regime context, portfolio-aware research, and evidence for or against an entry | Evaluate offline as an advisory challenger to the existing Jev decision, using information available at the decision time. |
+| Market making / triangular arbitrage | Post-trade research and regime analysis | Keep multi-agent calls out of the execution cycle; extra inference latency can invalidate a quote or route. |
+| DCA / TWAP | Comparing schedules, execution costs, and completed outcomes | Keep scheduling and sizing deterministic. An agent debate is not needed to execute an already authorized budget or parent order. |
+| Threshold rebalancing | Research to help an operator choose target weights | Keep saved weights, drift bands, turnover limits, and funding boundaries under explicit operator control. Do not silently rewrite them from model output. |
+
+The most useful design lessons are point-in-time data handling, explicit instrument identity, separating unknown holdings from an empty portfolio, typed outputs with visible parsing failures, and recording decisions separately from outcomes. Kairos already keeps assessments separate from code-enforced execution. The new strategies continue that separation and persist schedule/run identity; they do not pretend to be multi-agent strategies.
+
+A future experiment should compare baseline HTF/Jev decisions with an advisory TradingAgents report on identical, archived inputs. Record data availability timestamps, model/prompt revisions, token cost, latency, and rejected/invalid outputs. Use walk-forward periods and reserve out-of-sample evaluation. Score actual executable Kraken orders with fees and conservative fills, not just the sign of a later price return. Reflections must not expose future outcomes to historical decisions; missing point-in-time data should remain unavailable. No claimed improvement has been measured in this review.
+
+No runtime integration is added here. It would introduce another dependency stack, data-vendor configuration, and inference costs without improving the requested deterministic schedules. Any later model veto or research service needs explicit authorization and cost limits; it must never control credentials, order quantities, risk caps, transfers, or ambiguous-order recovery.
+
+Other reviewed sources: [`trading_graph.py`](https://github.com/TauricResearch/TradingAgents/blob/2d17df8da1536c121e4d7395ac5a5dcec9e96d6f/tradingagents/graph/trading_graph.py), [`portfolio_manager.py`](https://github.com/TauricResearch/TradingAgents/blob/2d17df8da1536c121e4d7395ac5a5dcec9e96d6f/tradingagents/agents/managers/portfolio_manager.py), [`signal_processing.py`](https://github.com/TauricResearch/TradingAgents/blob/2d17df8da1536c121e4d7395ac5a5dcec9e96d6f/tradingagents/graph/signal_processing.py), and the [project README](https://github.com/TauricResearch/TradingAgents/blob/2d17df8da1536c121e4d7395ac5a5dcec9e96d6f/README.md).

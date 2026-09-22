@@ -132,6 +132,19 @@ DEFAULTS = {
     "margin_open_fee_bps": "2",
     "margin_rollover_bps": "2",
     "maintenance_ratio": "0.4",
+    "dca_amount": "100",
+    "dca_count": 10,
+    "dca_period_seconds": 86400,
+    "twap_side": "buy",
+    "twap_quantity": "0.001",
+    "twap_limit": "0",
+    "twap_slices": 12,
+    "twap_duration_seconds": 3600,
+    "rebalance_targets": "BTC/USD=50,ETH/USD=30,CASH=20",
+    "rebalance_band_pct": "5",
+    "rebalance_min_trade": "10",
+    "rebalance_daily_turnover": "100",
+    "rebalance_cooldown_seconds": 3600,
 }
 DECIMAL_BOUNDS = {
     "paper_balance": ("1", "1000000000"),
@@ -148,6 +161,12 @@ DECIMAL_BOUNDS = {
     "margin_open_fee_bps": ("0", "100"),
     "margin_rollover_bps": ("0", "100"),
     "maintenance_ratio": ("0.1", "0.9"),
+    "dca_amount": ("0.01", "1000000000"),
+    "twap_quantity": ("0.00000001", "1000000000"),
+    "twap_limit": ("0", "1000000000"),
+    "rebalance_band_pct": ("0.1", "50"),
+    "rebalance_min_trade": ("0.01", "1000000000"),
+    "rebalance_daily_turnover": ("0.01", "1000000000"),
 }
 
 
@@ -164,6 +183,11 @@ def validate_settings(values):
         ("interval_seconds", 10, 3600),
         ("stale_seconds", 2, 30),
         ("recovery_check_seconds", 10, 86400),
+        ("dca_count", 1, 10000),
+        ("dca_period_seconds", 10, 31536000),
+        ("twap_slices", 2, 10000),
+        ("twap_duration_seconds", 20, 31536000),
+        ("rebalance_cooldown_seconds", 10, 604800),
     ):
         if type(values[key]) is not int or not low <= values[key] <= high:
             raise SafetyError(f"{key} must be an integer between {low} and {high}")
@@ -182,8 +206,25 @@ def validate_settings(values):
         raise SafetyError("Paper leverage must be an integer from 2 to 5")
     if values["product"] == "margin" and values["strategy"] == "arbitrage":
         raise SafetyError("Triangular arbitrage uses spot balances, not margin positions")
-    if values["strategy"] not in ("htf", "maker", "arbitrage"):
+    if values["strategy"] not in ("htf", "maker", "arbitrage", "dca", "twap", "rebalance"):
         raise SafetyError("Unknown strategy")
+    if values["product"] != "spot" and values["strategy"] in ("dca", "twap", "rebalance"):
+        raise SafetyError("DCA, TWAP and threshold rebalancing support spot only")
+    if values["twap_side"] not in ("buy", "sell"):
+        raise SafetyError("TWAP side must be buy or sell")
+    if not isinstance(values["rebalance_targets"], str) or len(values["rebalance_targets"]) > 1000:
+        raise SafetyError("Basket targets must be a string of at most 1000 characters")
+    if values["strategy"] == "dca" and values["dca_period_seconds"] < values["interval_seconds"]:
+        raise SafetyError("DCA period must be at least the engine interval")
+    if values["strategy"] == "twap":
+        if dec(values["twap_limit"]) <= 0:
+            raise SafetyError("TWAP requires an explicit positive limit price")
+        if values["twap_duration_seconds"] < values["twap_slices"] * values["interval_seconds"]:
+            raise SafetyError("Each TWAP slice must span at least one engine interval")
+    if values["strategy"] == "rebalance" and dec(values["rebalance_min_trade"]) > dec(
+        values["rebalance_daily_turnover"]
+    ):
+        raise SafetyError("Rebalance minimum trade exceeds daily turnover allowance")
     if not isinstance(values["pair"], str) or not isinstance(values["quote"], str):
         raise SafetyError("Pair and quote must be strings")
     if dec(result["order_size"]) > dec(result["max_exposure"]):

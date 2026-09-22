@@ -1,0 +1,15 @@
+{
+  "name": "Kairos",
+  "short_name": "Kairos",
+  "description": "Experimental Kraken trading workspace. Intelligence, with intention.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#181C20",
+  "theme_color": "#181C20",
+  "icons": [
+    {"src": "/static/brand/kai-app-dark-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/static/brand/kai-app-dark-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/static/brand/kai-app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

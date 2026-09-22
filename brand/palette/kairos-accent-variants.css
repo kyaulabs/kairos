@@ -1,0 +1,54 @@
+
+/* Alternate trading interface accents. The primary #09 logo remains lavender. */
+:root {
+  --kai-green-hover-dark: #73DF94;
+  --kai-green-hover-light: #11642F;
+  --kai-green-soft: #E6F5EB;
+  --kai-red-hover-dark: #FF979B;
+  --kai-red-hover-light: #A52435;
+  --kai-red-soft: #FDE9EC;
+}
+[data-theme="dark"][data-accent="green"] {
+  --accent: #44CF6E;
+  --accent-hover: #73DF94;
+  --on-accent: #161022;
+  --accent-soft: #282C34;
+  --focus: #44CF6E;
+}
+[data-theme="light"][data-accent="green"] {
+  --accent: #187D3D;
+  --accent-hover: #11642F;
+  --on-accent: #FFFFFF;
+  --accent-soft: #E6F5EB;
+  --focus: #187D3D;
+}
+[data-theme="dark"][data-accent="red"] {
+  --accent: #FF7378;
+  --accent-hover: #FF979B;
+  --on-accent: #161022;
+  --accent-soft: #282C34;
+  --focus: #FF7378;
+}
+[data-theme="light"][data-accent="red"] {
+  --accent: #C83043;
+  --accent-hover: #A52435;
+  --on-accent: #FFFFFF;
+  --accent-soft: #FDE9EC;
+  --focus: #C83043;
+}
+@media (prefers-color-scheme: light) {
+:root:not([data-theme])[data-accent="green"] {
+  --accent: #187D3D;
+  --accent-hover: #11642F;
+  --on-accent: #FFFFFF;
+  --accent-soft: #E6F5EB;
+  --focus: #187D3D;
+}
+:root:not([data-theme])[data-accent="red"] {
+  --accent: #C83043;
+  --accent-hover: #A52435;
+  --on-accent: #FFFFFF;
+  --accent-soft: #FDE9EC;
+  --focus: #C83043;
+}
+}

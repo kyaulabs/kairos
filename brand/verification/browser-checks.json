@@ -1,0 +1,98 @@
+{
+  "passed": true,
+  "checks": [
+    "Demo start/pause",
+    "Chart period updates",
+    "Position filtering and empty state",
+    "Whitespace validation",
+    "Preferences and threshold-dependent copy",
+    "Theme persistence and system preference",
+    "All six accent/mode combinations and accent persistence",
+    "Dialog Escape and focus restoration",
+    "Activity log and clear state",
+    "Keyboard tabs",
+    "Form validation",
+    "Loading state",
+    "Confirmation dialog",
+    "Reduced motion"
+  ],
+  "responsive": [
+    {
+      "width": 360,
+      "route": "overview",
+      "pass": true
+    },
+    {
+      "width": 360,
+      "route": "activity",
+      "pass": true
+    },
+    {
+      "width": 360,
+      "route": "components",
+      "pass": true
+    },
+    {
+      "width": 390,
+      "route": "overview",
+      "pass": true
+    },
+    {
+      "width": 390,
+      "route": "activity",
+      "pass": true
+    },
+    {
+      "width": 390,
+      "route": "components",
+      "pass": true
+    },
+    {
+      "width": 768,
+      "route": "overview",
+      "pass": true
+    },
+    {
+      "width": 768,
+      "route": "activity",
+      "pass": true
+    },
+    {
+      "width": 768,
+      "route": "components",
+      "pass": true
+    },
+    {
+      "width": 1024,
+      "route": "overview",
+      "pass": true
+    },
+    {
+      "width": 1024,
+      "route": "activity",
+      "pass": true
+    },
+    {
+      "width": 1024,
+      "route": "components",
+      "pass": true
+    },
+    {
+      "width": 1480,
+      "route": "overview",
+      "pass": true
+    },
+    {
+      "width": 1480,
+      "route": "activity",
+      "pass": true
+    },
+    {
+      "width": 1480,
+      "route": "components",
+      "pass": true
+    }
+  ],
+  "consoleErrors": [],
+  "failedRequests": []
+}

@@ -2,15 +2,17 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const form = $('settings');
-  const priceChart = new LiveChart('#chart', '#3de0b1', 'price', Number($('candle-interval').value));
-  const equityChart = new LiveChart('#equity-chart', '#74a8ff', 'equity');
+  const priceChart = new LiveChart('#chart', 'var(--success)', 'price', Number($('candle-interval').value));
+  const equityChart = new LiveChart('#equity-chart', 'var(--accent)', 'equity');
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
-  const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds']);
+  const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds', 'dca_count', 'dca_period_seconds', 'twap_slices', 'twap_duration_seconds', 'rebalance_cooldown_seconds']);
+  const deterministic = strategy => ['dca', 'twap', 'rebalance'].includes(strategy);
+  const strategyNames = {htf: 'Higher-timeframe trend', maker: 'Rate-limited market making', arbitrage: 'Triangular arbitrage', dca: 'DCA · scheduled accumulation', twap: 'TWAP · bounded order slicing', rebalance: 'Threshold rebalancing'};
   const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); }, markets => {
     strategyMarketPicker.setPairs(markets);
     if (state) updateStrategyMarket();
@@ -121,13 +123,24 @@
     });
   }
   for (const name of ['product', 'leverage']) form.elements.namedItem(name).addEventListener('change', () => { if (state) updateStrategyMarket(); });
+  function updateProgramFields() {
+    const strategy = form.elements.namedItem('strategy').value;
+    $('program-settings').hidden = !deterministic(strategy);
+    $('bot-market-label').textContent = strategy === 'rebalance' ? 'Anchor market · basket configured below' : 'Bot market';
+    for (const group of form.querySelectorAll('[data-strategy]')) {
+      group.hidden = group.dataset.strategy !== strategy;
+      for (const input of group.querySelectorAll('input, select')) input.disabled = group.hidden;
+    }
+    $('new-program').disabled = busy || state?.running || strategy !== state?.settings.strategy;
+  }
+  form.elements.namedItem('strategy').addEventListener('change', updateProgramFields);
   function loadForm() {
     for (const [key, value] of Object.entries(state.settings)) {
       const input = form.elements.namedItem(key);
       if (input?.type === 'checkbox') input.checked = value;
       else if (input) input.value = value;
     }
-    updateStrategyMarket(); strategyMarketPicker.sync();
+    updateStrategyMarket(); strategyMarketPicker.sync(); updateProgramFields();
   }
   function textRow(container, left, right) {
     const row = document.createElement('div'); row.className = 'holding';
@@ -144,7 +157,9 @@
     const selected = symbol();
     marketPicker.setSelected(chartPair);
     $('bot-market').textContent = botPair.symbol;
-    $('chart-context').textContent = chartPair.id === botPair.id ? 'Bot market' : `${MarketPicker.kindLabel(chartPair)} · chart only · bot: ${botPair.symbol}`;
+    $('bot-market-kind').textContent = state.settings.strategy === 'rebalance' ? 'ANCHOR MARKET' : 'BOT MARKET';
+    $('bot-market').title = state.settings.strategy === 'rebalance' ? 'Show anchor chart; the configured basket controls which markets trade' : 'Show the bot’s configured market on the chart';
+    $('chart-context').textContent = state.settings.strategy === 'rebalance' ? 'Basket strategy · chart only' : chartPair.id === botPair.id ? 'Bot market' : `${MarketPicker.kindLabel(chartPair)} · chart only · bot: ${botPair.symbol}`;
     $('chart-context').title = chartPair.execution_reason || MarketPicker.kindLabel(chartPair);
     $('chart-context').classList.toggle('browsing', chartPair.id !== botPair.id);
     if (lastMarket !== chartPair.id) {
@@ -162,7 +177,7 @@
     $('mode-badge').textContent = state.mode === 'trading' ? 'LIVE TRADING' : `DRY-RUN · ${state.settings.product.toUpperCase()}`;
     $('mode-badge').classList.toggle('live', state.mode === 'trading');
     $('equity').textContent = money(state.equity);
-    $('pnl').textContent = money(state.daily_pnl);
+    $('pnl').textContent = `${Number(state.daily_pnl) > 0 ? '+' : ''}${money(state.daily_pnl)}`;
     $('pnl').className = Number(state.daily_pnl) < 0 ? 'sell' : 'buy';
     $('exposure').textContent = money(state.exposure);
     $('exposure-cap').textContent = `Effective limit ${money(state.effective_exposure_cap)} USD`;
@@ -170,15 +185,29 @@
     if (state.valuation_ts && state.equity != null) equityChart.add(state.valuation_ts, Number(state.equity));
     $('engine-status').textContent = state.running ? 'Running' : 'Paused';
     $('engine-status').classList.toggle('running', state.running);
-    $('engine-strategy').textContent = {htf: 'Higher-timeframe trend', maker: 'Rate-limited market making', arbitrage: 'Triangular arbitrage'}[state.settings.strategy];
+    $('engine-strategy').textContent = strategyNames[state.settings.strategy];
     $('engine-error').hidden = !state.error;
     $('engine-error').textContent = state.error || '';
     $('start').disabled = busy || !connected || state.running || !state.ready;
     $('settings-fields').disabled = busy || state.running;
-    updateStrategyMarket();
+    updateStrategyMarket(); updateProgramFields();
     $('mode').disabled = busy || !connected;
     const decision = state.decision;
-    if (decision) {
+    const scheduled = deterministic(state.settings.strategy);
+    $('assessment-label').textContent = scheduled ? 'Strategy status' : 'Jev assessment';
+    $('assessment-kind').textContent = scheduled ? 'RULES' : 'MODEL';
+    $('assessment-disclaimer').textContent = scheduled ? 'Scheduled orders and rebalancing do not guarantee profit. Missed or unfilled slices are not caught up automatically.' : 'A model assessment is not a calibrated probability of trading profit.';
+    if (scheduled) {
+      const program = state.program;
+      $('decision').textContent = program?.configuration_changed ? 'Rearm required' : program?.status === 'complete' ? 'Complete' : state.running ? 'Running' : 'Paused';
+      $('decision').className = '';
+      $('confidence').textContent = 'Deterministic rules · no model calls';
+      $('decision-context').textContent = program?.message || 'No run started. Save settings, then Start with a pre-funded allocation.';
+      $('decision-market').textContent = state.settings.strategy === 'rebalance' ? `Basket: ${state.settings.rebalance_targets}` : `Program market: ${botPair.symbol}`;
+      $('model-info').textContent = program ? `${program.orders} orders · ${number(program.spent_including_fees)} USD turnover incl. fees · ${program.skipped_slots} missed slots${program.next_at ? ` · Next ${new Date(program.next_at*1000).toLocaleString()}` : ''}` : 'Schedules persist across restarts. A completed run never rearms automatically.';
+      $('decision-inputs').textContent = JSON.stringify(program || {}, null, 2);
+      $('probabilities').replaceChildren();
+    } else if (decision) {
       $('decision').textContent = decisionLabel(decision);
       $('decision').className = decision.action === 'buy' ? 'buy' : decision.action === 'sell' ? 'sell' : '';
       $('confidence').textContent = `${(decision.confidence*100).toFixed(1)}% confidence in ${decision.action === 'hold' ? 'no trade' : decision.action}`;
@@ -195,6 +224,11 @@
         const bar = document.createElement('progress'); bar.max = 1; bar.value = probability; bar.setAttribute('aria-label', `${action} assessment`);
         row.append(header, bar); $('probabilities').append(row);
       }
+    } else {
+      $('decision').textContent = 'Waiting'; $('decision').className = '';
+      $('confidence').textContent = '—'; $('decision-context').textContent = '';
+      $('decision-market').textContent = ''; $('probabilities').replaceChildren();
+      $('model-info').textContent = $('decision-inputs').textContent = 'No assessment yet.';
     }
     $('holdings').replaceChildren();
     if (state.settings.product === 'margin') {
@@ -273,6 +307,9 @@
     form.elements.namedItem('reinvest_profits').checked = true;
     message('Full-allocation sizing selected. Save settings. For a new paper starting balance, reset the paper portfolio after saving.');
   });
+  $('new-program').addEventListener('click', () => {
+    if (confirm('Create a new run using the SAVED strategy settings? This resets that run’s schedule/budget allowance, not balances or holdings. Existing history and today’s rebalance turnover remain. Review settings before pressing Start.')) action('reset-program', {confirmation: 'NEW STRATEGY RUN'});
+  });
   $('start').addEventListener('click', () => action('start'));
   $('stop').addEventListener('click', () => action('stop'));
   $('reconcile').addEventListener('click', () => {
@@ -325,7 +362,7 @@
     stream.addEventListener('state', event => render(JSON.parse(event.data)));
     stream.addEventListener('ticker', event => { const ticker = JSON.parse(event.data); tickers[ticker.symbol] = ticker; });
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });
-    for (const kind of ['decision','order','fill','engine-error','skip','cycle','liquidation','recovery','mode','settings','system']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
+    for (const kind of ['decision','order','fill','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
   }
   boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); $('connection').textContent = 'DISCONNECTED'; });
 })();

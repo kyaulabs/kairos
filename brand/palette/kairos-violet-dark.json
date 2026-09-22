@@ -1,0 +1,23 @@
+{
+  "brand": "Kairos",
+  "accent": "violet",
+  "mode": "dark",
+  "tokens": {
+    "bg": "#181C20",
+    "surface": "#1C2127",
+    "surface-raised": "#282C34",
+    "border": "#35393E",
+    "control-border": "#707986",
+    "text": "#DADADA",
+    "muted": "#BABABA",
+    "accent": "#C1A0FF",
+    "accent-hover": "#D2BAFF",
+    "on-accent": "#161022",
+    "accent-soft": "#282C34",
+    "success": "#44CF6E",
+    "danger": "#FF7378",
+    "warning": "#E0DE71",
+    "info": "#7EB6FF",
+    "focus": "#C1A0FF"
+  }
+}

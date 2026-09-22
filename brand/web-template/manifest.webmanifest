@@ -1,0 +1,9 @@
+{
+  "id": "./", "name": "Kairos", "short_name": "Kairos", "description": "Kairos interface template",
+  "start_url": "./index.html", "scope": "./", "display": "standalone", "background_color": "#181C20", "theme_color": "#181C20",
+  "icons": [
+    {"src":"assets/kai-app-dark-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"assets/kai-app-dark-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"assets/kai-app-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ]
+}

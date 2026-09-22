@@ -54,6 +54,7 @@ jobs:
           node --check kairos/static/markets.js
           node --check kairos/static/strategy-market.js
           node --check kairos/static/accounts.js
+          node --check kairos/static/appearance.js
       - name: Test dashboard components
         run: node --test tests/*.test.cjs
 

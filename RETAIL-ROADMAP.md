@@ -6,8 +6,8 @@ The agreed scope is Kraken retail markets and account data. Funding and Earn sta
 | --- | --- | --- |
 | Unified market and account views | Implemented | Spot/FX, margin eligibility, xStocks, and Futures discovery; quotes, candles, and separate read-only account snapshots. |
 | Native-currency allocations | Planned | Persist allocations and reservations by venue, wallet, product, and currency without treating exchange balances as bot capital. |
-| DCA and TWAP | Planned | Deterministic scheduled accumulation and bounded order slicing, first in paper mode on the existing spot execution path. |
-| Threshold rebalancing | Planned | A funded spot basket with target weights, drift thresholds, and fee-aware order planning. |
+| DCA and TWAP | Implemented | Persisted deterministic schedules in paper and explicitly gated live spot, using the existing fixed-quote allocation. |
+| Threshold rebalancing | Implemented | A fixed-quote funded spot basket with target weights, drift bands, cooldown, and daily turnover limits. |
 | Additional product execution | Requires separate approval and verification | Product-specific accounting, eligibility, simulation, risk, and recovery before live orders. |
 
 ## Implemented coverage
@@ -33,13 +33,13 @@ Public integration checks on 2026-09-22 returned 1,339 crypto spot, 12 FX, 172 c
 
 ## Strategy requirements
 
-DCA buys a fixed quote-currency amount on a schedule, with a total budget and end condition. Persist the next due event and order identity so a restart cannot buy twice. Skip missed intervals instead of accumulating an uncapped catch-up order. Insufficient allocated funds, stale data, excessive spread, fees, or minimum-size failures skip the purchase with a reason.
+DCA buys a fixed quote-currency amount on a schedule, with a total budget and end condition. The next due event and run identity persist so a restart cannot buy twice. Missed intervals are skipped, not accumulated. The budget is purchase amount including fees multiplied by purchase count; the whole run must be pre-funded. Funds, spread, size, or exposure failures skip a slot; data errors and uncertain orders can pause the engine.
 
-TWAP splits an approved parent order into time-spaced children, bounded by its total quantity, duration, limit price, and available allocation. Reconcile each child before spending its reservation again. Partial fills reduce the remaining parent quantity; unknown submission or cancellation outcomes pause the schedule. Stop cancels tracked children, not unrelated exchange orders. TWAP reduces order concentration; it does not guarantee a better execution price.
+TWAP splits an approved parent order into time-spaced children, bounded by its total quantity, duration, limit price, and available allocation. Each child settles before another can spend allocated funds. Partial fills reduce the remaining parent quantity; missed or unfilled slices are not added to later orders. The run pauses on completion or expiry, leaving any remainder unexecuted. Unknown submission or cancellation outcomes pause the schedule. Stop cancels tracked children, not unrelated exchange orders. TWAP reduces order concentration; it does not guarantee a better execution price.
 
-Threshold rebalancing compares a spot basket with configured target weights and trades only outside a drift band. Begin with a single funded quote currency, a cooldown, turnover limits, and a minimum trade size that accounts for costs. Sells reduce allocated holdings; buys spend allocated cash and confirmed proceeds. A rejected sell must not fund a later buy. No automatic FX conversion, cross-wallet funding, or use of Earn collateral is permitted.
+Threshold rebalancing compares a spot basket with configured target weights and trades only outside a drift band. It uses a single funded quote currency, an explicit CASH weight, a cooldown, turnover limits including fees, and a minimum trade size. Only named basket holdings and allocated cash enter target valuation; other holdings remain untouched but still count toward engine-wide risk limits. Sells reduce allocated holdings; buys spend allocated cash and confirmed proceeds. A rejected sell must not fund a later buy. No automatic FX conversion, cross-wallet funding, or use of Earn collateral is permitted.
 
-These methods should use deterministic planning and the existing execution safeguards. Jev need not approve every scheduled purchase. Any optional model veto must be explicit and recorded; it must not change budgets, scheduling identity, or risk limits. None of these strategies is enabled by the market/account milestone, and none implies profitability.
+These methods now use deterministic planning and the existing execution safeguards in both paper and gated live spot. They make no Jev calls and have no model veto. Completion, rearming, and mode-specific progress are explicit; saving unrelated risk settings never resets a run. The broader multi-wallet allocation milestone remains planned. See [operating instructions](OPERATIONS.md#strategies) and the [TradingAgents review](TRADINGAGENTS-REVIEW.md). None of these methods implies profitability.
 
 ## Gates for broader execution
 

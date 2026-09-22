@@ -220,6 +220,8 @@ async def command(request):
         await engine.reconcile(data.get("acknowledge") is True)
     elif action == "reset-paper":
         await engine.reset_paper()
+    elif action == "reset-program":
+        await engine.reset_program(data.get("confirmation"))
     else:
         raise web.HTTPNotFound()
     return web.json_response(engine.snapshot())
