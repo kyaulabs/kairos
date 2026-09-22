@@ -13,6 +13,13 @@ STRATEGIES = {
         "products": ("spot", "margin", "futures"),
         "scheduled": False,
     },
+    "scalp": {
+        "label": "Bollinger range scalping · paper",
+        "products": ("spot", "futures"),
+        "scheduled": False,
+        "deterministic": True,
+        "paper_only": True,
+    },
     "arbitrage": {"label": "Triangular arbitrage", "products": ("spot",), "scheduled": False},
     "dca": {
         "label": "DCA · scheduled accumulation",
@@ -69,10 +76,24 @@ FIELDS = {
         },
         strategies=("htf",),
     ),
+    "scalp_window": setting(30, (20, 120), strategies=("scalp",), migrate=True),
+    "scalp_sigma": setting("2", ("1", "3"), strategies=("scalp",), migrate=True),
+    "scalp_max_efficiency": setting("0.35", ("0.05", "0.8"), strategies=("scalp",), migrate=True),
+    "scalp_margin_bps": setting("10", ("1", "1000"), strategies=("scalp",), migrate=True),
+    "scalp_stop_bps": setting("50", ("5", "500"), strategies=("scalp",), migrate=True),
+    "scalp_max_hold_seconds": setting(300, (60, 1800), strategies=("scalp",), migrate=True),
+    "scalp_cooldown_seconds": setting(60, (0, 3600), strategies=("scalp",), migrate=True),
     "stale_seconds": setting(10, (2, 30)),
     "reinvest_profits": setting(True),
-    "recover_initial": setting(False, products=("spot",), must_be_off_when_inactive=True),
-    "recovery_check_seconds": setting(60, (10, 86400), products=("spot",)),
+    "recover_initial": setting(
+        False,
+        products=("spot",),
+        strategies=tuple(k for k in STRATEGIES if k != "scalp"),
+        must_be_off_when_inactive=True,
+    ),
+    "recovery_check_seconds": setting(
+        60, (10, 86400), products=("spot",), strategies=tuple(k for k in STRATEGIES if k != "scalp")
+    ),
     "product": setting(
         "spot",
         choices={
@@ -186,9 +207,13 @@ def validate_settings(values):
         if field.get("positive") and applies(field, values) and value <= 0:
             raise SafetyError("TWAP requires an explicit positive limit price")
         if field.get("must_be_off_when_inactive") and value and not applies(field, values):
-            raise SafetyError("One-time capital recovery is supported for spot portfolios only")
+            raise SafetyError(
+                "Spot-only capital recovery is unavailable for this product or strategy"
+            )
     if values["product"] not in STRATEGIES[values["strategy"]]["products"]:
         raise SafetyError(f"Strategy {values['strategy']} does not support {values['product']}")
+    if values["strategy"] == "scalp" and values["interval_seconds"] > 30:
+        raise SafetyError("Scalping requires a 10–30 second engine interval for exit checks")
     if values["strategy"] == "dca" and values["dca_period_seconds"] < values["interval_seconds"]:
         raise SafetyError("DCA period must be at least the engine interval")
     if (

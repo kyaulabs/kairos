@@ -11,7 +11,8 @@
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
   let settingsSchema, settingsForm;
-  const deterministic = strategy => settingsSchema.strategies[strategy].scheduled;
+  const scheduledStrategy = strategy => settingsSchema.strategies[strategy].scheduled;
+  const assessmentView = new AssessmentView($('assessment-viz'));
   const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); }, markets => {
     strategyMarketPicker.setPairs(markets);
     if (state) updateStrategyMarket();
@@ -79,6 +80,7 @@
     return decision.action === 'hold' && inventory != null && Number(inventory) === 0 ? 'wait' : decision.action;
   }
   function decisionContext(decision) {
+    if (decision.deterministic) return decision.reason || '';
     if (decision.action !== 'hold') return '';
     const input = decision.state || {};
     const parts = ['No order requested; allocation unchanged.'];
@@ -136,7 +138,7 @@
     $('futures-settings').hidden = !derivative;
     $('twap-quantity-label').textContent = derivative ? 'Total contract quantity' : 'Total base quantity';
     $('close-futures').disabled = busy || state?.running || state?.settings.product !== 'futures';
-    $('program-settings').hidden = !deterministic(strategy);
+    $('program-settings').hidden = !scheduledStrategy(strategy);
     $('bot-market-label').textContent = strategy === 'rebalance' ? 'Anchor market · basket configured below' : 'Bot market';
     $('new-program').disabled = busy || state?.running || strategy !== state?.settings.strategy;
   }
@@ -209,11 +211,14 @@
       textRow($('trading-fees'), row.symbol, `${percent(row.maker_bps)} maker · ${percent(row.taker_bps)} taker`);
     }
     updateFeeStatus();
-    const decision = state.decision;
-    const scheduled = deterministic(state.settings.strategy);
-    $('assessment-label').textContent = scheduled ? 'Strategy status' : 'Jev assessment';
-    $('assessment-kind').textContent = scheduled ? 'RULES' : 'MODEL';
-    $('assessment-disclaimer').textContent = scheduled ? 'Scheduled orders and rebalancing do not guarantee profit. Missed or unfilled slices are not caught up automatically.' : 'A model assessment is not a calibrated probability of trading profit.';
+    const decision = AssessmentView.matches(state.decision, state) ? state.decision : null;
+    const definition = settingsSchema.strategies[state.settings.strategy];
+    const scheduled = scheduledStrategy(state.settings.strategy);
+    const rules = scheduled || definition.deterministic;
+    $('mode').querySelector('option[value="trading"]').disabled = !!definition.paper_only;
+    $('assessment-label').textContent = rules ? 'Strategy signals' : 'Jev assessment';
+    $('assessment-kind').textContent = rules ? 'RULES' : 'MODEL';
+    $('assessment-disclaimer').textContent = scheduled ? 'Scheduled orders and rebalancing do not guarantee profit. Missed or unfilled slices are not caught up automatically.' : rules ? 'Paper signals are not evidence of profitability. Price bounds, liquidity and data failures can prevent exits; Stop pauses protection checks.' : 'Model weights and directional bias are not calibrated probabilities of profit. Historical moves are not forecasts.';
     if (scheduled) {
       const program = state.program;
       $('decision').textContent = program?.configuration_changed ? 'Rearm required' : program?.status === 'complete' ? 'Complete' : state.running ? 'Running' : 'Paused';
@@ -223,30 +228,22 @@
       $('decision-market').textContent = state.settings.strategy === 'rebalance' ? `Basket: ${state.settings.rebalance_targets}` : `Program market: ${botPair.symbol}`;
       $('model-info').textContent = program ? `${program.orders} orders · ${number(program.spent_including_fees)} USD turnover incl. fees · ${program.skipped_slots} missed slots${program.next_at ? ` · Next ${new Date(program.next_at*1000).toLocaleString()}` : ''}` : 'Schedules persist across restarts. A completed run never rearms automatically.';
       $('decision-inputs').textContent = JSON.stringify(program || {}, null, 2);
-      $('probabilities').replaceChildren();
     } else if (decision) {
       $('decision').textContent = decisionLabel(decision);
       $('decision').className = decision.action === 'buy' ? 'buy' : decision.action === 'sell' ? 'sell' : '';
-      $('confidence').textContent = `${(decision.confidence*100).toFixed(1)}% confidence in ${decision.action === 'hold' ? 'no trade' : decision.action}`;
+      const confidence = AssessmentView.number(decision.confidence);
+      $('confidence').textContent = decision.deterministic ? 'DETERMINISTIC · PAPER · 1 MINUTE' : confidence != null && confidence >= 0 && confidence <= 1 ? `${(confidence*100).toFixed(1)}% confidence in ${decision.action === 'hold' ? 'no trade' : decision.action}` : 'Confidence unavailable';
       $('decision-context').textContent = decisionContext(decision);
       $('decision-market').textContent = `Assessment market: ${decision.state?.symbol || decision.pair}`;
       $('model-info').textContent = `${decision.model} · ${decision.latency_ms} ms · ${time(decision.ts)} · ${decision.mode}`;
       $('decision-inputs').textContent = JSON.stringify(decision.state, null, 2);
-      $('probabilities').replaceChildren();
-      for (const [action, probability] of Object.entries(decision.probabilities)) {
-        const row = document.createElement('div'); row.className = `probability ${action}`;
-        const header = document.createElement('header'), name = document.createElement('span'), value = document.createElement('span');
-        name.textContent = action === 'hold' ? 'NO TRADE (HOLD)' : action.toUpperCase(); value.textContent = `${(probability*100).toFixed(1)}%`;
-        header.append(name, value);
-        const bar = document.createElement('progress'); bar.max = 1; bar.value = probability; bar.setAttribute('aria-label', `${action} assessment`);
-        row.append(header, bar); $('probabilities').append(row);
-      }
     } else {
-      $('decision').textContent = 'Waiting'; $('decision').className = '';
+      $('decision').textContent = state.scalp?.position ? 'Saved plan' : 'Waiting'; $('decision').className = '';
       $('confidence').textContent = '—'; $('decision-context').textContent = '';
-      $('decision-market').textContent = ''; $('probabilities').replaceChildren();
-      $('model-info').textContent = $('decision-inputs').textContent = 'No assessment yet.';
+      $('decision-market').textContent = '';
+      $('model-info').textContent = $('decision-inputs').textContent = state.decision ? 'Previous assessment belongs to another configuration.' : 'No assessment yet.';
     }
+    assessmentView.render(decision, state, events, definition);
     $('holdings').replaceChildren();
     if (state.settings.product === 'futures') {
       const ledger = state.futures;
@@ -298,7 +295,7 @@
     const li = document.createElement('li'), when = document.createElement('time'), kind = document.createElement('b'), detail = document.createElement('p');
     when.textContent = time(event.ts); kind.textContent = event.kind;
     const d = event.data;
-    detail.textContent = d.message || d.reason || (event.kind === 'decision' ? `${d.mode} · ${decisionLabel(d).toUpperCase()} · ${(d.confidence*100).toFixed(1)}% confidence${d.action === 'hold' ? ' in no trade' : ''}${decisionContext(d) ? ` · ${decisionContext(d)}` : ''}` : event.kind === 'fill' ? `${d.mode} · ${d.side} ${number(d.volume)} · ${d.pair} · fee ${number(d.fee)}` : event.kind === 'order' ? `${d.mode} · ${d.side} ${d.pair} · ${d.status}` : event.kind === 'mode' ? `${d.mode} · ${d.running ? 'running' : 'paused'}` : JSON.stringify(d));
+    detail.textContent = d.message || d.reason || (event.kind === 'decision' ? `${d.mode} · ${decisionLabel(d).toUpperCase()} · ${d.deterministic ? 'rules' : `${(d.confidence*100).toFixed(1)}% confidence${d.action === 'hold' ? ' in no trade' : ''}`}${decisionContext(d) ? ` · ${decisionContext(d)}` : ''}` : event.kind === 'fill' ? `${d.mode} · ${d.side} ${number(d.volume)} · ${d.pair} · fee ${number(d.fee)}` : event.kind === 'order' ? `${d.mode} · ${d.side} ${d.pair} · ${d.status}` : event.kind === 'mode' ? `${d.mode} · ${d.running ? 'running' : 'paused'}` : JSON.stringify(d));
     li.append(when, kind, detail); $('activity').prepend(li);
     while ($('activity').children.length > 120) $('activity').lastChild.remove();
   }

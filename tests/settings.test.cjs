@@ -33,6 +33,20 @@ function fixture(saved = defaults) {
   return {inputs, view, values, twap};
 }
 
+test('scalping exposes paper rules without editing the saved HTF interval or requesting model confidence', () => {
+  const {inputs, view, values} = fixture();
+  inputs.strategy.value = 'scalp'; view.update();
+  assert.equal(schema.strategies.scalp.paper_only, true);
+  assert.equal(schema.strategies.scalp.deterministic, true);
+  assert.equal(inputs.scalp_window.disabled, false);
+  assert.equal(inputs.min_confidence.disabled, true);
+  assert.equal(inputs.candle_minutes.disabled, true);
+  assert.equal(inputs.recovery_check_seconds.disabled, true);
+  assert.equal(values().candle_minutes, defaults.candle_minutes);
+  inputs.recover_initial.checked = true; view.update();
+  assert.match(inputs.recover_initial.error, /capital recovery/);
+});
+
 test('server bounds, choices and types drive the form and saved payload', () => {
   const {inputs, values} = fixture();
   assert.deepEqual(values(), defaults);

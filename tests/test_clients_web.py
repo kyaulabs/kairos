@@ -261,6 +261,29 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.headers["Cache-Control"], "no-store")
             await response.read()
 
+    async def test_scalping_api_is_paper_only_and_needs_no_model_key(self):
+        self.engine.jev.key = ""
+        settings = {**self.engine.settings, "strategy": "scalp"}
+        response = await self.client.post("/api/settings", json=settings, headers=self.headers())
+        self.assertEqual(response.status, 200)
+        response = await self.client.post("/api/start", json={}, headers=self.headers())
+        self.assertEqual(response.status, 200)
+        await self.engine.stop()
+        self.engine.kraken.allow_live = True
+        response = await self.client.post(
+            "/api/mode",
+            json={"mode": "trading", "confirmation": "ENABLE LIVE TRADING"},
+            headers=self.headers(),
+        )
+        self.assertEqual(response.status, 409)
+        self.assertIn("paper-only", (await response.json())["error"])
+        self.engine.mode = "trading"
+        response = await self.client.post("/api/settings", json=settings, headers=self.headers())
+        self.assertEqual(response.status, 409)
+        self.engine.mode = "dry-run"
+        self.engine.jev.decide.assert_not_awaited()
+        self.engine.kraken.add.assert_not_awaited()
+
     async def test_no_dotenv_route(self):
         for path in ("/.env", "/static/.env", "/static/../.env"):
             response = await self.client.get(path)

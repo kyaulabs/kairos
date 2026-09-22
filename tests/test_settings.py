@@ -92,7 +92,7 @@ class SettingsTests(unittest.TestCase):
                         with self.assertRaises(SafetyError):
                             validate_settings(values)
         for product in ("margin", "futures"):
-            with self.assertRaisesRegex(SafetyError, "spot portfolios only"):
+            with self.assertRaisesRegex(SafetyError, "capital recovery is unavailable"):
                 validate_settings({**DEFAULTS, "product": product, "recover_initial": True})
 
     def test_public_contract_has_no_runtime_permissions_and_keeps_native_intervals(self):

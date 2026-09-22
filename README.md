@@ -23,7 +23,7 @@ Kairos is an experimental Kraken trading bot with Jev-assisted strategies and de
 ## Capabilities
 
 - Change the bot's market and strategy in Settings after stopping and reconciling orders; browse charts independently through the market picker.
-- Use real Kraken data in dry-run without exchange orders; model-assisted strategies use Jev, while DCA, TWAP, and rebalancing need no model calls.
+- Use real Kraken data in dry-run without exchange orders; model-assisted strategies use Jev, while Bollinger scalping, DCA, TWAP, and rebalancing need no model calls.
 - Choose the supplied Kairos dark/light brand palettes and violet, green, or red accents without changing the workspace layout or fonts.
 - Use a single-screen workspace with a chart, Jev assessment, settings sidebar, and bottom tabs for orders, activity, portfolio, read-only exchange accounts, and equity.
 - Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
@@ -42,9 +42,9 @@ Kairos is an experimental Kraken trading bot with Jev-assisted strategies and de
 
 Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) and the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for verified coverage and integration limitations.
 
-HTF, market making, DCA and TWAP support qualified linear perpetuals. Futures need separate collateral accounting, live credentials and arming; see [Futures operation and limitations](FUTURES.md). Neither live spot nor Futures execution has been verified with real orders.
+HTF, market making, DCA and TWAP support qualified linear perpetuals. [Bollinger range scalping](SCALPING.md) supports paper spot and paper linear Futures only. Futures need separate collateral accounting, live credentials and arming; see [Futures operation and limitations](FUTURES.md). Neither live spot nor Futures execution has been verified with real orders.
 
-The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search spot/FX, margin-eligible crypto, xStocks, and Futures without changing the bot, even while it is running. The Jev panel identifies the bot's configured market and the market of its latest assessment.
+The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search spot/FX, margin-eligible crypto, xStocks, and Futures without changing the bot, even while it is running. The D3 assessment panel identifies the bot's configured market and assessment market. It shows model bias, score distribution, signal history and move/cost context; scalping instead shows rolling-window bands and the saved protection plan. These displays are not profitability probabilities.
 
 The header shows the chart market's bid/ask midpoint, using the newest available WebSocket quote or public ticker snapshot. Picker and footer last-trade prices refresh about every ten seconds; stale prices are marked. The picker includes sortable rolling 24h change: spot/xStocks snapshots refresh about once a minute; Futures changes arrive with venue quotes. Volumes retain native asset or contract units. Favorites are stored in this browser, not the bot database. Live fills are detected during order reconciliation, not streamed directly from Kraken's private execution channel.
 
@@ -102,6 +102,7 @@ Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Take
 | Strategy | Behavior |
 | --- | --- |
 | Higher-timeframe trend | Assesses completed candles from 1 minute through 1 day (1m, 5m, 15m, 30m, 1h, 4h, 1d). Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
+| Bollinger range scalping | Paper-only spot longs / linear Futures longs and shorts. Uses a rolling 1-minute window, band re-entry, trend/cost filters and a durable fixed target, stop and holding deadline. No Jev calls. |
 | Market making | Posts one fee-aware, post-only quote and reconciles it before replacement. Quotes expire after 30 seconds. This is rate-limited market making, not exchange-grade HFT. |
 | Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
 | DCA | Buys a fixed quote amount, including fees, for a finite number of scheduled purchases. Requires the full run budget up front; no missed-purchase catch-up. |

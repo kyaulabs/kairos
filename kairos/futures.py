@@ -5,6 +5,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 
+from kairos import scalping
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.futures_client import UnsettledFutures, timestamp
 from kairos.strategies import limit_price, trend_state
@@ -378,7 +379,7 @@ class FuturesDesk:
 
     def intent(self, pair, side, volume, price, maker, reducing):
         now = time.time()
-        return {
+        order = {
             "id": str(uuid.uuid4()),
             "txid": None,
             "mode": self.engine.mode,
@@ -401,6 +402,9 @@ class FuturesDesk:
             "cost": "0",
             "fee": "0",
         }
+
+        scalping.tag(self.engine, order)
+        return order
 
     def apply(self, order, filled, cost, fee, status):
         ledger = self.ledger(order["mode"])
@@ -492,6 +496,8 @@ class FuturesDesk:
     ):
         engine = self.engine
         stop_generation = engine.stop_generation
+        if self.settings["strategy"] == "scalp" and engine.mode != "dry-run":
+            raise SafetyError("Bollinger scalping is paper-only")
         if (not engine.running and not close) or engine.orders(active=True):
             raise SafetyError("Futures engine stopped or previous order unresolved")
         engine.fees.rate(pair, maker)

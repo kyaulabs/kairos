@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from kairos import margin, programs
+from kairos import margin, programs, scalping
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.fees import AccountFees
@@ -96,6 +96,7 @@ class Engine:
             "margin": self.store.get("margin"),
             "futures": self.futures.ledger(),
             "program": programs.snapshot(self),
+            "scalp": scalping.snapshot(self) if self.settings["strategy"] == "scalp" else None,
             "capabilities": {
                 "crypto_spot": "paper-and-live",
                 "crypto_margin": "paper-only",
@@ -202,6 +203,28 @@ class Engine:
             if self.running or self.orders(active=True):
                 raise SafetyError("Stop and reconcile outstanding orders before changing settings")
             new = validate_settings(values)
+            if new["strategy"] == "scalp" and self.mode != "dry-run":
+                raise SafetyError("Bollinger scalping is paper-only")
+            if (
+                self.settings["strategy"] == "scalp"
+                and scalping.snapshot(self)["position"]
+                and scalping.quantity(self, self.resolve(self.settings["pair"]))
+            ):
+                if any(new[k] != self.settings[k] for k in ("strategy", "product", "pair")):
+                    raise SafetyError(
+                        "Close or reset the paper scalp position before changing strategy or market"
+                    )
+            if new["strategy"] == "scalp" and self.settings["strategy"] != "scalp":
+                if new["product"] == "spot" and any(
+                    dec(v)
+                    for a, v in self.ledger("dry-run")["balances"].items()
+                    if a != new["quote"]
+                ):
+                    raise SafetyError("Scalping requires a flat paper portfolio")
+                if new["product"] == "futures" and any(
+                    dec(p["quantity"]) for p in self.futures.ledger("dry-run")["positions"].values()
+                ):
+                    raise SafetyError("Scalping requires a flat paper portfolio")
             if new["product"] != self.settings["product"] and self.mode == "trading":
                 raise SafetyError("Switch to Dry-run before changing trading product")
             if new["product"] == "futures":
@@ -278,6 +301,7 @@ class Engine:
             else:
                 self.store.put("settings", new)
             self.settings = new
+            self.latest_decision = None
             await self.refresh_fees(required=False)
             self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
             self.event("settings", {"message": "Settings saved", "settings": new})
@@ -301,7 +325,12 @@ class Engine:
                 for strategy in programs.STRATEGIES:
                     self.store.put(f"program:dry-run:{strategy}", None)
             self.store.put("candle:dry-run", None)
+            self.store.put(
+                scalping.key(self), {"position": None, "last_candle": None, "cooldown_until": 0}
+            )
             self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
+            if self.mode == "dry-run":
+                self.latest_decision = None
             self.event("system", {"message": "Paper ledger reset; historical events retained"})
             self.emit_state()
 
@@ -322,6 +351,8 @@ class Engine:
             self.emit_state()
 
     async def live_preflight(self):
+        if self.settings["strategy"] == "scalp":
+            raise SafetyError("Bollinger scalping is paper-only")
         if self.settings["product"] == "futures":
             return await self.futures.preflight()
         if self.settings["product"] == "margin":
@@ -395,9 +426,16 @@ class Engine:
                 await self.live_preflight()
             else:
                 await self.refresh_fees(force=True)
-            if self.settings["strategy"] not in programs.STRATEGIES and not self.jev.key:
+            scalp = self.settings["strategy"] == "scalp"
+            if scalp:
+                scalping.prepare(self)
+            if (
+                not scalp
+                and self.settings["strategy"] not in programs.STRATEGIES
+                and not self.jev.key
+            ):
                 raise SafetyError("JEV_API_KEY is not configured")
-            await self.valuation(enforce=True)
+            await self.valuation(enforce=not (scalp and scalping.snapshot(self)["position"]))
             programs.prepare(self)
             self.running, self.last_error = True, None
             self.event("system", {"message": "Started", "mode": self.mode})
@@ -758,7 +796,17 @@ class Engine:
         self.event("order", order)
         return order
 
-    async def place(self, pair, side, volume, price, book, maker=False, *, program=None):
+    async def place(
+        self, pair, side, volume, price, book, maker=False, *, program=None, exit_only=False
+    ):
+        if self.settings["strategy"] == "scalp" and self.mode != "dry-run":
+            raise SafetyError("Bollinger scalping is paper-only")
+        if exit_only and (
+            self.settings["strategy"] != "scalp"
+            or maker
+            or not scalping.valid_exit(self, pair, side, volume)
+        ):
+            raise SafetyError("Only a tracked paper scalp position may use an exit-only order")
         if not self.running:
             raise SafetyError("Engine is stopped")
         if self.orders(self.mode, True):
@@ -767,10 +815,12 @@ class Engine:
         # Do not refresh away the planner's fee snapshot here; stale plans must fail closed.
         self.fees.rate(pair, maker)
         if self.settings["product"] == "futures":
-            return await self.futures.place(pair, side, volume, price, book, maker, program=program)
+            return await self.futures.place(
+                pair, side, volume, price, book, maker, program=program, close=exit_only
+            )
         if self.settings["product"] == "margin":
             return await self.place_margin(pair, side, volume, price, book, maker)
-        prices, exposure = await self.valuation(enforce=True)
+        prices, exposure = await self.valuation(enforce=not exit_only)
         quote = self.settings["quote"]
         # Also price intermediate arbitrage currencies in the configured quote.
         for asset in (pair.base, pair.quote):
@@ -848,6 +898,7 @@ class Engine:
         }
         if program:
             order.update(program_id=program["id"], program_slot=program["slot"])
+        scalping.tag(self, order)
         self.store.save_order(order)  # Durable intent and run identity before the network write.
         if self.mode == "dry-run":
             if maker:
@@ -1194,17 +1245,21 @@ class Engine:
                 if self.mode == "dry-run":
                     await self.paper_makers()
                 await self.cancel_active()
-                await self.valuation(enforce=True)
+                scalp = self.settings["strategy"] == "scalp"
+                if scalp:
+                    await scalping.run(self)
+                else:
+                    await self.valuation(enforce=True)
                 pair = self.resolve(self.settings["pair"])
-                recovered = await self.recover_capital()
-                if not recovered:
+                recovered = False if scalp else await self.recover_capital()
+                if not recovered and not scalp:
                     if self.settings["strategy"] in programs.STRATEGIES:
                         await programs.run(self)
                     elif self.settings["strategy"] == "arbitrage":
                         await self.arbitrage(pair)
                     else:
                         await self.directional(pair)
-                await self.valuation(enforce=True)
+                await self.valuation(enforce=not scalp)
             except Exception as exc:
                 self.running = False
                 self.last_error = (
