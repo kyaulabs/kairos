@@ -7,12 +7,16 @@
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
-  let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastSymbol, lastPortfolio;
+  let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
   const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds']);
-  const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); });
+  const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); }, markets => {
+    strategyMarketPicker.setPairs(markets);
+    if (state) updateStrategyMarket();
+  });
   const strategyMarketPicker = new StrategyMarketPicker();
+  const accountView = new AccountView(request);
   Promise.all([document.fonts.load('400 12px "Kairos Icons"'), document.fonts.load('900 12px "Kairos Icons"')])
     .then(faces => { if (faces.every(loaded => loaded.length)) document.documentElement.classList.add('icons-ready'); })
     .catch(() => { /* Licensed Pro files are optional; keep the text icon fallbacks. */ });
@@ -27,6 +31,7 @@
     const panel = $(tab.getAttribute('aria-controls'));
     const scroll = panel.closest('.settings-scroll');
     if (scroll) scroll.scrollTop = 0;
+    if (tab.id === 'accounts-tab') accountView.open();
   }
   for (const list of document.querySelectorAll('[role="tablist"]')) {
     const tabs = [...list.querySelectorAll('[role="tab"]')];
@@ -94,6 +99,7 @@
         const data = await request(`candles?${new URLSearchParams({pair, interval})}`, undefined, candleController.signal);
         if (generation !== candleGeneration) return;
         if (data.pair !== pair || data.interval !== interval) throw new Error('Candle market or interval mismatch');
+        priceChart.volumeUnit = data.volume_unit || 'base asset';
         priceChart.setCandles(data.candles);
         candleReceived = data.received; candleError = '';
       } catch (error) {
@@ -138,10 +144,11 @@
     const selected = symbol();
     marketPicker.setSelected(chartPair);
     $('bot-market').textContent = botPair.symbol;
-    $('chart-context').textContent = chartPair.id === botPair.id ? 'Bot market' : `Chart only · bot: ${botPair.symbol}`;
+    $('chart-context').textContent = chartPair.id === botPair.id ? 'Bot market' : `${MarketPicker.kindLabel(chartPair)} · chart only · bot: ${botPair.symbol}`;
+    $('chart-context').title = chartPair.execution_reason || MarketPicker.kindLabel(chartPair);
     $('chart-context').classList.toggle('browsing', chartPair.id !== botPair.id);
-    if (lastSymbol !== selected) {
-      priceChart.clear(); lastSymbol = selected;
+    if (lastMarket !== chartPair.id) {
+      priceChart.clear(); lastMarket = chartPair.id;
       $('price').textContent = '—'; $('bid-ask').textContent = 'Waiting for prices'; $('feed-age').textContent = '—';
       restartCandles();
     }
@@ -150,6 +157,7 @@
       equityChart.clear(); priceChart.fills = []; priceChart.draw(); lastPortfolio = portfolio;
     }
     $('market-title').textContent = selected || state.settings.pair;
+    $('market-open').title = `${selected} · ${MarketPicker.kindLabel(chartPair)} · Chart only`;
     $('mode').value = state.mode;
     $('mode-badge').textContent = state.mode === 'trading' ? 'LIVE TRADING' : `DRY-RUN · ${state.settings.product.toUpperCase()}`;
     $('mode-badge').classList.toggle('live', state.mode === 'trading');
@@ -293,7 +301,8 @@
     const candleAge = Math.max(0, Date.now()/1000-candleReceived);
     $('candle-status').textContent = candleError || (candleReceived ? `${candleAge > 15 ? 'STALE · ' : ''}Candles refreshed ${candleAge.toFixed(0)}s ago · latest candle may be forming` : 'Loading candles…');
     marketPicker.updateFreshness();
-    const ticker = [tickers[symbol()], marketPicker.ticker(symbol())].filter(Boolean).sort((a, b) => b.received-a.received)[0];
+    const spotTicker = ['xstocks', 'futures'].includes(chartPair?.kind) ? null : tickers[symbol()];
+    const ticker = [spotTicker, marketPicker.ticker(chartPair?.id)].filter(Boolean).sort((a, b) => b.received-a.received)[0];
     if (!ticker) { $('price').textContent = '—'; $('bid-ask').textContent = 'Waiting for prices'; $('feed-age').textContent = 'No market feed'; return; }
     const age = Math.max(0, (Date.now()/1000-ticker.received));
     $('feed-age').textContent = `${age > 30 ? 'STALE · ' : ''}${age.toFixed(0)}s ago`;

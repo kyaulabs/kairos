@@ -168,7 +168,7 @@ class LiveChart {
         .attr('fill', d => d.value >= d.open ? '#3de0b1' : '#ff788d').attr('fill-opacity', .5);
       this.volumeAxis.attr('transform', `translate(${width-m.right},0)`)
         .call(d3.axisRight(volumeY).ticks(2).tickFormat(d3.format('.3~s')).tickSize(0).tickPadding(12));
-      this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-7).text('Volume · base asset');
+      this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-7).text(`Volume · ${this.volumeUnit || 'base asset'}`);
       const bars = this.candleGroup.selectAll('g.candle').data(visible, d => d.time).join(enter => {
         const bar = enter.append('g').attr('class', 'candle');
         bar.append('line'); bar.append('rect');
@@ -222,7 +222,7 @@ class LiveChart {
       d3.timeFormat('%Y-%m-%d %H:%M')(new Date(point.time)),
       `O ${format(point.open)}  H ${format(point.high)}`,
       `L ${format(point.low)}  C ${format(point.value)}`,
-      `V ${format(point.volume)} · base asset`,
+      `V ${format(point.volume)} · ${this.volumeUnit || 'base asset'}`,
     ] : [`${d3.timeFormat('%H:%M:%S')(new Date(point.time))}  ·  ${d3.format(',.8~f')(point.value)}`];
     this.tip.selectAll('tspan').data(lines).join('tspan').attr('x', 6).attr('y', (_, i) => 14+i*14).text(d => d);
   }

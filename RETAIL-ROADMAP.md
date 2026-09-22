@@ -1,0 +1,53 @@
+# Retail API and strategy roadmap
+
+The agreed scope is Kraken retail markets and account data. Funding and Earn stay read-only. Each strategy uses an explicit, pre-funded allocation; Kairos must not convert currencies or transfer money to fund a trade. This is a staged integration, not a claim that every Kraken endpoint is implemented.
+
+| Milestone | Status | Result |
+| --- | --- | --- |
+| Unified market and account views | Implemented | Spot/FX, margin eligibility, xStocks, and Futures discovery; quotes, candles, and separate read-only account snapshots. |
+| Native-currency allocations | Planned | Persist allocations and reservations by venue, wallet, product, and currency without treating exchange balances as bot capital. |
+| DCA and TWAP | Planned | Deterministic scheduled accumulation and bounded order slicing, first in paper mode on the existing spot execution path. |
+| Threshold rebalancing | Planned | A funded spot basket with target weights, drift thresholds, and fee-aware order planning. |
+| Additional product execution | Requires separate approval and verification | Product-specific accounting, eligibility, simulation, risk, and recovery before live orders. |
+
+## Implemented coverage
+
+The chart picker and Strategy search share a catalog. Product filters distinguish crypto spot, margin-eligible crypto, fiat/FX, tokenized xStocks, and Futures. Margin eligibility comes from public pair metadata, not an account permission check. New product IDs are namespaced; xStocks and Futures cannot enter the existing execution catalog. Strategy shows their browse-only restrictions.
+
+xStocks discovery requests the current tokenized asset version and deduplicates legacy SPV aliases using canonical names. These instruments are tokens, not brokerage shares. Futures retain contract symbols, underlying pairs, contract types, and contract sizes; their quantities must not be treated as spot coin balances. Quotes retain their venue's receipt time after a failed refresh. Volume is in native units, not comparable USD turnover. Spot/xStocks rolling changes use WebSocket v2 snapshots; Futures use `change24h`.
+
+The Exchange accounts tab reads only when opened, changed, or refreshed. Its 30-second server cache is separate from the trading ledger.
+
+| View | API reads |
+| --- | --- |
+| Spot-family wallet | `BalanceEx`, including exchange asset IDs and trade holds |
+| Spot-family orders and recent trades | `OpenOrders`, `TradesHistory` |
+| Margin collateral and positions | `TradeBalance` in USD, `OpenPositions` |
+| Earn allocations | `Earn/Allocations`, preserving native and converted currency labels |
+| Deposit and withdrawal ledger entries | `Ledgers` filtered by transaction type |
+| Futures wallets, positions, orders, recent fills | Derivatives `accounts`, `openpositions`, `openorders`, `fills` |
+
+These are snapshots of the account accessible to the configured key, not imported bot holdings. Margin collateral overlaps spot balances; Earn and Futures remain separate views, with no summed equity or automatic allocation. History shows the first returned page and tables are capped at 1,000 rows. Pending funding status, funding-method discovery, additional wallet/subaccount selection, exhaustive history pagination, and private streaming are not implemented. Funding history uses ledger reads rather than the deprecated deposit/withdrawal status endpoints. The Funding Beta API is not integrated.
+
+Public integration checks on 2026-09-22 returned 1,339 crypto spot, 12 FX, 172 canonical xStocks, and 296 Futures instruments. xStocks/Futures quotes and candles worked, as did rolling change for all 172 xStocks. Counts change with listings. Private signing, response normalization, failure handling, and execution isolation were checked with fixtures; no real private-account request, order, transfer, or Jev inference was made. Account access and entitlements remain unverified.
+
+## Strategy requirements
+
+DCA buys a fixed quote-currency amount on a schedule, with a total budget and end condition. Persist the next due event and order identity so a restart cannot buy twice. Skip missed intervals instead of accumulating an uncapped catch-up order. Insufficient allocated funds, stale data, excessive spread, fees, or minimum-size failures skip the purchase with a reason.
+
+TWAP splits an approved parent order into time-spaced children, bounded by its total quantity, duration, limit price, and available allocation. Reconcile each child before spending its reservation again. Partial fills reduce the remaining parent quantity; unknown submission or cancellation outcomes pause the schedule. Stop cancels tracked children, not unrelated exchange orders. TWAP reduces order concentration; it does not guarantee a better execution price.
+
+Threshold rebalancing compares a spot basket with configured target weights and trades only outside a drift band. Begin with a single funded quote currency, a cooldown, turnover limits, and a minimum trade size that accounts for costs. Sells reduce allocated holdings; buys spend allocated cash and confirmed proceeds. A rejected sell must not fund a later buy. No automatic FX conversion, cross-wallet funding, or use of Earn collateral is permitted.
+
+These methods should use deterministic planning and the existing execution safeguards. Jev need not approve every scheduled purchase. Any optional model veto must be explicit and recorded; it must not change budgets, scheduling identity, or risk limits. None of these strategies is enabled by the market/account milestone, and none implies profitability.
+
+## Gates for broader execution
+
+- Keep existing order identities, persisted intents, uncertain-write reconciliation, fee reserves, exposure/loss limits, and protected principal. Never retry an ambiguous write blindly.
+- Keep paper and live ledgers separate. Account discovery must not make a wallet spendable or change the bot's configured market.
+- Qualify xStocks for token units, rebasing/corporate-action effects, fees, sessions, and account eligibility. Do not infer share ownership from a stock-like ticker.
+- Qualify margin for borrowing, collateral haircuts, rollover fees, maintenance, liquidation, and position reconciliation. Its current simulator is not a live margin adapter.
+- Qualify Futures separately for linear/inverse contracts, collateral, funding, settlement/expiry, reduce-only orders, liquidation, and restart recovery. Public Derivatives listings do not establish access to every US or regional futures product.
+- Brokerage shares and DEX remain outside the verified integration. Require an applicable documented API and explicit scope before implementation. Withdrawals, transfers, automatic conversions, and Earn allocation/deallocation remain excluded.
+
+API sources: [Spot REST specification](https://docs.kraken.com/openapi/spot-rest.yaml), [Futures authentication](https://docs.kraken.com/api/docs/guides/futures-rest/), [Kraken API index](https://docs.kraken.com/llms.txt), and [WebSocket v2 ticker](https://docs.kraken.com/exchange/api-reference/spot-websocket-v2/ticker). See [operations](OPERATIONS.md#exchange-account-snapshots) for credentials and the [CLI review](KRAKEN-CAPABILITIES.md) for nonce and retry hazards. Kairos uses native HTTP/WebSocket clients; it does not install or execute the CLI.

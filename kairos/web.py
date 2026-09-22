@@ -12,9 +12,11 @@ import aiohttp
 from aiohttp import web
 from dotenv import load_dotenv
 
+from kairos.accounts import SOURCES, account_snapshot
 from kairos.clients import Jev, Kraken, ticker_feed
 from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
+from kairos.retail import Futures, RetailMarkets
 from kairos.store import Store, encode
 
 STATIC = Path(__file__).parent / "static"
@@ -85,9 +87,8 @@ async def state(request):
 
 
 async def catalog(request):
-    engine = request.app["engine"]
-    # Visibility is not execution permission; Engine.configure keeps the quote/product gates.
-    return web.json_response([p.public() for p in engine.kraken.pairs.values()])
+    # Discovery is separate from Engine.kraken.pairs, the unchanged execution catalog.
+    return web.json_response(list((await request.app["retail"].catalog()).values()))
 
 
 async def markets(request):
@@ -96,28 +97,56 @@ async def markets(request):
         cached = request.app["market_cache"]
         if not cached or time.monotonic() >= cached["expires"]:
             engine = request.app["engine"]
-            tickers = await engine.kraken.market_tickers()
-            received = time.time()
+            retail = request.app["retail"]
+            instruments = await retail.catalog()
+            extra, errors = await retail.extra_quotes()
+            errors = {**retail.catalog_errors, **errors}
+            spot = request.app["spot_quote_cache"]
+            try:
+                tickers = await engine.kraken.market_tickers()
+                spot.update(values=tickers, received=time.time())
+            except SafetyError:
+                errors["spot"] = (
+                    "Spot quotes unavailable; prior prices retain their original timestamps"
+                )
             changes = request.app["market_change_cache"]
             if not changes or time.monotonic() >= changes["expires"]:
-                values = await engine.kraken.market_changes()
+                values = await engine.kraken.market_changes(
+                    {row["symbol"]: row["id"] for row in retail.extra["xstocks"].values()}
+                )
                 changes.update(
                     values=values,
                     received=time.time() if values else None,
                     expires=time.monotonic() + 60,
                 )
-            data = {
-                "received": received,
-                "change_received": changes["received"],
-                "markets": [
-                    {
-                        "id": p.id,
-                        "symbol": p.symbol,
-                        **tickers.get(p.id, {}),
-                        "change_pct": changes["values"].get(p.id),
+            rows = []
+            for identifier, instrument in instruments.items():
+                quote = (
+                    extra.get(identifier, {})
+                    if instrument["kind"] in {"xstocks", "futures"}
+                    else {
+                        **spot.get("values", {}).get(identifier, {}),
+                        "received": spot.get("received"),
                     }
-                    for p in engine.kraken.pairs.values()
-                ],
+                )
+                derivative = instrument["kind"] == "futures"
+                rows.append(
+                    {
+                        **instrument,
+                        **quote,
+                        "change_pct": quote.get("change_pct")
+                        if derivative
+                        else changes["values"].get(identifier),
+                        "change_received": quote.get("received")
+                        if derivative
+                        else changes["received"],
+                    }
+                )
+            data = {
+                "received": max((row.get("received") or 0 for row in rows), default=0),
+                "change_received": changes["received"],
+                "errors": list(errors.values()),
+                "markets": rows,
             }
             cached.update(expires=time.monotonic() + 10, data=data)
         return web.json_response(cached["data"])
@@ -129,32 +158,23 @@ async def candles(request):
         raise SafetyError("Unsupported candle interval")
     # Share short-lived public snapshots across tabs without caching strategy inputs.
     async with request.app["candle_lock"]:
-        engine = request.app["engine"]
-        pair = engine.kraken.pairs.get(request.query["pair"])
-        if pair is None:
+        retail = request.app["retail"]
+        market = (await retail.catalog()).get(request.query["pair"])
+        if market is None:
             raise SafetyError("Unsupported chart market")
         cache = request.app["candle_cache"]
         for key in list(cache):
             if time.monotonic() >= cache[key][0]:
                 del cache[key]
-        key = (pair.id, minutes)
+        key = (market["id"], minutes)
         if key not in cache or time.monotonic() >= cache[key][0]:
-            rows = await engine.kraken.ohlc(pair, minutes)
+            rows = await retail.candles(market, minutes)
             data = {
-                "pair": pair.id,
+                "pair": market["id"],
                 "interval": minutes,
                 "received": time.time(),
-                "candles": [
-                    {
-                        "time": r[0],
-                        "open": r[1],
-                        "high": r[2],
-                        "low": r[3],
-                        "close": r[4],
-                        "volume": r[6],
-                    }
-                    for r in rows[-720:]
-                ],
+                "volume_unit": market["chart_volume_unit"],
+                "candles": rows,
             }
             if len(cache) >= 32:
                 del cache[next(iter(cache))]
@@ -164,6 +184,23 @@ async def candles(request):
 
 async def history(request):
     return web.json_response(request.app["engine"].store.history())
+
+
+async def accounts(request):
+    source = request.match_info["source"]
+    if source not in SOURCES:
+        raise web.HTTPNotFound()
+    async with request.app["account_lock"]:
+        cache = request.app["account_cache"]
+        if source not in cache or time.monotonic() >= cache[source][0]:
+            retail = request.app["retail"]
+            try:
+                data = await account_snapshot(retail.spot, retail.futures, source)
+            except (KeyError, ValueError, TypeError, AttributeError):
+                raise SafetyError("Account response could not be interpreted safely") from None
+            data["received"] = time.time()
+            cache[source] = (time.monotonic() + 30, data)
+        return web.json_response(cache[source][1])
 
 
 async def command(request):
@@ -257,6 +294,12 @@ async def lifecycle(app):
         )
         engine = Engine(store, kraken, jev, app["hub"].publish)
         app["engine"], app["session"] = engine, session
+        futures = Futures(
+            session,
+            os.environ.get("KRAKEN_FUTURES_API_KEY", ""),
+            os.environ.get("KRAKEN_FUTURES_PRIVATE_KEY", ""),
+        )
+        app["retail"] = RetailMarkets(kraken, futures)
         app["feed_restart"] = asyncio.Event()
         feed_task = None
         try:
@@ -278,13 +321,16 @@ async def index(request):
     return web.FileResponse(STATIC / "index.html")
 
 
-def create_app(engine=None, origin=None):
+def create_app(engine=None, origin=None, futures=None):
     app = web.Application(middlewares=[security], client_max_size=16 * 1024)
     app["hub"] = Hub()
     app["candle_cache"] = {}
     app["candle_lock"] = asyncio.Lock()
     app["market_cache"] = {}
     app["market_change_cache"] = {}
+    app["spot_quote_cache"] = {}
+    app["account_cache"] = {}
+    app["account_lock"] = asyncio.Lock()
     app["market_lock"] = asyncio.Lock()
     app["csrf"] = secrets.token_urlsafe(32)
     app["origin"] = (origin or os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8000")).rstrip("/")
@@ -293,11 +339,13 @@ def create_app(engine=None, origin=None):
         app.cleanup_ctx.append(lifecycle)
     else:
         app["engine"] = engine
+        app["retail"] = RetailMarkets(engine.kraken, futures)
         app["feed_restart"] = asyncio.Event()
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/pairs", catalog)
     app.router.add_get("/api/markets", markets)
     app.router.add_get("/api/history", history)
+    app.router.add_get("/api/accounts/{source}", accounts)
     app.router.add_get("/api/candles", candles)
     app.router.add_get("/api/events", events)
     app.router.add_post("/api/{action}", command)

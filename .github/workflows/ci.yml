@@ -16,6 +16,8 @@ env:
   ALLOW_LIVE_TRADING: "false"
   KRAKEN_API_KEY: ""
   KRAKEN_PRIVATE_KEY: ""
+  KRAKEN_FUTURES_API_KEY: ""
+  KRAKEN_FUTURES_PRIVATE_KEY: ""
   JEV_API_KEY: ""
 
 jobs:
@@ -51,7 +53,8 @@ jobs:
           node --check kairos/static/chart.js
           node --check kairos/static/markets.js
           node --check kairos/static/strategy-market.js
-      - name: Test charts and market pickers
+          node --check kairos/static/accounts.js
+      - name: Test dashboard components
         run: node --test tests/*.test.cjs
 
   tests:
