@@ -70,7 +70,8 @@ class MarketPicker {
     });
   }
   static iconPath(currency) {
-    const symbol = currency.toLowerCase();
+    // Kraken's XDG symbol denotes Dogecoin, not a separate asset.
+    const symbol = currency.toUpperCase() === 'XDG' ? 'doge' : currency.toLowerCase();
     return MarketPicker.iconSymbols.has(symbol) ? `/static/vendor/crypto-icons/${symbol}.svg` : null;
   }
   static pairIcon(symbol) {

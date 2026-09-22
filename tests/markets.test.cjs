@@ -73,6 +73,11 @@ test('currency icons use only bundled local files; unknown symbols have no image
   const {browser} = fixture();
   assert.equal(browser.MarketPicker.iconPath('BTC'), '/static/vendor/crypto-icons/btc.svg');
   assert.equal(browser.MarketPicker.iconPath('USD'), '/static/vendor/crypto-icons/usd.svg');
+  assert.equal(browser.MarketPicker.iconPath('XDG'), '/static/vendor/crypto-icons/doge.svg');
+  assert.equal(browser.MarketPicker.iconPath('DOGE'), '/static/vendor/crypto-icons/doge.svg');
+  for (const ambiguous of ['ACT', 'BEAM', 'BLZ', 'BOS', 'CC', 'CTR', 'POLIS', 'SAFE', 'SKY', 'WINGS']) {
+    assert.equal(browser.MarketPicker.iconPath(ambiguous), null);
+  }
   assert.equal(browser.MarketPicker.iconPath('UNLISTED'), null);
   assert.equal(browser.MarketPicker.iconPath('../btc'), null);
   const files = readdirSync(path.join(__dirname, '../kairos/static/vendor/crypto-icons')).filter(name => name.endsWith('.svg')).map(name => name.slice(0, -4));
