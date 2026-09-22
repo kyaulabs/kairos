@@ -34,14 +34,14 @@ Kairos is an experimental Kraken trading bot that uses TypeSafe's Jev model to a
 | --- | --- | --- |
 | USD-quoted crypto spot | Simulated fills using real market data | Guarded Kraken limit orders |
 | Crypto margin | Separate long/short simulation | Disabled |
-| Direct US stocks and ETFs | Not yet supported | Blocked pending a documented equities API |
+| Direct US stocks and ETFs | Not yet supported | No brokerage integration verified |
 | xStocks | Not implemented | Not implemented |
 
-Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) for the API limitation.
+Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) and the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for verified coverage and integration limitations.
 
 The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search crypto markets without changing the bot, even while it is running. The Jev panel identifies the bot's configured market and the market of its latest assessment.
 
-The header shows the chart market's bid/ask midpoint, using the newest available WebSocket quote or public ticker snapshot. Picker and footer last-trade prices refresh about every ten seconds; stale prices are marked. Favorites are stored in this browser, not the bot database. Live fills are detected during order reconciliation, not streamed directly from Kraken's private execution channel.
+The header shows the chart market's bid/ask midpoint, using the newest available WebSocket quote or public ticker snapshot. Picker and footer last-trade prices refresh about every ten seconds; stale prices are marked. The picker includes sortable rolling 24h change, refreshed separately about once a minute. Favorites are stored in this browser, not the bot database. Live fills are detected during order reconciliation, not streamed directly from Kraken's private execution channel.
 
 ## Quick start
 
@@ -80,7 +80,7 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 
 ## Your first dry-run
 
-1. In **Kairos settings > Strategy**, choose the bot's market, strategy, and **Spot** product. The header picker changes only the chart.
+1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies and margin combinations remain visible with explanations. The header picker changes only the chart.
 2. In **Capital**, set **Paper balance** to the amount you want to simulate, such as `100` USD.
 3. Click **Use full starting allocation**, then review the order cap, exposure cap, daily loss limit, and fee assumptions.
 4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
@@ -147,6 +147,7 @@ uv run --no-sync python -m unittest discover -v
 node --check kairos/static/app.js
 node --check kairos/static/chart.js
 node --check kairos/static/markets.js
+node --check kairos/static/strategy-market.js
 node --test tests/*.test.cjs
 ```
 

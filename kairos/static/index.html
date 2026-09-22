@@ -10,6 +10,7 @@
   <script defer src="/static/chart.js"></script>
   <script defer src="/static/vendor/crypto-icons/symbols.js"></script>
   <script defer src="/static/markets.js"></script>
+  <script defer src="/static/strategy-market.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -102,15 +103,22 @@
             <p class="settings-hint">Stop first to change settings. Spot holdings remain tracked when changing markets.</p>
             <div id="strategy-settings" role="tabpanel" aria-labelledby="strategy-tab">
               <div class="fields">
-                <label>Asset class<select id="asset-class"><option value="crypto">Crypto</option><option value="stocks" disabled>US stocks / ETFs — API unconfirmed</option></select></label>
-                <label>Market<select name="pair" id="pair"></select></label>
+                <label class="wide">Asset class<select id="asset-class"><option value="crypto">Crypto / currency spot markets</option><option value="stocks" disabled>Brokerage stocks / ETFs — not integrated</option></select></label>
+                <div id="strategy-market" class="strategy-market wide">
+                  <label for="pair-search">Bot market</label>
+                  <input type="hidden" name="pair" id="pair">
+                  <input id="pair-search" type="search" role="combobox" aria-expanded="false" aria-controls="pair-options" aria-autocomplete="list" aria-describedby="pair-help" autocomplete="off" spellcheck="false" placeholder="Search all markets…">
+                  <div id="pair-options" class="pair-options" role="listbox" aria-label="Bot markets" hidden></div>
+                  <p id="pair-status" class="muted" role="status"></p>
+                  <p id="pair-help" class="muted">The full chart-picker catalog is shown. Quote-currency and margin limitations are Kairos safeguards, not account restrictions. Choose a supported pair, then Save settings.</p>
+                </div>
                 <label class="wide">Strategy<select name="strategy"><option value="htf">Higher-timeframe trend</option><option value="maker">Market making</option><option value="arbitrage">Triangular arbitrage</option></select></label>
                 <label class="wide">Product<select name="product"><option value="spot">Spot</option><option value="margin">Margin · paper only</option></select></label>
                 <label>Decision interval · sec<input name="interval_seconds" type="number" min="10" max="3600" step="1" required></label>
                 <label>HTF candle interval<select name="candle_minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option></select></label>
                 <label class="wide">Jev minimum confidence<input name="min_confidence" type="number" min="0" max="1" step="0.01" required></label>
               </div>
-              <details><summary>US stocks / ETFs status</summary><p>Direct US stocks are not xStocks. Kraken offers equities in its app, but the linked public Exchange API does not document US brokerage order submission. Stock execution is blocked until Kraken provides that API. No tokenized substitute is used.</p><a href="https://docs.kraken.com/exchange/api-reference/overview" target="_blank" rel="noopener noreferrer">Kraken API reference</a></details>
+              <details><summary>Other Kraken products</summary><p>The official Kraken CLI supports xStocks (tokenized stocks/ETFs), margin, and futures. These are not brokerage stock ownership. Brokerage stock/ETF and DEX execution were not found in the reviewed CLI. Kairos currently supports spot and simulated margin; other products need separate integrations, not just additional market choices.</p><a href="https://github.com/krakenfx/kraken-cli#what-you-can-trade" target="_blank" rel="noopener noreferrer">Kraken CLI product coverage</a></details>
             </div>
             <div id="capital-settings" role="tabpanel" aria-labelledby="capital-tab" hidden>
               <div class="fields">
@@ -156,11 +164,11 @@
 </footer>
 <dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title" aria-describedby="market-dialog-note">
   <div class="market-dialog-head"><div><h2 id="market-dialog-title">Choose a chart market</h2><p id="market-dialog-note">Browse without changing the bot’s trading market.</p></div><button id="market-close" type="button" aria-label="Close market picker"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
-  <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search crypto markets</span><input id="market-search" type="search" placeholder="Search markets, e.g. BTC or ETH/USD" autocomplete="off" spellcheck="false"></label>
-  <div class="market-filters" aria-label="Market filters"><button id="markets-all" type="button" aria-pressed="true">All crypto</button><button id="markets-favorites" type="button" aria-pressed="false"><span class="icon icon-star" aria-hidden="true">☆</span> Favorites</button><span id="market-feed-status" role="status">Loading prices…</span></div>
-  <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · base <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
+  <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search spot markets</span><input id="market-search" type="search" placeholder="Search markets, e.g. BTC or ETH/USD" autocomplete="off" spellcheck="false"></label>
+  <div class="market-filters" aria-label="Market filters"><button id="markets-all" type="button" aria-pressed="true">All spot</button><button id="markets-favorites" type="button" aria-pressed="false"><span class="icon icon-star" aria-hidden="true">☆</span> Favorites</button><div class="market-feed-times"><span id="market-feed-status" role="status">Loading prices…</span><span id="market-change-status">Loading 24h change…</span></div></div>
+  <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="change_pct">24h change <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · base <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
   <p id="market-storage-status" class="warning" role="status" hidden></p>
-  <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Prices refresh about every 10s. Favorites are saved in this browser.</p>
+  <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Prices refresh about every 10s; rolling 24h change about every minute. — means unavailable. Favorites are saved in this browser.</p>
 </dialog>
 </body>
 </html>

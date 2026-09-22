@@ -4,15 +4,15 @@ Kairos runs Jev-assisted trading strategies against Kraken market data. The work
 
 The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices and base-asset volume. Matching volume bars share the candle timeline. The current-price badge and dashed line follow the candle color; there is no candle dot. Portfolio equity remains a line chart in the Equity tab.
 
-Click the market beside the logo to open the searchable crypto picker. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and save a new market under Settings > Strategy.
+Click the market beside the logo to open the searchable spot-market picker. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and search the custom Bot market dropdown under Settings > Strategy. It shows the same full catalog as the chart picker, including pairs quoted in other currencies. Unsupported quote currencies or margin/leverage combinations remain visible with reasons; they are not account-access restrictions. Use arrow keys and Enter to choose, or Escape to discard a search. Selection changes a draft only; Save settings applies it. Changing products/leverage updates the limitations without discarding other draft fields. The portfolio's accounting currency remains fixed, and the backend still rejects unsupported configurations.
 
-The picker starts with Market sorted A–Z. Click Market to reverse it; select Last price or 24h volume to sort highest-first, then click again for lowest-first. Sorting survives search, favorite filtering, and price refreshes for the current page session. Unavailable values stay at the bottom. Volume is in each market's base-asset units, not a common USD notional.
+The picker starts with Market sorted A–Z. Click Market to reverse it; select Last price, 24h change, or 24h volume to sort highest-first, then click again for lowest-first. Sorting survives search, favorite filtering, and price refreshes for the current page session. Unavailable values stay at the bottom. Volume is in each market's base-asset units, not a common USD notional.
 
 Currency icons appear beside the selected chart pair, picker rows, and footer favorites. Missing artwork uses ticker-letter badges.
 
 Stars add or remove footer favorites. They persist across reloads in this browser's local storage and synchronize between tabs on the same origin; clearing site data removes them. They do not synchronize to other browser profiles or devices. Footer prices update independently of the selected chart. An unavailable market shows no invented price. If storage is blocked, the picker warns that favorites last only for the current page session.
 
-Picker and footer prices are last trades from a public Kraken ticker snapshot refreshed about every ten seconds, with a shared server cache. The volume column is the last 24 hours in base-asset units. The header is a bid/ask midpoint from the newest available snapshot or WebSocket quote, not the candle close. Prices older than 30 seconds are marked stale. Chart snapshots and browsing quotes are not execution inputs; execution fetches its own fresh depth.
+Picker and footer prices are last trades from a public Kraken ticker snapshot refreshed about every ten seconds, with a shared server cache. The volume column is the last 24 hours in base-asset units. Rolling 24h change comes directly from WebSocket v2 `change_pct`, collected in batches of at most 100 pairs with a 12-second total budget and cached for 60 seconds across all browser tabs. It has its own refresh timestamp and is marked stale after 90 seconds. Missing values display as —, not zero; partial or failed change snapshots do not remove REST quote prices. A cold refresh can take longer while changes load. REST's midnight-UTC opening price is not used as a 24-hour baseline. The header is a bid/ask midpoint from the newest available snapshot or WebSocket quote, not the candle close. Prices older than 30 seconds are marked stale. Chart snapshots and browsing quotes are not execution inputs; execution fetches its own fresh depth.
 
 HOLD means no new trade. With no position in the assessed market, the display calls it WAIT. Confidence is confidence in that assessment, not a probability of profit. The HTF panel shows the historical move and existing fee/slippage threshold when its buy filter is not met.
 
@@ -24,10 +24,10 @@ This is an experimental trading application, not evidence of a profitable strate
 | --- | --- | --- |
 | Crypto spot, USD-quoted markets | Real feeds and Jev, simulated fills | Kraken limit orders |
 | Crypto margin | Simplified long/short simulation | Blocked |
-| Direct US stocks and ETFs | Blocked pending API documentation | Blocked pending API documentation |
+| Direct US stocks and ETFs | Not implemented | No brokerage integration verified |
 | xStocks | Not implemented; not a substitute for US stocks | Not implemented |
 
-Kraken offers direct equities in its US product. However, the linked public Exchange specification does not document US brokerage order submission. Its `AddOrder.asset_class` parameter documents tokenized assets, and `TradeVolume` mentions equity classes, but a fee lookup is not an equities execution API. Kairos displays this limitation rather than submitting guessed stock requests. Stock support remains unfinished until Kraken supplies the applicable market-data, account, and order APIs.
+Kraken offers direct equities in its US product. No applicable retail brokerage order path was found in the official CLI or public Exchange documentation reviewed; this is not a claim that no partner or institutional equities API exists. The CLI supports xStocks and equity/index futures, neither of which is brokerage share ownership. Futures, DEX, and xStocks are not integrated into Kairos. See the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for product coverage, tested public endpoints, and integration requirements. Do not reuse Kairos's API key with the CLI: their different nonce units can break Kairos authentication. CLI timeout retries also conflict with Kairos's ambiguous-order recovery safeguards.
 
 References:
 
@@ -212,6 +212,7 @@ node --check kairos/static/chart.js
 node --test tests/*.test.cjs
 node --check kairos/static/app.js
 node --check kairos/static/markets.js
+node --check kairos/static/strategy-market.js
 ```
 
 Stop the app before the bounded integration check so authenticated nonces remain ordered:

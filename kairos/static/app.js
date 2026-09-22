@@ -12,6 +12,7 @@
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
   const integerFields = new Set(['interval_seconds', 'candle_minutes', 'stale_seconds', 'leverage', 'recovery_check_seconds']);
   const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); });
+  const strategyMarketPicker = new StrategyMarketPicker();
   Promise.all([document.fonts.load('400 12px "Kairos Icons"'), document.fonts.load('900 12px "Kairos Icons"')])
     .then(faces => { if (faces.every(loaded => loaded.length)) document.documentElement.classList.add('icons-ready'); })
     .catch(() => { /* Licensed Pro files are optional; keep the text icon fallbacks. */ });
@@ -105,12 +106,22 @@
     }
     refresh();
   }
+  function updateStrategyMarket() {
+    strategyMarketPicker.update({
+      quote: state.settings.quote,
+      quoteLabel: pairs.find(pair => pair.id === state.settings.pair)?.symbol.split('/')[1] || state.settings.quote,
+      product: form.elements.namedItem('product').value,
+      leverage: Number(form.elements.namedItem('leverage').value), mode: state.mode,
+    });
+  }
+  for (const name of ['product', 'leverage']) form.elements.namedItem(name).addEventListener('change', () => { if (state) updateStrategyMarket(); });
   function loadForm() {
     for (const [key, value] of Object.entries(state.settings)) {
       const input = form.elements.namedItem(key);
       if (input?.type === 'checkbox') input.checked = value;
       else if (input) input.value = value;
     }
+    updateStrategyMarket(); strategyMarketPicker.sync();
   }
   function textRow(container, left, right) {
     const row = document.createElement('div'); row.className = 'holding';
@@ -156,6 +167,7 @@
     $('engine-error').textContent = state.error || '';
     $('start').disabled = busy || !connected || state.running || !state.ready;
     $('settings-fields').disabled = busy || state.running;
+    updateStrategyMarket();
     $('mode').disabled = busy || !connected;
     const decision = state.decision;
     if (decision) {
@@ -290,8 +302,7 @@
   }, 500);
   async function boot() {
     pairs = await request('pairs');
-    pairs.sort((a,b) => a.symbol.localeCompare(b.symbol));
-    for (const pair of pairs) { const option = document.createElement('option'); option.value = pair.id; option.textContent = pair.symbol; $('pair').append(option); }
+    strategyMarketPicker.setPairs(pairs);
     render(await request('state'));
     marketPicker.refresh();
     for (const event of await request('history')) addEvent(event);

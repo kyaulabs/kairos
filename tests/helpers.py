@@ -80,6 +80,7 @@ def fake_kraken():
             for p in (BTC, ETH, CROSS)
         }
     )
+    fake.market_changes = AsyncMock(return_value={BTC.id: "2.5", ETH.id: "-1.25"})
     fake.balances = AsyncMock(
         return_value={"ZUSD": dec("10000"), "XXBT": dec("1"), "XETH": dec("10")}
     )

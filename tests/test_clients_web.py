@@ -2,9 +2,13 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import json
 import unittest
-from unittest.mock import AsyncMock, patch
+from dataclasses import replace
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
 
+import aiohttp
 from aiohttp.test_utils import TestClient, TestServer
 
 from kairos.clients import Jev, Kraken, signature
@@ -111,6 +115,84 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["headers"], {})
         store.close()
 
+    async def test_market_change_snapshots_use_rolling_ws_values_and_dogecoin_alias(self):
+        store = Store(":memory:")
+        self.addCleanup(store.close)
+        session = Mock()
+        socket = AsyncMock()
+        socket.__aenter__.return_value = socket
+        session.ws_connect.return_value = socket
+        doge = replace(BTC, id="XDGUSD", symbol="XDG/USD")
+        client = Kraken(session, store)
+        client.pairs = {p.id: p for p in (BTC, ETH, CROSS, doge)}
+        messages = [
+            {
+                "channel": "ticker",
+                "type": "update",
+                "data": [{"symbol": BTC.symbol, "change_pct": 99}],
+            },
+            {
+                "channel": "ticker",
+                "type": "snapshot",
+                "data": [
+                    {"symbol": BTC.symbol, "change_pct": 2.5},
+                    {"symbol": "DOGE/USD", "change_pct": 0},
+                    {"symbol": CROSS.symbol, "change_pct": "NaN"},
+                ],
+            },
+            {"success": False, "symbol": ETH.symbol},
+        ]
+        socket.receive.side_effect = [
+            SimpleNamespace(type=aiohttp.WSMsgType.TEXT, data=json.dumps(m)) for m in messages
+        ]
+        self.assertEqual(await client.market_changes(), {BTC.id: "2.5", doge.id: "0"})
+        session.ws_connect.assert_called_once_with("wss://ws.kraken.com/v2", heartbeat=20)
+        subscription = socket.send_json.call_args.args[0]
+        self.assertIn("DOGE/USD", subscription["params"]["symbol"])
+        self.assertTrue(subscription["params"]["snapshot"])
+        session.request.assert_not_called()
+
+    async def test_market_change_subscriptions_are_batched_and_keep_valid_partial_results(self):
+        store = Store(":memory:")
+        self.addCleanup(store.close)
+        session = Mock()
+        socket = AsyncMock()
+        socket.__aenter__.return_value = socket
+        session.ws_connect.return_value = socket
+        client = Kraken(session, store)
+        pairs = [replace(BTC, id=f"P{i}", symbol=f"COIN{i}/USD") for i in range(101)]
+        client.pairs = {p.id: p for p in pairs}
+        snapshot = {
+            "channel": "ticker",
+            "type": "snapshot",
+            "data": [{"symbol": p.symbol, "change_pct": -1.5} for p in pairs[:100]],
+        }
+        socket.receive.side_effect = [
+            SimpleNamespace(type=aiohttp.WSMsgType.TEXT, data=json.dumps(snapshot)),
+            TimeoutError(),
+        ]
+        with patch("kairos.clients.asyncio.sleep", new=AsyncMock()):
+            result = await client.market_changes()
+        self.assertEqual(result, {p.id: "-1.5" for p in pairs[:100]})
+        self.assertEqual(
+            [len(c.args[0]["params"]["symbol"]) for c in socket.send_json.call_args_list], [100, 1]
+        )
+        socket.__aexit__.assert_awaited_once()
+
+    async def test_change_feed_failure_is_unavailable_and_cancellation_propagates(self):
+        store = Store(":memory:")
+        self.addCleanup(store.close)
+        session = Mock()
+        client = Kraken(session, store)
+        client.pairs = {BTC.id: BTC}
+        for error in (aiohttp.ClientError("do not expose"), asyncio.CancelledError()):
+            session.ws_connect.side_effect = error
+            if isinstance(error, asyncio.CancelledError):
+                with self.assertRaises(asyncio.CancelledError):
+                    await client.market_changes()
+            else:
+                self.assertEqual(await client.market_changes(), {})
+
     async def test_jev_response_validation(self):
         good = {
             "model": "test",
@@ -166,6 +248,7 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             "/static/app.js",
             "/static/chart.js",
             "/static/markets.js",
+            "/static/strategy-market.js",
             "/static/vendor/d3.v7.9.0.min.js",
             "/static/vendor/crypto-icons/symbols.js",
             "/static/vendor/crypto-icons/btc.svg",
@@ -299,7 +382,7 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(self.app["candle_cache"]), 32)
             self.assertIn((BTC.id, 1), self.app["candle_cache"])
 
-    async def test_market_snapshots_are_shared_and_do_not_change_trading_catalog(self):
+    async def test_market_snapshots_and_full_strategy_catalog_keep_execution_gates(self):
         responses = await asyncio.gather(
             self.client.get("/api/markets"), self.client.get("/api/markets")
         )
@@ -307,11 +390,43 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data[0], data[1])
         self.assertEqual({row["id"] for row in data[0]["markets"]}, {BTC.id, ETH.id, CROSS.id})
         self.engine.kraken.market_tickers.assert_awaited_once()
+        self.engine.kraken.market_changes.assert_awaited_once()
+        changes = {row["id"]: row["change_pct"] for row in data[0]["markets"]}
+        self.assertEqual(changes, {BTC.id: "2.5", ETH.id: "-1.25", CROSS.id: None})
         response = await self.client.get("/api/pairs")
-        self.assertEqual({row["id"] for row in await response.json()}, {BTC.id, ETH.id})
+        self.assertEqual({row["id"] for row in await response.json()}, {BTC.id, ETH.id, CROSS.id})
+        response = await self.client.post(
+            "/api/settings", json={**self.engine.settings, "pair": CROSS.id}, headers=self.headers()
+        )
+        self.assertEqual(response.status, 409)
+        self.assertIn("quote currency", (await response.json())["error"])
         self.assertEqual(self.engine.settings["pair"], BTC.id)
         self.engine.kraken.add.assert_not_awaited()
         self.engine.jev.decide.assert_not_awaited()
+
+    async def test_changes_cache_has_its_own_timestamp_and_does_not_block_quotes_on_failure(self):
+        with patch("kairos.web.time") as clock:
+            clock.monotonic.return_value = 100
+            clock.time.return_value = 1000
+            response = await self.client.get("/api/markets")
+            self.assertEqual((await response.json())["change_received"], 1000)
+            clock.monotonic.return_value = 111
+            clock.time.return_value = 1011
+            response = await self.client.get("/api/markets")
+            data = await response.json()
+            self.assertEqual(data["received"], 1011)
+            self.assertEqual(data["change_received"], 1000)
+            self.engine.kraken.market_changes.assert_awaited_once()
+            clock.monotonic.return_value = 161
+            clock.time.return_value = 1061
+            self.engine.kraken.market_changes.return_value = {}
+            response = await self.client.get("/api/markets")
+            data = await response.json()
+            self.assertEqual(data["received"], 1061)
+            self.assertIsNone(data["change_received"])
+            self.assertTrue(all(row["change_pct"] is None for row in data["markets"]))
+            self.assertTrue(all(row["last"] == "9995" for row in data["markets"]))
+            self.assertEqual(self.engine.kraken.market_changes.await_count, 2)
 
     async def test_failed_market_refresh_does_not_relabel_stale_prices_as_fresh(self):
         with patch("kairos.web.time") as clock:
