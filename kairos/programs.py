@@ -4,8 +4,9 @@ import time
 import uuid
 
 from kairos.domain import BPS, ZERO, SafetyError, dec, floor
+from kairos.settings import SCHEDULED_STRATEGIES as STRATEGIES
+from kairos.strategies import limit_price
 
-STRATEGIES = {"dca", "twap", "rebalance"}
 FIELDS = {
     "dca": ("pair", "quote", "dca_amount", "dca_count", "dca_period_seconds"),
     "twap": (
@@ -247,12 +248,12 @@ async def scheduled_order(engine, program, slot):
     if book.spread_bps > dec(settings["max_spread_bps"]):
         report(engine, program, "Skipped scheduled slot: spread exceeds maximum")
         return
-    slip = dec(settings["slippage_bps"]) / BPS
-    raw = book.asks[0][0] * (1 + slip) if side == "buy" else book.bids[0][0] * (1 - slip)
-    if settings["strategy"] == "twap":
-        limit = dec(settings["twap_limit"])
-        raw = min(raw, limit) if side == "buy" else max(raw, limit)
-    price = pair.price(raw, side)
+    price = limit_price(
+        book,
+        side,
+        settings["slippage_bps"],
+        parent=dec(settings["twap_limit"]) if settings["strategy"] == "twap" else None,
+    )
     if (side == "buy" and price < book.asks[0][0]) or (side == "sell" and price > book.bids[0][0]):
         report(engine, program, "Skipped TWAP slot: parent limit is not marketable")
         return
@@ -381,10 +382,7 @@ async def rebalance(engine, program):
         pair, _ = basket[identifier]
         book = books[identifier]
         side = "sell" if delta > 0 else "buy"
-        slip = dec(settings["slippage_bps"]) / BPS
-        price = pair.price(
-            book.bids[0][0] * (1 - slip) if side == "sell" else book.asks[0][0] * (1 + slip), side
-        )
+        price = limit_price(book, side, settings["slippage_bps"])
         budget = min(abs(delta), order_cap, allowance / (1 + fee))
         if side == "buy":
             budget = min(

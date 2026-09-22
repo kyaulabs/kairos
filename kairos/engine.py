@@ -6,23 +6,18 @@ from datetime import UTC, datetime, timedelta
 
 from kairos import margin, programs
 from kairos.clients import ExchangeRejected
-from kairos.domain import BPS, DEFAULTS, TERMINAL, ZERO, SafetyError, dec, floor, validate_settings
+from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.futures import FuturesDesk
 from kairos.futures import new_ledger as futures_ledger
-from kairos.strategies import plan_cycle, plan_leg, trend_state, triangle
+from kairos.settings import DEFAULTS, load_settings, validate_settings
+from kairos.strategies import limit_price, plan_cycle, plan_leg, trend_state, triangle
 
 
 class Engine:
     def __init__(self, store, kraken, jev, publish, futures=None):
         self.store, self.kraken, self.jev, self.publish = store, kraken, jev, publish
         self.futures = FuturesDesk(self, futures)
-        # Migrate only newly introduced program fields; missing legacy risk fields still fail.
-        program_defaults = {
-            key: value
-            for key, value in DEFAULTS.items()
-            if key.startswith(("dca_", "twap_", "rebalance_", "futures_"))
-        }
-        self.settings = validate_settings({**program_defaults, **store.get("settings", DEFAULTS)})
+        self.settings = load_settings(store.get("settings", DEFAULTS))
         self.mode = "dry-run"  # Never auto-resume live trading after a restart.
         self.running = False
         self.stop_generation = 0
@@ -149,10 +144,7 @@ class Engine:
             self.last_error = (
                 "Restart recovery: reconcile tracked live orders/cycle before starting"
             )
-        if any(
-            dec(p["quantity"])
-            for p in (self.futures.ledger("trading") or {}).get("positions", {}).values()
-        ):
+        if self.futures.has_live_position():
             self.last_error = "Live Futures positions remain after restart; arm Trading to reconcile/manage them. Dry-run does not close them."
         self.ready = True
         self.event("system", {"message": "Ready; paused in dry-run mode"})
@@ -378,10 +370,7 @@ class Engine:
             if (
                 self.settings["product"] == "futures"
                 and self.mode == "dry-run"
-                and any(
-                    dec(p["quantity"])
-                    for p in (self.futures.ledger("trading") or {}).get("positions", {}).values()
-                )
+                and self.futures.has_live_position()
             ):
                 raise SafetyError(
                     "Live Futures positions remain; arm Trading to reconcile or reduce them before running paper"
@@ -427,11 +416,7 @@ class Engine:
                 raise SafetyError("No bot Futures position to reduce")
             side = "sell" if quantity > 0 else "buy"
             book = await self.futures.client.book(pair)
-            slip = dec(self.settings["slippage_bps"]) / BPS
-            price = pair.price(
-                book.bids[0][0] * (1 - slip) if side == "sell" else book.asks[0][0] * (1 + slip),
-                side,
-            )
+            price = limit_price(book, side, self.settings["slippage_bps"])
             volume = floor(min(abs(quantity), self.limits()[0] / price), pair.lot)
             await self.futures.place(pair, side, volume, price, book, close=True)
             await self.futures.valuation(False)
@@ -455,6 +440,17 @@ class Engine:
             self.last_error = None
             self.event("system", {"message": "Reconciliation completed; holdings retained"})
             self.emit_state()
+
+    def record_valuation(self, equity, exposure, day_key):
+        """Shared display/UTC baseline bookkeeping; callers retain product-specific risk checks."""
+        date = datetime.now(UTC).date().isoformat()
+        day = self.store.get(day_key)
+        if not day or day["date"] != date:
+            day = {"date": date, "equity": str(equity)}
+            self.store.put(day_key, day)
+        self.equity, self.exposure = str(equity), str(exposure)
+        self.daily_pnl = str(equity - dec(day["equity"]))
+        self.valuation_ts = time.time()
 
     async def valuation(self, enforce=False):
         if self.settings["product"] == "futures":
@@ -488,14 +484,7 @@ class Engine:
             dec(qty) * prices[asset] for asset, qty in ledger["balances"].items() if dec(qty) != 0
         )
         exposure = equity - dec(ledger["balances"].get(quote, 0))
-        day_key = datetime.now(UTC).date().isoformat()
-        day = self.store.get("day:" + self.mode)
-        if not day or day["date"] != day_key:
-            day = {"date": day_key, "equity": str(equity)}
-            self.store.put("day:" + self.mode, day)
-        self.equity, self.exposure = str(equity), str(exposure)
-        self.daily_pnl = str(equity - dec(day["equity"]))
-        self.valuation_ts = time.time()
+        self.record_valuation(equity, exposure, "day:" + self.mode)
         if enforce and -dec(self.daily_pnl) >= dec(self.settings["daily_loss"]):
             raise SafetyError("Daily marked-to-market loss limit reached; no further orders")
         return prices, exposure
@@ -645,14 +634,7 @@ class Engine:
             books[key] = book
             marks[key] = book.bids[0][0] if dec(position["quantity"]) > 0 else book.asks[0][0]
         values = margin.metrics(ledger, marks)
-        self.equity, self.exposure = str(values["equity"]), str(values["exposure"])
-        self.valuation_ts = time.time()
-        date = datetime.now(UTC).date().isoformat()
-        day = self.store.get("day:margin")
-        if not day or day["date"] != date:
-            day = {"date": date, "equity": self.equity}
-            self.store.put("day:margin", day)
-        self.daily_pnl = str(values["equity"] - dec(day["equity"]))
+        self.record_valuation(values["equity"], values["exposure"], "day:margin")
         if values["used_margin"] and values["equity"] <= values["used_margin"] * dec(
             self.settings["maintenance_ratio"]
         ):
@@ -796,11 +778,9 @@ class Engine:
         needed = (
             {pair.quote: volume * price * (1 + fee_bps / BPS)}
             if side == "buy"
-            else {pair.base: volume, pair.quote: volume * price * fee_bps / BPS if maker else ZERO}
+            # A spot sell's fee is paid from its proceeds, not a separate quote reserve.
+            else {pair.base: volume}
         )
-        # A spot sell's fee is paid from its proceeds, not from a separate quote reserve.
-        if side == "sell":
-            needed = {pair.base: volume}
         for asset, amount in needed.items():
             if self.balance(asset) < amount:
                 raise SafetyError("Insufficient allocated funds; spot inventory cannot go short")
@@ -976,27 +956,19 @@ class Engine:
         # Re-read after inference; do not execute on an aged pre-model snapshot.
         book = await self.kraken.book(pair)
         fee = dec(self.settings["maker_fee_bps" if maker else "taker_fee_bps"]) / BPS
-        if maker:
-            # Quote away from mid enough to include assumed fees, rather than claiming
-            # the tiny touch spread covers Kraken's retail fee tier.
-            width = fee + dec(self.settings["slippage_bps"]) / BPS
-            raw = (
-                min(book.bids[0][0], book.mid * (1 - width))
-                if side == "buy"
-                else max(book.asks[0][0], book.mid * (1 + width))
-            )
-        else:
-            slip = dec(self.settings["slippage_bps"]) / BPS
-            raw = book.asks[0][0] * (1 + slip) if side == "buy" else book.bids[0][0] * (1 - slip)
-        price = pair.price(raw, side)
-        await self.valuation(enforce=True)
+        price = limit_price(
+            book,
+            side,
+            self.settings["slippage_bps"],
+            maker_fee_bps=self.settings["maker_fee_bps"] if maker else None,
+        )
+        _, exposure = await self.valuation(enforce=True)
         budget, exposure_cap = self.limits()
         if is_margin:
             volume = floor(budget / price, pair.lot)
             if (side == "sell" and position > 0) or (side == "buy" and position < 0):
                 volume = min(volume, abs(position))
         elif side == "buy":
-            _, exposure = await self.valuation(enforce=True)
             budget = min(budget, self.balance(pair.quote) / (1 + fee), exposure_cap - exposure)
             volume = floor(max(ZERO, budget) / price, pair.lot)
         else:
@@ -1137,9 +1109,7 @@ class Engine:
                 if pair is None:
                     continue
                 snapshot = await self.kraken.book(pair)
-                price = pair.price(
-                    snapshot.bids[0][0] * (1 - dec(self.settings["slippage_bps"]) / BPS), "sell"
-                )
+                price = limit_price(snapshot, "sell", self.settings["slippage_bps"])
                 fee = dec(self.settings["taker_fee_bps"]) / BPS
                 needed = (original - cash) / (price * (1 - fee))
                 # Round up for proceeds, then down to the available inventory/order cap.

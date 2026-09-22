@@ -6,9 +6,9 @@ A supported contract has the `PF_` prefix, `flexible_futures` type, USD quote, c
 
 ## Paper operation
 
-1. Stop and reconcile any orders. Select **Linear crypto perpetuals · USD** under Asset class, or select the **Futures** product, then choose a supported Bot market. The header picker still changes only the chart.
-2. Select HTF, market making, DCA or TWAP. Set the local leverage cap, notional order/exposure caps, loss limit and fee assumptions. The default leverage cap is 1×; 1–5× is configurable. Published margin tiers can require more collateral than that cap implies.
-3. Set Paper balance under Capital, Save settings, and Reset selected paper portfolio if you want a new simulated allocation. Futures paper cash and positions are separate from paper spot, paper margin and live Futures.
+1. Stop and reconcile any orders. Select **Futures · USD linear crypto perpetuals** under Product in Strategy, then choose a supported Bot market. The header picker still changes only the chart.
+2. Select HTF, market making, DCA or TWAP. Set the local leverage cap, notional order/exposure caps and loss limit in Capital, and fee assumptions in Execution. The default leverage cap is 1×; 1–5× is configurable. Published margin tiers can require more collateral than that cap implies.
+3. Set Paper starting balance under Capital, Save settings, and Reset selected paper portfolio if you want a new simulated allocation. Futures paper cash and positions are separate from paper spot, paper margin and live Futures.
 4. Press Start. HTF and market making use Jev; DCA and TWAP do not.
 
 HTF can open longs or shorts and reduces an opposing position before reversing direction. New longs require the existing rising-trend/cost filter; new shorts require a falling trend and a downward move exceeding round-trip costs. Model confidence cannot bypass these conditions. Market making uses post-only quotes, one tracked order at a time. Paper maker fills require a later book strictly through the limit, capped at 10% of visible crossing depth. Quotes expire locally after 30 seconds. This is a simulation, not an exchange queue model.
@@ -37,7 +37,7 @@ Live takers are IOC limit orders; makers are post-only. Requests have a short `p
 
 ## Stops and recovery
 
-Stop cancels tracked orders and retains positions. While paused, valuation continues for the selected portfolio, including funding. **Reduce Futures position…** submits one confirmed reduce-only IOC within the price and order cap, even after the daily loss limit. A partial fill or order cap can leave a residual position; inspect the portfolio and repeat deliberately if needed. This control is not an unconditional flatten-all market order. If exchange state disagrees with Kairos, manage the risk directly on Kraken rather than forcing the bot through a reconciliation failure.
+Stop cancels tracked orders and retains positions. While paused, valuation continues for the selected portfolio, including funding. **Reduce Futures position…** under Capital submits one confirmed reduce-only IOC within the price and order cap, even after the daily loss limit. A partial fill or order cap can leave a residual position; inspect the portfolio and repeat deliberately if needed. This control is not an unconditional flatten-all market order. If exchange state disagrees with Kairos, manage the risk directly on Kraken rather than forcing the bot through a reconciliation failure.
 
 The five-second terminal-order cache is not sufficient for restart recovery. Kairos instead pages Derivatives history by durable client ID, deduplicates executions, and commits cumulative fills with the Futures ledger atomically. Cancellations require consistent terminal history; absence from open orders alone is not proof of cancellation. Lost acknowledgements are never resubmitted. An outcome that cannot be proven remains blocked for investigation, including a request that may never have reached Kraken.
 

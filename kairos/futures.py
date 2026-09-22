@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.futures_client import UnsettledFutures, timestamp
-from kairos.strategies import trend_state
+from kairos.strategies import limit_price, trend_state
 
 
 def new_ledger(amount):
@@ -327,14 +327,7 @@ class FuturesDesk:
             exposure += notional
             initial += notional * im
             maintenance += notional * mm
-        date = datetime.now(UTC).date().isoformat()
-        key = "day:futures:" + engine.mode
-        day = engine.store.get(key)
-        if not day or day["date"] != date:
-            day = {"date": date, "equity": str(equity)}
-            engine.store.put(key, day)
-        engine.equity, engine.exposure = str(equity), str(exposure)
-        engine.daily_pnl, engine.valuation_ts = str(equity - dec(day["equity"])), time.time()
+        engine.record_valuation(equity, exposure, "day:futures:" + engine.mode)
         values = {
             "equity": equity,
             "exposure": exposure,
@@ -683,17 +676,12 @@ class FuturesDesk:
             engine.event("skip", {"reason": "Futures trend/cost filter vetoed the model action"})
             return
         book = await self.client.book(pair)
-        fee = dec(self.settings["maker_fee_bps" if maker else "taker_fee_bps"]) / BPS
-        slip = dec(self.settings["slippage_bps"]) / BPS
-        if maker:
-            raw = (
-                min(book.bids[0][0], book.mid * (1 - fee - slip))
-                if side == "buy"
-                else max(book.asks[0][0], book.mid * (1 + fee + slip))
-            )
-        else:
-            raw = book.asks[0][0] * (1 + slip) if side == "buy" else book.bids[0][0] * (1 - slip)
-        price = pair.price(raw, side)
+        price = limit_price(
+            book,
+            side,
+            self.settings["slippage_bps"],
+            maker_fee_bps=self.settings["maker_fee_bps"] if maker else None,
+        )
         values, exposure = await self.valuation(True)
         cap, maximum = engine.limits()
         reducing = position * (1 if side == "buy" else -1) < 0

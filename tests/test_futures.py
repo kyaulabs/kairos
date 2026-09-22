@@ -12,11 +12,12 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from kairos import programs
 from kairos.clients import Kraken
-from kairos.domain import DEFAULTS, Pair, SafetyError, dec
+from kairos.domain import Pair, SafetyError, dec
 from kairos.engine import Engine
 from kairos.futures import new_ledger
 from kairos.futures_client import FuturesTrading
 from kairos.retail import linear_perpetual
+from kairos.settings import DEFAULTS
 from kairos.store import Store
 from kairos.web import create_app
 from tests.helpers import book, fake_jev, fake_kraken
@@ -479,7 +480,7 @@ class FuturesTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(SafetyError, "Close Futures"):
             await self.configure(product="spot", pair="XXBTZUSD")
         for strategy in ("rebalance", "arbitrage"):
-            with self.assertRaisesRegex(SafetyError, "Futures support"):
+            with self.assertRaisesRegex(SafetyError, "does not support futures"):
                 await self.configure(strategy=strategy)
 
     async def test_live_order_recovers_by_history_and_keeps_paper_separate(self):

@@ -3,6 +3,25 @@ from dataclasses import dataclass
 from kairos.domain import BPS, SafetyError, dec, floor
 
 
+def limit_price(book, side, slippage_bps, *, maker_fee_bps=None, parent=None):
+    """One tick-rounded price policy; callers still check freshness, funding and parent size."""
+    if side not in ("buy", "sell"):
+        raise SafetyError("Invalid order side")
+    slip = dec(slippage_bps) / BPS
+    if maker_fee_bps is not None:
+        width = dec(maker_fee_bps) / BPS + slip
+        raw = (
+            min(book.bids[0][0], book.mid * (1 - width))
+            if side == "buy"
+            else max(book.asks[0][0], book.mid * (1 + width))
+        )
+    else:
+        raw = book.asks[0][0] * (1 + slip) if side == "buy" else book.bids[0][0] * (1 - slip)
+    if parent is not None:
+        raw = min(raw, parent) if side == "buy" else max(raw, parent)
+    return book.pair.price(raw, side)
+
+
 def trend_state(rows, settings):
     if len(rows) < 30:
         raise SafetyError("Need at least 30 completed candles")
@@ -57,9 +76,8 @@ def triangle(primary, pairs):
 
 
 def plan_leg(leg, book, amount, fee_bps, slippage_bps):
-    fee, slippage = fee_bps / BPS, slippage_bps / BPS
-    touch = book.asks[0][0] if leg.side == "buy" else book.bids[0][0]
-    limit = leg.pair.price(touch * (1 + slippage if leg.side == "buy" else 1 - slippage), leg.side)
+    fee = fee_bps / BPS
+    limit = limit_price(book, leg.side, slippage_bps)
     volume = floor(amount / (limit * (1 + fee)) if leg.side == "buy" else amount, leg.pair.lot)
     leg.pair.validate(volume, limit)
     filled, _ = book.fill(leg.side, volume, limit)

@@ -14,6 +14,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from kairos.clients import Jev, Kraken, signature
 from kairos.domain import SafetyError
 from kairos.engine import Engine
+from kairos.settings import DEFAULTS, schema
 from kairos.store import Store
 from kairos.web import create_app
 from tests.helpers import BTC, CROSS, ETH, candle_rows, fake_jev, fake_kraken
@@ -246,6 +247,7 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         for path in (
             "/",
             "/static/app.js",
+            "/static/settings.js",
             "/static/chart.js",
             "/static/markets.js",
             "/static/strategy-market.js",
@@ -271,6 +273,32 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("JEV_API_KEY", text)
         self.assertIn('"csrf"', text)
         self.assertIn('"us_stocks"', text)
+
+    async def test_settings_contract_is_read_only_and_contains_no_runtime_credentials(self):
+        before = self.engine.snapshot()
+        response = await self.client.get("/api/settings-schema")
+        self.assertEqual(response.status, 200)
+        data = await response.json()
+        self.assertEqual(data, json.loads(json.dumps(schema())))
+        self.assertNotIn("test-placeholder", json.dumps(data))
+        self.assertNotIn("live_enabled", data)
+        self.assertEqual(self.engine.snapshot(), before)
+        self.engine.kraken.request.assert_not_awaited()
+        self.engine.kraken.add.assert_not_awaited()
+        self.engine.jev.decide.assert_not_awaited()
+
+    async def test_settings_api_rejects_bypassed_form_rules(self):
+        for change in (
+            {"order_size": "1000000001"},
+            {"product": "margin", "strategy": "dca"},
+            {"futures_leverage": True},
+            {"strategy": "twap", "twap_limit": "0"},
+        ):
+            response = await self.client.post(
+                "/api/settings", json={**DEFAULTS, **change}, headers=self.headers()
+            )
+            self.assertEqual(response.status, 409)
+        self.engine.kraken.add.assert_not_awaited()
 
     async def test_csrf_and_origin_required(self):
         for headers in (

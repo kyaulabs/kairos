@@ -1,6 +1,8 @@
 import asyncio
 import time
 import unittest
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 from kairos import margin
 from kairos.domain import SafetyError, dec
@@ -50,6 +52,39 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.kraken.cancel.assert_not_awaited()
         self.assertTrue(self.engine.orders())
         self.assertEqual(self.engine.orders()[0]["mode"], "dry-run")
+
+    async def test_shared_daily_baselines_remain_separate_and_roll_over_in_utc(self):
+        now = datetime(2026, 9, 22, 23, 59, tzinfo=UTC)
+        keys = (
+            "day:dry-run",
+            "day:trading",
+            "day:margin",
+            "day:futures:dry-run",
+            "day:futures:trading",
+        )
+        with patch("kairos.engine.datetime") as clock:
+            clock.now.return_value = now
+            for index, key in enumerate(keys):
+                self.engine.record_valuation(dec(100 + index), dec(5), key)
+                self.assertEqual(dec(self.engine.daily_pnl), 0)
+            self.engine.record_valuation(dec(90), dec(7), keys[0])
+            self.assertEqual(dec(self.engine.daily_pnl), -10)
+            self.assertEqual(self.engine.exposure, "7")
+            for index, key in enumerate(keys):
+                self.assertEqual(dec(self.store.get(key)["equity"]), dec(100 + index))
+            clock.now.return_value = now + timedelta(minutes=2)
+            self.engine.record_valuation(dec(90), dec(7), keys[0])
+            self.assertEqual(dec(self.engine.daily_pnl), 0)
+            self.assertEqual(self.store.get(keys[0])["date"], "2026-09-23")
+            self.assertEqual(self.store.get(keys[1])["date"], "2026-09-22")
+
+    async def test_buy_planning_values_once_and_submission_still_rechecks(self):
+        self.engine.running = True
+        self.engine.valuation = AsyncMock(wraps=self.engine.valuation)
+        await self.engine.directional(BTC)
+        self.assertEqual(self.engine.valuation.await_count, 2)  # Planning, then guarded placement.
+        self.assertEqual(self.store.orders()[-1]["status"], "closed")
+        self.kraken.add.assert_not_awaited()
 
     async def test_htf_evaluates_each_completed_candle_once(self):
         self.jev.decide.return_value["action"] = "hold"

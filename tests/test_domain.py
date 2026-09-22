@@ -2,8 +2,9 @@ import time
 import unittest
 
 from kairos import margin
-from kairos.domain import DEFAULTS, SafetyError, dec, validate_settings
-from kairos.strategies import plan_cycle, trend_state, triangle
+from kairos.domain import SafetyError, dec
+from kairos.settings import DEFAULTS, validate_settings
+from kairos.strategies import limit_price, plan_cycle, trend_state, triangle
 from tests.helpers import BTC, CROSS, ETH, book
 
 
@@ -45,6 +46,24 @@ class DomainTests(unittest.TestCase):
         for volume, price in [("0.000001", "10000"), ("0.00005", "1"), ("0.001", "10000.01")]:
             with self.subTest(volume=volume, price=price), self.assertRaises(SafetyError):
                 BTC.validate(dec(volume), dec(price))
+
+    def test_shared_prices_preserve_taker_bounds_maker_offsets_and_parent_limits(self):
+        snapshot = book(BTC, "99", "101")
+        for side, slip, maker, parent, expected in (
+            ("buy", "100", None, None, "102.0"),
+            ("sell", "100", None, None, "98.1"),
+            ("buy", "10", "100", None, "98.9"),
+            ("sell", "10", "100", None, "101.1"),
+            ("buy", "10", "0", None, "99"),
+            ("sell", "10", "0", None, "101"),
+            ("buy", "100", None, dec("100.19"), "100.1"),
+            ("sell", "100", None, dec("103.11"), "103.2"),
+        ):
+            with self.subTest(side=side, maker=maker, parent=parent):
+                price = limit_price(snapshot, side, slip, maker_fee_bps=maker, parent=parent)
+                self.assertEqual(price, dec(expected))
+        with self.assertRaises(SafetyError):
+            limit_price(snapshot, "invalid", "10")
 
     def test_depth_walk_never_fills_invisible_volume(self):
         snapshot = book(qty="0.01")

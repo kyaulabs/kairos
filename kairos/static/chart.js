@@ -5,6 +5,7 @@ class LiveChart {
     this.svg = d3.select(this.node);
     this.color = color;
     this.prefix = prefix;
+    this.intervals = []; // Supplied by the server's candle-interval contract at startup.
     this.intervalMs = intervalMinutes === null ? null : intervalMinutes * 60000;
     this.anchor = null;
     this.points = [];
@@ -91,7 +92,7 @@ class LiveChart {
     this.svg.call(this.zoom.transform, d3.zoomIdentity);
   }
   setCandleInterval(minutes) {
-    if (![1, 5, 15, 30, 60, 240, 1440].includes(minutes)) throw new RangeError('Unsupported candle interval');
+    if (!this.intervals.includes(minutes)) throw new RangeError('Unsupported candle interval');
     this.intervalMs = minutes * 60000;
     this.points = [];
     this.follow();

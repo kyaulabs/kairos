@@ -88,8 +88,8 @@ Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **p
 ## Your first dry-run
 
 1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks and unsupported Futures remain visible with explanations. Select the Futures product separately for a qualified linear perpetual. The header picker changes only the chart.
-2. In **Capital**, set **Paper balance** to the amount you want to simulate, such as `100` USD.
-3. Click **Use full starting allocation**, then review the order cap, exposure cap, daily loss limit, and fee assumptions.
+2. In **Capital**, set **Paper starting balance** to the amount you want to simulate, such as `100` USD.
+3. Set **Order cap**, **Exposure cap**, the daily loss limit, and reinvestment explicitly in Capital. Review fee assumptions in Execution. To size against the full starting allocation, set both caps to that allocation; changing the balance does not change the caps.
 4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
 5. Press **Start** and watch the assessments, fills, and equity chart.
 
@@ -159,6 +159,7 @@ uv run --no-sync ruff check kairos tests
 uv run --no-sync ruff format --check --output-format concise kairos tests
 uv run --no-sync python -m unittest discover -v
 node --check kairos/static/app.js
+node --check kairos/static/settings.js
 node --check kairos/static/chart.js
 node --check kairos/static/markets.js
 node --check kairos/static/strategy-market.js

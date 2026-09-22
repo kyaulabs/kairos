@@ -2,6 +2,10 @@
 
 Kairos runs Jev-assisted trading strategies against Kraken market data. The workspace fits the viewport: chart on the left, Jev assessment beside it, settings on the right, and bottom tabs for Orders, Activity, Portfolio, Exchange accounts, and Equity. Long content scrolls inside panels. Smaller screens use panel navigation instead of columns. Settings have Strategy, Capital, and Execution tabs; switching tabs preserves unsaved edits. Execution also contains browser-local dark/light and violet/green/red appearance choices from the [brand pack](BRANDING.md). The layout and Neo Sans Pro / OperatorMonoLig fonts are unchanged. Live fills are detected during order reconciliation, not through a private execution stream.
 
+Product is the single execution-product selector under Strategy. Capital contains paper/live allocations, risk caps, reinvestment and product-specific leverage. Execution contains fee, spread, slippage and freshness assumptions. DCA/TWAP controls appear with their strategy; model and margin controls appear only where applicable. Unsupported strategies remain labeled, not silently substituted. A checked spot-only recovery switch stays visible until explicitly turned off before switching products. Hidden fields keep their saved values; an inactive draft is not submitted while saving another product or strategy.
+
+The bot-settings contract lives in `kairos/settings.py`. The read-only `/api/settings-schema` endpoint supplies the browser's types, bounds and choices; it contains no credentials or live permissions. Saved setting names, portfolios and program identities are unchanged. See the [refactor analysis](REFACTOR-ANALYSIS.md) for duplicate controls removed and safeguards deliberately kept separate. Deploy the backend and static files together; the form stays unavailable if its contract cannot load.
+
 The price chart displays native Kraken OHLC candles, defaulting to 1m bars. The chart selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d intervals; it does not change the HTF strategy interval. Snapshots refresh roughly every five seconds, including the forming candle, and are shared briefly across browser tabs. Trading still uses only completed candles. The initial view spans 60 candle periods; pan/zoom can inspect up to 720 available bars. Follow live returns to the latest view. Wicks show high/low, bodies show open/close, and the crosshair lists all four prices and volume in base-asset, token, or contract units. Matching volume bars share the candle timeline. The current-price badge and dashed line follow the candle color; there is no candle dot. Portfolio equity remains a line chart in the Equity tab.
 
 Click the market beside the logo to open the searchable retail-market picker. Filter crypto spot, margin-eligible crypto, FX, xStocks, or Futures. Public listings and margin metadata do not establish account eligibility. Selection changes only the chart, never bot settings or execution. You can browse while the bot runs. The Jev panel always names the configured bot market and separately labels its latest assessment market. Click the bot-market label to return to that chart. To change what the bot trades, stop it and search the custom Bot market dropdown under Settings > Strategy. It shows the same full catalog as the chart picker, including pairs quoted in other currencies. Unsupported quote currencies, margin/leverage combinations, xStocks, and unsupported Futures remain visible with reasons. Choose the Futures product for a qualified USD linear crypto perpetual; its USD collateral ledger is separate from spot. These are Kairos execution restrictions, not account-access determinations. Use arrow keys and Enter to choose, or Escape to discard a search. Selection changes a draft only; Save settings applies it. Changing products/leverage updates the limitations without discarding other draft fields. The portfolio's accounting currency remains fixed, and the backend still rejects unsupported configurations.
@@ -102,8 +106,8 @@ The initial paper profile is $1,000, full-allocation sizing, and reinvestment en
 To start with $100:
 
 1. Stop the engine.
-2. Open Settings > Capital and set **Paper balance** to `100`.
-3. Click **Use full starting allocation**. This sets the starting order and exposure caps to `100` and enables reinvestment.
+2. Open Settings > Capital and set **Paper starting balance** to `100`.
+3. Set **Order cap** and **Exposure cap** to `100` if you intend full-allocation sizing. Choose **Scale order/exposure caps with equity (reinvest)** explicitly. No shortcut changes these settings together.
 4. Set the daily loss limit and fee assumptions you want.
 5. Save settings, then **Reset selected paper portfolio** to apply the new starting balance.
 6. In Settings > Strategy, choose the bot's market, strategy, and Spot product; save and press Start. The header market picker does not configure trading.
@@ -249,6 +253,7 @@ uv run python -m unittest discover -v
 node --check kairos/static/chart.js
 node --test tests/*.test.cjs
 node --check kairos/static/app.js
+node --check kairos/static/settings.js
 node --check kairos/static/markets.js
 node --check kairos/static/strategy-market.js
 node --check kairos/static/accounts.js

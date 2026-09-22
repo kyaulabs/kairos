@@ -70,7 +70,7 @@ async def run(with_jev):
                     model = Jev(
                         session,
                         os.environ.get("JEV_API_KEY", ""),
-                        os.environ.get("JEV_MODEL", "jev-latest"),
+                        os.environ.get("JEV_MODEL", Jev.DEFAULT_MODEL),
                     )
                     await model.decide(
                         {
