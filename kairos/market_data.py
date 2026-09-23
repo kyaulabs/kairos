@@ -68,6 +68,14 @@ class StreamBook(Book):
         return super().fill(side, volume, limit)
 
 
+class PendingCandle(SafetyError):
+    """Only the newest closed bucket is missing from an otherwise usable window."""
+
+    def __init__(self, cutoff):
+        super().__init__("Execution candles are stale or incomplete")
+        self.cutoff = cutoff
+
+
 class CandleHistory:
     def __init__(self, pair, minutes, required):
         self.pair, self.minutes, self.required = pair, minutes, required
@@ -153,6 +161,11 @@ class CandleHistory:
         if len(tail) != self.required or any(
             row[0] != cutoff - (len(tail) - i) * step for i, row in enumerate(tail)
         ):
+            previous = result[-(self.required - 1) :]
+            if len(previous) == self.required - 1 and all(
+                row[0] == cutoff - (len(previous) - i + 1) * step for i, row in enumerate(previous)
+            ):
+                raise PendingCandle(cutoff)
             raise SafetyError("Execution candles are stale or incomplete")
         return [list(row) for row in result]
 
@@ -229,30 +242,53 @@ class PublicMarketData:
 
     async def candles(self, pair, minutes):
         async with self.candle_lock:
-            series = self.series
-            if not series or series.pair != pair or series.minutes != minutes:
-                return None
-            if self.healthy() and series.ready and series.seed:
+            deadline, pending = None, None
+            for attempt in range(4):
                 try:
-                    rows = series.completed()
-                    self.last_candle_source = "WebSocket"
-                    return rows
-                except SafetyError:
-                    pass  # A missing boundary needs REST confirmation, not a fabricated bar.
-            generation, started = self.generation, time.time()
-            rows = await self.client.ohlc(pair, minutes)
-            seed = series.rest_rows(rows, started)
-            if generation == self.generation and self.healthy():
-                series.seed = seed
-                result = series.completed()
-            else:
-                # The REST read is still usable; never install it into a different connection.
-                recovered = CandleHistory(pair, minutes, series.required)
-                recovered.seed = seed
-                result = recovered.completed(streamed=False)
-            if generation == self.generation:
-                self.last_candle_source = "REST"
-            return result
+                    if deadline is None:
+                        return await self.read_candles(pair, minutes)
+                    # Bound the whole retry, including REST pacing/network time. Read-only:
+                    # do not retry order writes, refresh fees or extend data validity here.
+                    async with asyncio.timeout_at(deadline):
+                        await asyncio.sleep(0.5)
+                        return await self.read_candles(pair, minutes)
+                except PendingCandle as exc:
+                    elapsed = time.time() - exc.cutoff
+                    if attempt == 3 or not 0 <= elapsed < 5:
+                        raise
+                    pending = exc
+                    if deadline is None:
+                        deadline = asyncio.get_running_loop().time() + min(3, 5 - elapsed)
+                except TimeoutError:
+                    if pending is None:
+                        raise
+                    raise pending from None
+
+    async def read_candles(self, pair, minutes):
+        series = self.series
+        if not series or series.pair != pair or series.minutes != minutes:
+            return None
+        if self.healthy() and series.ready and series.seed:
+            try:
+                rows = series.completed()
+                self.last_candle_source = "WebSocket"
+                return rows
+            except SafetyError:
+                pass  # A missing boundary needs REST confirmation, not a fabricated bar.
+        generation, started = self.generation, time.time()
+        rows = await self.client.ohlc(pair, minutes)
+        seed = series.rest_rows(rows, started)
+        if generation == self.generation and self.healthy():
+            series.seed = seed
+            result = series.completed()
+        else:
+            # The REST read is still usable; never install it into a different connection.
+            recovered = CandleHistory(pair, minutes, series.required)
+            recovered.seed = seed
+            result = recovered.completed(streamed=False)
+        if generation == self.generation:
+            self.last_candle_source = "REST"
+        return result
 
     def accept(self, message):
         try:

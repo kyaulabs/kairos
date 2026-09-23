@@ -227,6 +227,123 @@ class MarketDataTests(unittest.IsolatedAsyncioTestCase):
         completed[-1][4] = "0"
         self.assertNotEqual(self.feed.series.rows[rows[-1][0]][4], "0")
 
+    async def test_boundary_waits_for_confirmed_stream_candle_instead_of_stopping(self):
+        rows = self.seed()
+        await self.client.candles(BTC, 1)
+        boundary = rows[-1][0] + 60
+        next_row = [boundary, *rows[-1][1:]]
+        with patch("kairos.market_data.time.time", return_value=boundary + 0.232) as clock:
+
+            async def next_bucket(delay):
+                clock.return_value += delay
+                if clock.return_value >= boundary + 0.767:
+                    self.feed.accept(candle_message([next_row], kind="update"))
+
+            with patch("kairos.market_data.asyncio.sleep", side_effect=next_bucket) as sleep:
+                result = await self.client.candles(BTC, 1)
+        self.assertEqual(result[-1], rows[-1])
+        self.assertNotIn(next_row, result)
+        self.assertEqual(self.feed.last_candle_source, "WebSocket")
+        self.assertEqual(self.client.request.await_count, 3)
+        self.assertEqual(sleep.await_count, 2)
+        self.assertTrue(all(call.args == (0.5,) for call in sleep.call_args_list))
+
+    async def test_boundary_can_recover_through_fresh_rest_confirmation(self):
+        rows = self.seed()
+        await self.client.candles(BTC, 1)
+        boundary = rows[-1][0] + 60
+        next_row = [boundary, *rows[-1][1:]]
+        with patch("kairos.market_data.time.time", return_value=boundary + 0.1) as clock:
+
+            async def publish_rest(delay):
+                clock.return_value += delay
+                self.client.request.return_value = {BTC.id: [*rows, next_row]}
+
+            with patch("kairos.market_data.asyncio.sleep", side_effect=publish_rest):
+                result = await self.client.candles(BTC, 1)
+        self.assertEqual(result[-1], rows[-1])
+        self.assertNotIn(next_row, result)
+        self.assertEqual(self.feed.last_candle_source, "REST")
+        self.assertEqual(self.client.request.await_count, 3)
+
+    async def test_boundary_retries_are_bounded_and_never_accept_unconfirmed_data(self):
+        rows = self.seed()
+        boundary = rows[-1][0] + 60
+        with patch("kairos.market_data.time.time", return_value=boundary + 0.1) as clock:
+
+            async def still_missing(delay):
+                clock.return_value += delay
+
+            with patch("kairos.market_data.asyncio.sleep", side_effect=still_missing) as sleep:
+                with self.assertRaisesRegex(SafetyError, "stale or incomplete"):
+                    await self.client.candles(BTC, 1)
+        self.assertEqual(self.client.request.await_count, 4)
+        self.assertEqual(sleep.await_count, 3)
+        self.assertNotIn(rows[-1][0], self.feed.series.seed)
+
+    async def test_boundary_retry_budget_cancels_slow_rest_read(self):
+        rows = self.seed()
+        boundary = rows[-1][0] + 60
+        cancelled = asyncio.Event()
+        attempts = 0
+
+        async def response(*args):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                return {BTC.id: rows}
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        self.client.request.side_effect = response
+        timeout_at = asyncio.timeout_at
+        budgets = []
+
+        def short_timeout(deadline):
+            budgets.append(deadline - asyncio.get_running_loop().time())
+            return timeout_at(asyncio.get_running_loop().time() + 0.02)
+
+        with (
+            patch("kairos.market_data.time.time", return_value=boundary + 0.1),
+            patch("kairos.market_data.asyncio.sleep", new=AsyncMock()),
+            patch("kairos.market_data.asyncio.timeout_at", side_effect=short_timeout),
+        ):
+            with self.assertRaisesRegex(SafetyError, "stale or incomplete"):
+                await self.client.candles(BTC, 1)
+        self.assertTrue(cancelled.is_set())
+        self.assertEqual(attempts, 2)
+        self.assertTrue(2.9 < budgets[0] <= 3)
+
+    async def test_boundary_does_not_retry_gaps_old_data_or_transport_errors(self):
+        rows = self.seed()
+        boundary = rows[-1][0] + 60
+        for response, age in (
+            (rows, 5),
+            (rows[:-2] + rows[-1:], 0.1),
+            (rows[:-5] + rows[-4:], 0.1),
+        ):
+            self.feed.invalidate()
+            self.client.request.reset_mock()
+            self.client.request.return_value = {BTC.id: response}
+            with (
+                patch("kairos.market_data.time.time", return_value=boundary + age),
+                patch("kairos.market_data.asyncio.sleep", new=AsyncMock()) as sleep,
+            ):
+                with self.assertRaises(SafetyError):
+                    await self.client.candles(BTC, 1)
+            self.client.request.assert_awaited_once()
+            sleep.assert_not_awaited()
+        self.client.request.side_effect = SafetyError("REST unavailable")
+        with (
+            patch("kairos.market_data.time.time", return_value=boundary + 0.1),
+            patch("kairos.market_data.asyncio.sleep", new=AsyncMock()) as sleep,
+        ):
+            with self.assertRaisesRegex(SafetyError, "REST unavailable"):
+                await self.client.candles(BTC, 1)
+        sleep.assert_not_awaited()
+
     async def test_clock_alone_never_finalizes_a_forming_candle(self):
         self.seed()
         await self.client.candles(BTC, 1)
@@ -391,6 +508,49 @@ class MarketDataTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(store.orders(), [])
         spot.add.assert_not_awaited()
         jev.decide.assert_not_awaited()
+
+    async def test_paper_scalp_keeps_running_and_claims_only_after_boundary_confirmation(self):
+        boundary = int(self.now) // 60 * 60
+        with patch("kairos.market_data.time.time", return_value=boundary + 0.232) as clock:
+            rows = candles()
+            for row in rows:
+                row[5] = row[4]
+            next_row = [boundary, *rows[-1][1:]]
+            self.client.request.return_value = {BTC.id: rows}
+            self.feed.accept(candle_message(rows[-10:]))
+            self.feed.accept(
+                book_message(bids=[[dec("98.4"), dec(100)]], asks=[[dec("98.5"), dec(100)]])
+            )
+            store = Store(":memory:")
+            self.addCleanup(store.close)
+            spot, jev = fake_kraken(), fake_jev()
+            spot.market_data = self.feed
+            spot.book, spot.candles = self.client.book, self.client.candles
+            spot.marks.side_effect = lambda pairs: {p.id: dec("98.4") for p in pairs}
+            engine = Engine(store, spot, jev, lambda *_: None)
+            await engine.initialize()
+            await engine.configure(
+                {**engine.settings, "strategy": "scalp", "order_size": "200", "max_exposure": "500"}
+            )
+            await engine.start()
+
+            async def confirm(delay):
+                self.assertEqual(store.orders(), [])
+                self.assertIsNone(engine.snapshot()["scalp"]["last_candle"])
+                clock.return_value += delay
+                self.feed.accept(candle_message([next_row], kind="update"))
+
+            with patch("kairos.market_data.asyncio.sleep", side_effect=confirm) as sleep:
+                await engine.tick()
+            sleep.assert_awaited_once_with(0.5)
+            self.assertTrue(engine.running, engine.last_error)
+            self.assertIsNone(engine.last_error)
+            self.assertEqual(len(store.orders()), 1)
+            self.assertGreater(engine.balance(BTC.base), 0)
+            self.assertEqual(engine.snapshot()["scalp"]["last_candle"], boundary)
+            spot.add.assert_not_awaited()
+            jev.decide.assert_not_awaited()
+            self.client.request.assert_awaited_once()
 
     async def test_real_stream_adapter_drives_paper_scalp_entry_and_protective_exit(self):
         rows = candles()
