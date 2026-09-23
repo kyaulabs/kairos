@@ -63,10 +63,19 @@ class AssessmentView {
     } else if (rules) {
       const position=AssessmentView.bandPosition(input), z=AssessmentView.number(input.z_score);
       const source=input.position ? 'ENTRY' : state.running ? 'ASSESSED' : 'PAUSED';
-      svg.attr('viewBox','0 0 360 166').attr('class','assessment-instrument range-gauge').attr('aria-label',position == null ? 'Bollinger band position unavailable; awaiting a non-flat window.' : `${source === 'ENTRY' ? 'Saved entry window' : source === 'PAUSED' ? 'Paused, last assessed window' : 'Latest assessed window'}: ${z == null ? 'standard deviation unavailable' : `${z.toFixed(2)} standard deviations from the midpoint`}. Upper band left, lower band right; needle capped at bands. Not confidence or permission to trade.`);
-      AssessmentView.dial(svg,position == null ? null : -position,position != null && z != null ? `${z>0?'+':''}${z.toFixed(2)}σ` : '—',position == null ? 'RANGE · AWAITING DATA' : `${source} · BAND POSITION`,'UPPER','LOWER');
+      svg.attr('viewBox','0 0 360 96').attr('class','assessment-instrument range-gauge').attr('aria-label',position == null ? 'Bollinger band position unavailable; awaiting a non-flat window.' : `${source === 'ENTRY' ? 'Saved entry window' : source === 'PAUSED' ? 'Paused, last assessed window' : 'Latest assessed window'}: ${z == null ? 'standard deviation unavailable' : `${z.toFixed(2)} standard deviations from the midpoint`}. Upper band left, lower band right; needle capped at bands. Not confidence or permission to trade.`);
+      text(14,24,position == null ? 'RANGE · AWAITING DATA' : `${source} · RANGE`,'instrument-caption');
+      text(346,24,position != null && z != null ? `${z>0?'+':''}${z.toFixed(2)}σ` : '—','instrument-score','end');
+      const level=position == null ? null : (1-Math.max(-1,Math.min(1,position)))/2;
+      const step=(332+2)/30; // Equal segments with gaps only between them.
+      svg.append('g').attr('class','range-segments').selectAll('rect').data(d3.range(30)).join('rect').attr('x',i=>14+i*step).attr('y',44).attr('width',step-2).attr('height',12).attr('rx',1).attr('fill',i=>i<14?'var(--danger)':i>15?'var(--success)':'var(--muted)').attr('opacity',i=>level == null ? .12 : i/29<=level ? .75 : .2);
+      if (level != null) {
+        const x=14+level*332;
+        svg.append('line').attr('class','instrument-needle').attr('x1',x).attr('x2',x).attr('y1',38).attr('y2',62).attr('stroke','var(--text)').attr('stroke-width',2).attr('stroke-linecap','round');
+      }
+      text(14,82,'UPPER','instrument-caption');text(180,82,'MID','instrument-caption','middle');text(346,82,'LOWER','instrument-caption','end');
       if (Array.isArray(input.series) && input.series.length > 1) {
-        // Keep the existing price plot's geometry; add the dial rather than replacing it.
+        // Labels sit inside the plot; reserve no separate right-hand label gutter.
         const svg=root.append('svg').attr('viewBox','0 0 360 214').attr('role','img').attr('class','assessment-instrument bollinger-instrument');
         const text=(x,y,value,cls='',anchor='start')=>svg.append('text').attr('x',x).attr('y',y).attr('class',cls).attr('text-anchor',anchor).text(value);
         const series = input.series.map(row => ({time: AssessmentView.number(row.time), close: AssessmentView.number(row.close)})).filter(row => row.time != null && row.close > 0);
@@ -77,19 +86,19 @@ class AssessmentView {
           const extent = d3.extent([...series.map(row => row.close), ...levels.map(row => row.value)]);
           const pad = Math.max((extent[1]-extent[0])*.15, extent[1]*.0001);
           const y = d3.scaleLinear().domain([extent[0]-pad, extent[1]+pad]).range([166, 32]);
-          const x = d3.scaleLinear().domain(d3.extent(series, row => row.time)).range([14, 266]);
-          svg.append('rect').attr('x',14).attr('y',y(levels[2].value)).attr('width',252).attr('height',y(levels[0].value)-y(levels[2].value)).attr('fill','var(--accent)').attr('opacity',.09);
+          const x = d3.scaleLinear().domain(d3.extent(series, row => row.time)).range([14, 346]);
+          svg.append('rect').attr('x',14).attr('y',y(levels[2].value)).attr('width',332).attr('height',y(levels[0].value)-y(levels[2].value)).attr('fill','var(--accent)').attr('opacity',.09);
           const gap=12*360/Math.max(180,this.element.clientWidth || 360);
           const middleY=Math.max(32+gap,Math.min(166-gap,y(levels[1].value)));
           const labels=levels[2].value===levels[0].value ? [{name:'flat',value:levels[1].value,labelY:y(levels[1].value)}] : levels.map((level,i)=>({...level,labelY:i===0?Math.max(y(level.value),middleY+gap):i===2?Math.min(y(level.value),middleY-gap):middleY}));
           for (const level of labels) {
-            svg.append('line').attr('x1',14).attr('x2',266).attr('y1',y(level.value)).attr('y2',y(level.value)).attr('stroke','var(--accent)').attr('stroke-dasharray',level.name === 'middle' ? '4 3' : '2 4').attr('opacity',.7);
-            svg.append('line').attr('x1',266).attr('x2',274).attr('y1',y(level.value)).attr('y2',level.labelY).attr('stroke','var(--muted)').attr('opacity',.5);
-            text(278,level.labelY+3,level.name.toUpperCase(),'instrument-caption');
+            svg.append('line').attr('x1',14).attr('x2',346).attr('y1',y(level.value)).attr('y2',y(level.value)).attr('stroke','var(--accent)').attr('stroke-dasharray',level.name === 'middle' ? '4 3' : '2 4').attr('opacity',.7);
+            text(340,level.labelY+3,level.name.toUpperCase(),'instrument-caption band-label','end');
           }
           svg.append('path').datum(series).attr('d',d3.line().x(row=>x(row.time)).y(row=>y(row.close))).attr('fill','none').attr('stroke','var(--text)').attr('stroke-width',1.8);
           const last=series.at(-1);
           svg.append('circle').attr('cx',x(last.time)).attr('cy',y(last.close)).attr('r',3.5).attr('fill','var(--accent)');
+          svg.selectAll('.band-label').raise();
           text(14,192,`LOW ${d3.format('.5~g')(levels[0].value)}`,'instrument-caption');
           text(346,192,`HIGH ${d3.format('.5~g')(levels[2].value)}`,'instrument-caption','end');
           text(14,208,`BANDS · ${new Date(input.candle_close_time*1000).toLocaleTimeString()}`,'instrument-caption');
@@ -140,12 +149,7 @@ class AssessmentView {
     root.selectAll('.instrument-caption').style('font-size', `${9*scale}px`);
     root.selectAll('.instrument-score').style('font-size', `${20*scale}px`);
     root.selectAll('.instrument-value').style('font-size', `${12*scale}px`);
-    if (rules) {
-      // The mini dial has its own fixed width; do not shrink the price chart with it.
-      const miniScale = 360 / Math.min(128, this.element.clientWidth || 128);
-      svg.selectAll('.instrument-caption').style('font-size', `${7*miniScale}px`);
-      svg.selectAll('.instrument-score').style('font-size', `${12*miniScale}px`);
-    }
+    if (rules) svg.selectAll('.instrument-score').style('font-size', `${12*scale}px`);
     const metrics=definition.scheduled ? [['ORDERS',state.program?.orders || 0],['MISSED SLOTS',state.program?.skipped_slots || 0],['TURNOVER · USD',state.program?.spent_including_fees || 0]] : rules ? [['WINDOW Z', input.z_score],['TREND ER',input.efficiency],['NET · BPS',input.net_room_bps]] : [['TREND',input.trend],['SPREAD · BPS',input.spread_bps],['INVENTORY',input.inventory]];
     const cells=root.append('div').attr('class','assessment-metrics').selectAll('div').data(metrics).join('div');
     cells.append('span').text(row=>row[0]);
