@@ -189,7 +189,7 @@ th.order-actions { z-index: 2; background: var(--surface-raised); }
 .execution-mode select { width: auto; max-width: 75%; }
 .engine-actions { display: flex; gap: 6px; margin: 10px 0 6px; }
 .engine-actions button { font-size: 10px; padding: 7px 8px; }
-.engine-actions #reconcile, .engine-actions [data-help-action="reconcile"] { margin-left: auto; }
+.engine-actions #reconcile { margin-left: auto; }
 #engine-strategy { font-size: 10px; }
 .settings-tabs { justify-content: space-between; }
 .settings-tabs button { flex: 1; padding-left: 8px; padding-right: 8px; }
@@ -229,7 +229,6 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 #execution-settings > .setting-heading { margin: 4px 0; }
 #execution-settings > .fields { margin-top: 14px; }
 .help-action { display: flex; align-items: center; min-width: 0; gap: 4px; }
-.help-action:has(> button[hidden]) { display: none; }
 .help-action > button { min-width: 0; }
 .settings-help-trigger { display: inline-grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; color: var(--muted); text-decoration: none; cursor: help; }
 .settings-help-trigger:hover, .settings-help-trigger[aria-expanded="true"] { color: var(--accent); background: var(--surface-raised); }
