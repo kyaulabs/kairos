@@ -59,19 +59,10 @@ class SettingsHelp {
     rebalance: 'Spot-only deterministic, sell-first rebalancing of explicit basket weights, including an explicit CASH weight. The anchor market is not the basket. Drift, cooldown, minimum trade, daily fee-inclusive turnover and portfolio caps constrain orders. At most one order per cooldown; no Jev, transfers or automatic funding.',
   };
   static topics = {
-    overview: 'Choose Product, bot market and Strategy; then set explicit allocation and risk caps in Capital and review costs/data limits in Execution. Stop first to edit, Save explicitly, and Start separately. Unsaved drafts are not execution inputs. Help stays available while running. Spot holdings remain tracked when changing markets; open owned scalp positions restrict strategy/market changes. Stop cancels orders but retains positions and pauses local protection.',
-    mode: 'Dry-run simulates orders and balances but still requires fresh public data and authenticated account trading fees. Trading uses real allocated funds and requires server gates plus explicit confirmation. Bollinger and margin remain paper-only. Mode changes reconcile/cancel tracked orders; they do not flatten positions. A running spot engine can resume after an accepted mode change; pause first if you want it to remain stopped. Futures live arming leaves the engine paused, with Start separate. Restart begins paused in Dry-run, retaining recorded live risk.',
-    start: 'Start the saved configuration, not unsaved form edits. Requires a ready market catalog, fresh account fees, sufficient allocated funds and resolved outstanding orders/recovery. Model-assisted strategies require Jev access; deterministic strategies do not. Scheduled runs must be pre-funded. Start resumes local protection for a retained owned scalp position, including an elapsed deadline. It does not guarantee a trade or reset completed runs.',
-    stop: 'Pause the engine and cancel/reconcile tracked orders. Stop does not sell spot holdings or close margin/Futures positions. Bollinger’s local stop/deadline checks pause too; its saved plan remains. Market, funding and liquidation risks can continue while paused. Do not treat Stop as an emergency flatten-all order.',
-    reconcile: 'Pause, cancel tracked orders and resolve their latest status/fills against the recorded portfolio. Use after uncertain execution or recovery warnings, not as a portfolio reset. Interrupted cycles can require explicit acknowledgment after you inspect balances. It does not discard residual holdings, automatically restart, or guarantee that every exchange uncertainty is resolved.',
     'new-program': 'Explicitly arm a fresh run for the saved DCA, TWAP or rebalance configuration after stopping and reconciling. Requires NEW STRATEGY RUN confirmation. Save edits first. Start remains separate. Existing holdings/history stay; this does not refill the allocation, erase today’s rebalance turnover or catch up missed orders.',
-    reset: 'While paused with paper orders settled, replace only the selected product’s paper portfolio using the saved paper starting balance. Simulated positions and relevant paper run/protection state are reset. Historical orders/events and live portfolios are retained. This is different from archiving/deleting history and cannot flatten a real exchange position.',
     'close-futures': 'While paused on Futures, explicitly confirm REDUCE FUTURES POSITION to request one bounded reduce-only exit for the saved bot market in the selected mode. It can reduce risk after a loss halt, but still needs fresh data/fees, settled recovery, valid size and price. The order cap, partial fills or minimum size may leave exposure. Repeat only after inspecting/reconciling the result; it is not flatten-all.',
-    save: 'Validate and save the applicable draft settings while paused. Inactive settings keep their saved values; hidden drafts are not silently applied to other strategies/products. Save neither starts the engine nor resets balances. Save a paper starting balance, then explicitly Reset to apply it. Existing scalp protection keeps its entry-time parameters. Scheduled configuration changes can require New strategy run before Start.',
     fees: 'Read-only, authenticated Kraken account maker/taker trading rates per side for saved execution markets, not the chart. Maker orders add resting liquidity; taker orders execute against existing liquidity. Entry and exit can have different notionals and charges. These rates are mandatory in paper and live modes. Missing, failed or expired rates block orders; there is no public-tier fallback or manual override. Check the visible timestamp/error and fee-query access. Check both entry and exit rates. Spread, slippage, margin borrowing and Futures funding are separate costs. Paper fills are estimates, not a backtest or proof of profitability.',
     data: 'Read-only execution feed status at the last engine check. Spot-family execution prefers fresh checksum-validated public WebSocket books and confirmed completed candles, with REST bootstrap/recovery. Invalid/stale data fails closed. Futures uses its separate REST adapter. This is not private order/fill streaming, does not change engine cadence, and does not run protection while paused. Chart navigation never changes execution subscriptions.',
-    status: 'Running means engine cycles are enabled, not that an entry is eligible or an order will fill. Paused means local strategy/protection checks are stopped, not that holdings are flat. Live errors and recovery warnings remain visible separately. After a failure or restart, inspect the state before starting again.',
-    'saved-strategy': 'The strategy saved on the engine. A different selection in the form is only a draft until Save. Check Execution mode as well: paper simulation and live trading use separate records and safeguards.',
   };
   static paragraphs(key, values, schema) {
     const text = SettingsHelp.fields[key] || SettingsHelp.topics[key];
@@ -115,18 +106,15 @@ class SettingsHelp {
       }
       this.attach(key, heading, label, control);
     }
-    for (const id of ['start', 'stop', 'reconcile', 'new-program', 'reset', 'close-futures', 'save']) {
-      const control = document.getElementById(id === 'save' ? 'save-settings' : id);
+    for (const id of ['new-program', 'close-futures']) {
+      const control = document.getElementById(id);
       const wrapper = document.createElement('div'); wrapper.className = 'help-action'; wrapper.dataset.helpAction = id;
       control.before(wrapper); wrapper.append(control); this.attach(id, wrapper, control, control);
     }
-    for (const [key, id] of [['overview', 'settings-title'], ['status', 'engine-status'], ['saved-strategy', 'engine-strategy'], ['fees', 'fees-heading'], ['data', 'data-heading']]) {
+    for (const [key, id] of [['fees', 'fees-heading'], ['data', 'data-heading']]) {
       const label = document.getElementById(id), heading = document.createElement('div'); heading.className = 'setting-heading';
       label.before(heading); heading.append(label); this.attach(key, heading, label);
     }
-    const mode = document.getElementById('mode'), label = mode.closest('label');
-    const heading = document.createElement('div'); heading.className = 'setting-heading';
-    label.before(heading); heading.append(label); this.attach('mode', heading, label.firstChild, mode);
     this.popup.addEventListener('pointerenter', () => clearTimeout(this.timer));
     this.popup.addEventListener('pointerleave', () => this.scheduleHide());
     this.popup.addEventListener('focusout', () => this.scheduleHide());
