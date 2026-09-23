@@ -87,10 +87,10 @@
       </div>
       <div id="orders-view" class="dock-view" role="tabpanel" aria-labelledby="orders-tab">
         <div class="table-wrap" tabindex="0" role="region" aria-label="Bot orders">
-          <table><thead><tr><th scope="col">Time</th><th scope="col">Mode / product</th><th scope="col">Market</th><th scope="col">Side</th><th scope="col">Limit</th><th scope="col">Requested</th><th scope="col">Filled</th><th scope="col">Fee</th><th scope="col">Status</th></tr></thead><tbody id="orders"></tbody></table>
-          <div id="orders-empty" class="empty-state"><strong>No orders yet</strong><span>Orders appear here when the bot submits a trade.</span></div>
+          <table><thead><tr><th scope="col">Time</th><th scope="col">Mode / product</th><th scope="col">Market</th><th scope="col">Side</th><th scope="col">Limit</th><th scope="col">Requested</th><th scope="col">Filled</th><th scope="col">Fee</th><th scope="col">Status</th><th scope="col" class="order-actions"><span class="sr-only">Paper history actions</span></th></tr></thead><tbody id="orders"></tbody></table>
+          <div id="orders-empty" class="empty-state"><strong>No visible orders</strong><span>Orders appear here when the bot submits a trade. Enable Show archived to view archived paper orders.</span></div>
         </div>
-        <p class="panel-note">An accepted order is not a fill. Paper and live records remain separately labeled.</p>
+        <div class="panel-note order-history-controls"><span>An accepted order is not a fill. History actions never reset balances.</span><label><input id="show-archived" type="checkbox"> Show archived <span id="archived-count">(0)</span></label></div>
       </div>
       <div id="activity-view" class="dock-view panel-scroll" role="tabpanel" aria-labelledby="activity-tab" tabindex="0" hidden><ol id="activity" class="activity" aria-label="Recent decisions, fills, and errors"></ol></div>
       <div id="portfolio-view" class="dock-view panel-scroll" role="tabpanel" aria-labelledby="portfolio-tab" tabindex="0" hidden>

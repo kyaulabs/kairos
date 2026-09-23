@@ -224,6 +224,10 @@ async def command(request):
         await engine.stop()
     elif action == "reconcile":
         await engine.reconcile(data.get("acknowledge") is True)
+    elif action == "paper-order":
+        await engine.paper_order_history(
+            data["order_id"], data["operation"], data.get("confirmation", "")
+        )
     elif action == "reset-paper":
         await engine.reset_paper()
     elif action == "reset-program":

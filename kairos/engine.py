@@ -92,7 +92,9 @@ class Engine:
             "daily_pnl": self.daily_pnl,
             "valuation_ts": self.valuation_ts,
             "recovery_required": self.recovery_required or bool(self.orders("trading", True)),
-            "orders": self.store.orders()[-100:],
+            "orders": self.history_orders(),
+            "archived_orders": self.history_orders(archived=True),
+            "order_history_revision": self.store.get("order_history_revision", 0),
             "cycle": self.store.get("cycle"),
             "margin": self.store.get("margin"),
             "futures": self.futures.ledger(),
@@ -306,6 +308,93 @@ class Engine:
             await self.refresh_fees(required=False)
             self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
             self.event("settings", {"message": "Settings saved", "settings": new})
+            self.emit_state()
+
+    def paper_history_restriction(self, order, operation, *, active_paper=None):
+        if order.get("mode") != "dry-run":
+            return "Live order history cannot be changed"
+        if order.get("status") not in TERMINAL:
+            return "Only completed paper orders can be archived or deleted"
+        if operation != "delete":
+            return None
+        if active_paper is None:
+            active_paper = bool(self.orders("dry-run", True))
+        if self.running or self.mode != "dry-run" or active_paper:
+            return "Pause in Dry-run and reconcile paper orders before deleting history"
+        if self.recovery_required or self.store.get("cycle"):
+            return "Reconcile recovery before deleting paper history"
+        if not order.get("pair") or not order.get("strategy"):
+            return "Incomplete paper record; archive instead"
+        product = order.get("product", "spot")
+        if product == "spot":
+            ledger = self.ledger("dry-run")
+            held = not ledger or any(
+                dec(value)
+                for asset, value in ledger["balances"].items()
+                if asset != self.settings["quote"]
+            )
+        elif product in {"margin", "futures"}:
+            ledger = self.store.get("margin" if product == "margin" else "futures:dry-run")
+            held = not ledger or any(dec(p["quantity"]) for p in ledger["positions"].values())
+        else:
+            return "Unknown paper portfolio; archive instead"
+        if held:
+            return "Close or reset this paper portfolio's positions before deleting history"
+        plan = self.store.get(f"scalp:dry-run:{product}:{order['pair']}") or {}
+        if order.get("scalp_id") and (plan.get("position") or {}).get("id") == order["scalp_id"]:
+            return "This order supports a saved scalp plan; archive or reset that paper portfolio first"
+        prefix = "futures:" if product == "futures" else ""
+        program = self.store.get(f"program:{prefix}dry-run:{order['strategy']}") or {}
+        if order.get("program_id") and program.get("id") == order["program_id"]:
+            return "This order supports a saved strategy run; archive or explicitly reset/rearm that run first"
+        if (
+            order["strategy"] == "rebalance"
+            and order["created"] >= int(time.time() // 86400) * 86400
+        ):
+            return "Today's rebalance orders protect the daily turnover limit; archive instead"
+        return None
+
+    def history_orders(self, archived=False):
+        result = []
+        active_paper = bool(self.orders("dry-run", True))
+        for order in self.store.display_orders(archived):
+            row = dict(order)
+            if order.get("mode") == "dry-run":
+                row["history_actions"] = {
+                    "archive_reason": self.paper_history_restriction(order, "archive"),
+                    "delete_reason": self.paper_history_restriction(
+                        order, "delete", active_paper=active_paper
+                    ),
+                }
+            result.append(row)
+        return result
+
+    async def paper_order_history(self, order_id, operation, confirmation=""):
+        async with self.lock:
+            if (
+                not isinstance(order_id, str)
+                or not 1 <= len(order_id) <= 128
+                or not isinstance(operation, str)
+                or operation not in {"archive", "restore", "delete"}
+            ):
+                raise SafetyError("Invalid paper history action")
+            order = next((o for o in self.orders() if o["id"] == order_id), None)
+            if not order:
+                raise SafetyError("Order not found; refresh the order history")
+            reason = self.paper_history_restriction(order, operation)
+            if reason:
+                raise SafetyError(reason)
+            if operation == "delete" and confirmation != "DELETE PAPER ORDER":
+                raise SafetyError(
+                    "Explicit permanent paper-order deletion confirmation is required"
+                )
+            self.store.paper_order_history(order_id, operation)
+            verb = {"archive": "archived", "restore": "restored", "delete": "permanently deleted"}[
+                operation
+            ]
+            self.event(
+                "system", {"message": f"Paper order {verb}; balances and live history unchanged"}
+            )
             self.emit_state()
 
     async def reset_paper(self):

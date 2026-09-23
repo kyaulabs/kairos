@@ -154,6 +154,24 @@ class ScalpingTests(unittest.IsolatedAsyncioTestCase):
         self.jev.decide.assert_not_awaited()
         self.spot.add.assert_not_awaited()
 
+    async def test_archived_entry_retains_ownership_and_protective_exit(self):
+        await self.enter()
+        entry = self.store.orders()[0]
+        await self.engine.paper_order_history(entry["id"], "archive")
+        self.assertEqual(self.engine.snapshot()["orders"], [])
+        self.assertEqual(self.engine.snapshot()["archived_orders"][0]["id"], entry["id"])
+        await self.engine.tick()
+        self.assertTrue(self.engine.running, self.engine.last_error)
+        self.assertGreater(self.engine.balance(BTC.base), 0)
+        self.bid, self.ask = "97", "97.1"
+        await self.engine.tick()
+        self.assertTrue(self.engine.running, self.engine.last_error)
+        self.assertEqual(self.engine.balance(BTC.base), 0)
+        self.assertIsNone(self.snapshot()["position"])
+        self.assertEqual(len(self.store.orders()), 2)
+        self.spot.add.assert_not_awaited()
+        self.jev.decide.assert_not_awaited()
+
     async def test_near_expiry_fees_refresh_before_slow_entry_planning(self):
         await self.engine.start()
         self.clock.return_value += 59
