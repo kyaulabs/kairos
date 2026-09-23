@@ -155,6 +155,13 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; white-space: 
 th { position: sticky; top: 0; z-index: 1; background: var(--surface-raised); text-align: left; color: var(--muted); font: 9px var(--font-ui); text-transform: uppercase; letter-spacing: .4px; }
 td, th { padding: 8px 12px; border-bottom: 1px solid var(--line); }
 tbody tr:hover { background: var(--surface-raised); }
+.order-actions { position: sticky; right: 0; width: 1%; min-width: 76px; padding: 4px 8px; text-align: right; background: var(--panel); box-shadow: -1px 0 var(--line); }
+th.order-actions { z-index: 2; background: var(--surface-raised); }
+.order-action { width: 26px; height: 26px; padding: 0; margin-left: 4px; color: var(--muted); background: transparent; border-color: transparent; }
+.order-action[data-operation="delete"] { color: var(--danger); }
+.order-history-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; justify-content: space-between; }
+.order-history-controls label { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.order-history-controls input { width: auto; }
 .empty-state { display: flex; flex: 1; min-height: 70px; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px; text-align: center; color: var(--muted); font-size: 11px; }
 .empty-state strong { color: var(--text); font-weight: 500; font-size: 13px; }
 .panel-note { flex-shrink: 0; padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
@@ -239,6 +246,9 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .icon-execution { --glyph: '\f0e7'; }
 .icon-sun { --glyph: '\f185'; }
 .icon-moon { --glyph: '\f186'; }
+.icon-archive { --glyph: '\f187'; }
+.icon-restore { --glyph: '\f2ea'; }
+.icon-trash { --glyph: '\f2ed'; }
 .market-symbol { display: flex; align-items: center; gap: 7px; min-width: 0; }
 #market-title { overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
 .chart-context { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }

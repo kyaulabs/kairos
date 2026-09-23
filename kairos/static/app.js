@@ -11,6 +11,7 @@
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
   let settingsSchema, settingsForm;
+  let historyRevision, historyGeneration = 0, historyFloor = 0;
   const scheduledStrategy = strategy => settingsSchema.strategies[strategy].scheduled;
   const assessmentView = new AssessmentView($('assessment-viz'));
   const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); }, markets => {
@@ -161,7 +162,15 @@
     $('fees-status').classList.toggle('warning', stale);
   }
   function render(next) {
+    if (historyRevision !== undefined && next.order_history_revision < historyRevision) return;
+    const historyChanged = historyRevision !== undefined && next.order_history_revision !== historyRevision;
+    historyRevision = next.order_history_revision;
     state = next;
+    if (historyChanged) {
+      historyFloor = Math.max(historyFloor, ...events.map(event => event.id));
+      events = []; $('activity').replaceChildren(); priceChart.fills = []; priceChart.draw();
+      refreshHistory().catch(error => message(`History refresh failed: ${error.message}. Reload to refresh records.`));
+    }
     if (next.csrf) csrf = next.csrf;
     if (next.tickers) tickers = next.tickers;
     if (!initialized) { loadForm(); initialized = true; }
@@ -276,26 +285,71 @@
       if (recovery) textRow($('holdings'), `Protected reserve · ${state.settings.quote}`, money(recovery.reserved));
       $('margin-info').textContent = `Fees: ${Object.entries(state.ledger?.fees || {}).map(([a,v]) => `${number(v)} ${a}`).join(', ') || 'none'}. Recovery: ${recovery?.recovered ? 'original recovered; reserve excluded from orders' : recovery?.pending ? 'raising cash' : state.settings.recover_initial ? 'waiting for >2× original equity' : 'disabled'}.`;
     }
+    renderOrders();
+    for (const event of events) plotFill(event);
+  }
+  function focusOrder(id, operation) {
+    const buttons = [...$('orders').querySelectorAll('button')];
+    (buttons.find(button => button.dataset.orderId === id && button.dataset.operation === operation && !button.disabled) || buttons.find(button => !button.disabled) || $('show-archived')).focus({preventScroll: true});
+  }
+  function renderOrders() {
+    if (!state) return;
+    const focused = $('orders').contains(document.activeElement) ? {...document.activeElement.dataset} : null;
     $('orders').replaceChildren();
-    $('orders-count').textContent = state.orders.length;
-    $('orders-empty').hidden = state.orders.length > 0;
-    for (const order of [...state.orders].reverse()) {
+    const archived = state.archived_orders || [];
+    const orders = [...state.orders, ...($('show-archived').checked ? archived : [])].sort((a,b) => b.created-a.created || b.id.localeCompare(a.id));
+    $('archived-count').textContent = `(${archived.length})`;
+    $('orders-count').textContent = orders.length;
+    $('orders-empty').hidden = orders.length > 0;
+    for (const order of orders) {
       const row = document.createElement('tr');
       const values = [time(order.created), `${order.mode} / ${order.product || 'spot'}`, order.pair, order.side,
-        number(order.price), number(order.volume), number(order.filled), `${number(order.fee)} ${order.quote}`, order.status];
+        number(order.price), number(order.volume), number(order.filled), `${number(order.fee)} ${order.quote}`, `${order.status}${order.archived ? ' · archived' : ''}`];
       for (const value of values) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
       row.title = `Client ID: ${order.id}${order.txid ? ` · Kraken: ${order.txid}` : ''}`;
-      $('orders').append(row);
+      const actions = document.createElement('td'); actions.className = 'order-actions';
+      if (order.mode === 'dry-run') {
+        const archive = order.archived ? 'restore' : 'archive';
+        for (const operation of [archive, 'delete']) {
+          const button = document.createElement('button'), icon = document.createElement('span');
+          const reason = order.history_actions ? order.history_actions[operation === 'delete' ? 'delete_reason' : 'archive_reason'] : 'Restart the updated backend to manage paper history';
+          const label = `${operation[0].toUpperCase()+operation.slice(1)} paper order · ${order.pair} · ${time(order.created)}`;
+          button.type = 'button'; button.className = 'order-action'; button.dataset.orderId = order.id; button.dataset.operation = operation;
+          button.disabled = busy || !connected || !!reason;
+          button.title = `${label}${reason ? ` — ${reason}` : operation === 'delete' ? ' — Permanent; balances are not reset' : ''}`;
+          button.setAttribute('aria-label', button.title);
+          icon.className = `icon icon-solid icon-${operation === 'delete' ? 'trash' : operation}`; icon.setAttribute('aria-hidden', 'true');
+          icon.textContent = {archive: '▣', restore: '↶', delete: '×'}[operation]; button.append(icon);
+          button.addEventListener('click', () => {
+            if (operation === 'delete' && !confirm(`Permanently delete this PAPER ${order.side} order for ${order.pair} (${time(order.created)}) and its linked fill/order events? This cannot be undone. Balances, fees, P&L and live records will not change.`)) return;
+            action('paper-order', {order_id: order.id, operation, confirmation: operation === 'delete' ? 'DELETE PAPER ORDER' : ''});
+          });
+          actions.append(button);
+        }
+      }
+      row.append(actions); $('orders').append(row);
     }
-    for (const event of events) plotFill(event);
+    if (focused && !busy) focusOrder(focused.orderId, focused.operation);
+  }
+  $('show-archived').addEventListener('change', renderOrders);
+  async function refreshHistory() {
+    const generation = ++historyGeneration;
+    const rows = await request('history');
+    if (generation !== historyGeneration) return;
+    const floor = Math.max(historyFloor, ...rows.map(event => event.id));
+    const pending = events.filter(event => event.id > floor);
+    events = []; $('activity').replaceChildren(); priceChart.fills = [];
+    historyFloor = floor;
+    for (const event of [...rows, ...pending]) addEvent(event, true);
+    priceChart.draw();
   }
   function plotFill(event) {
     const d = event.data;
     if (event.kind !== 'fill' || !state || d.pair !== chartPair?.id || d.mode !== state.mode || (d.product || 'spot') !== state.settings.product || !(Number(d.volume) > 0)) return;
     priceChart.fill({id: event.id, time: event.ts*1000, value: Number(d.cost)/Number(d.volume), side: d.side});
   }
-  function addEvent(event) {
-    if (!event.id || events.some(e => e.id === event.id)) return;
+  function addEvent(event, historical = false) {
+    if (!event.id || (!historical && event.id <= historyFloor) || events.some(e => e.id === event.id)) return;
     events.push(event); events = events.slice(-200);
     plotFill(event);
     const li = document.createElement('li'), when = document.createElement('time'), kind = document.createElement('b'), detail = document.createElement('p');
@@ -308,6 +362,7 @@
   async function action(path, body = {}, refreshForm = false) {
     if (busy) return;
     const focusedAction = ['start', 'stop'].includes(path) && document.activeElement === $(path);
+    const focusedOrder = path === 'paper-order' && document.activeElement.dataset.orderId === body.order_id;
     busy = true; message('Working…');
     if (state) render(state);
     try {
@@ -321,6 +376,7 @@
       try { render(await request('state')); } catch { /* Keep existing state visibly disconnected. */ }
     } finally {
       busy = false; if (state) render(state);
+      if (focusedOrder && (document.activeElement === document.body || document.activeElement.dataset.orderId === body.order_id)) focusOrder(body.order_id, body.operation);
       if (focusedAction && state && [document.body, $(path)].includes(document.activeElement)) {
         $(state.running ? 'stop' : 'start').focus();
       }
@@ -383,11 +439,11 @@
     strategyMarketPicker.setPairs(pairs);
     render(await request('state'));
     marketPicker.refresh();
-    for (const event of await request('history')) addEvent(event);
+    await refreshHistory();
     const stream = new EventSource('/api/events');
     stream.onopen = async () => {
       connected = true; $('connection').textContent = 'DESK CONNECTED'; $('connection').classList.add('connected');
-      try { render(await request('state')); for (const event of await request('history')) addEvent(event); }
+      try { render(await request('state')); await refreshHistory(); }
       catch (error) { message(error.message); }
     };
     stream.onerror = () => { connected = false; $('connection').textContent = 'RECONNECTING'; $('connection').classList.remove('connected'); if (state) render(state); };
