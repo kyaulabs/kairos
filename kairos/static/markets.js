@@ -23,17 +23,21 @@ class MarketPicker {
     document.getElementById('market-open').addEventListener('click', () => this.open(false));
     document.getElementById('favorites-open').addEventListener('click', () => this.open(true));
     document.getElementById('market-close').addEventListener('click', () => this.dialog.close());
-    this.dialog.addEventListener('close', () => this.opener?.focus({preventScroll: true}));
+    this.dialog.addEventListener('close', () => { this.cancelReorder(); this.opener?.focus({preventScroll: true}); });
+    window.addEventListener('blur', () => this.cancelReorder());
     this.dialog.addEventListener('click', event => {
       const r = this.dialog.getBoundingClientRect();
       if (event.target === this.dialog && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom)) this.dialog.close();
     });
-    this.search.addEventListener('input', () => this.renderRows());
-    document.getElementById('market-kind').addEventListener('change', event => { this.kind = event.target.value; this.renderRows(); });
+    this.search.addEventListener('input', () => { this.cancelReorder(); this.renderRows(); });
+    document.getElementById('market-kind').addEventListener('change', event => { this.cancelReorder(); this.kind = event.target.value; this.renderRows(); });
     for (const button of document.querySelectorAll('.market-sort')) {
       button.addEventListener('click', () => this.sortBy(button.dataset.sort));
     }
     this.dialog.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && (this.drag || this.pickedFavorite)) {
+        event.preventDefault(); this.cancelReorder(); this.renderRows(); return;
+      }
       if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
       const buttons = [...this.rows.querySelectorAll('.market-select:not(:disabled)')];
       const index = buttons.indexOf(document.activeElement);
@@ -44,17 +48,17 @@ class MarketPicker {
     });
     for (const [id, favorites] of [['markets-all', false], ['markets-favorites', true]]) {
       document.getElementById(id).addEventListener('click', () => {
-        this.favoritesOnly = favorites; this.renderRows();
+        this.cancelReorder(); this.favoritesOnly = favorites; this.renderRows();
       });
     }
     window.addEventListener('storage', event => {
       if (event.key !== 'kairos:favorites' && event.key !== null) return;
-      this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows();
+      this.cancelReorder(); this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows();
     });
     this.renderFooter();
   }
   sortBy(key) {
-    if (!['symbol', 'last', 'volume', 'change_pct'].includes(key)) return;
+    if (this.favoritesOnly || !['symbol', 'last', 'volume', 'change_pct'].includes(key)) return;
     this.sortDirection = key === this.sortKey
       ? (this.sortDirection === 'ascending' ? 'descending' : 'ascending')
       : (key === 'symbol' ? 'ascending' : 'descending');
@@ -62,6 +66,10 @@ class MarketPicker {
     this.renderRows();
   }
   sortedMarkets(markets) {
+    if (this.favoritesOnly) {
+      const positions = new Map(this.favorites.map((id, index) => [id, index]));
+      return [...markets].sort((a, b) => positions.get(a.id) - positions.get(b.id));
+    }
     const direction = this.sortDirection === 'ascending' ? 1 : -1;
     const numeric = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
     return [...markets].sort((a, b) => {
@@ -115,7 +123,11 @@ class MarketPicker {
     } catch { return []; }
   }
   toggleFavorite(id) {
+    this.cancelReorder();
     this.favorites = this.favorites.includes(id) ? this.favorites.filter(value => value !== id) : [...this.favorites, id];
+    this.saveFavorites();
+  }
+  saveFavorites() {
     const warning = document.getElementById('market-storage-status');
     try {
       localStorage.setItem('kairos:favorites', JSON.stringify(this.favorites));
@@ -126,7 +138,105 @@ class MarketPicker {
     }
     this.renderFooter(); this.renderRows();
   }
+  moveFavorite(id, target, after = false) {
+    if (id === target || !this.favorites.includes(id) || !this.favorites.includes(target)) return;
+    const order = this.favorites.filter(value => value !== id);
+    order.splice(order.indexOf(target) + Number(after), 0, id);
+    this.favorites = order;
+    this.saveFavorites();
+    const symbol = this.markets.find(market => market.id === id)?.symbol || id;
+    document.getElementById('favorite-order-status').textContent = `${symbol} moved to position ${order.indexOf(id) + 1} of ${order.length}.`;
+  }
+  pickFavorite(id) {
+    if (this.pickedFavorite && this.pickedFavorite !== id) {
+      const source = this.pickedFavorite; this.pickedFavorite = null;
+      this.moveFavorite(source, id);
+    } else {
+      this.pickedFavorite = this.pickedFavorite === id ? null : id;
+      document.getElementById('favorite-order-status').textContent = this.pickedFavorite
+        ? 'Choose another handle to move this favorite before it. Escape cancels.' : 'Reorder canceled.';
+      this.renderRows();
+    }
+  }
+  cancelReorder() {
+    const picked = this.pickedFavorite; this.pickedFavorite = null;
+    if (this.drag) this.finishDrag(false);
+    else if (picked) this.renderRows();
+  }
+  startDrag(event, id, handle) {
+    if (event.button !== 0 || this.drag) return;
+    this.suppressHandleClick = false;
+    this.drag = {id, handle, pointer: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false};
+    handle.setPointerCapture(event.pointerId);
+    handle.focus({preventScroll: true});
+  }
+  dragOver() {
+    const drag = this.drag;
+    if (!drag?.moved) return;
+    const panel = this.rows.closest('.market-results'), bounds = panel.getBoundingClientRect();
+    if (drag.x >= bounds.left && drag.x <= bounds.right && drag.y >= bounds.top && drag.y <= bounds.bottom) {
+      const delta = drag.y < bounds.top + 32 ? -8 : drag.y > bounds.bottom - 32 ? 8 : 0;
+      if (delta) panel.scrollTop += delta;
+    }
+    const target = document.elementFromPoint(drag.x, drag.y)?.closest('[data-market-row]');
+    drag.target = target && this.rows.contains(target) ? target.dataset.marketRow : null;
+    drag.after = !!target && drag.y > target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+    for (const row of this.rows.children) {
+      const active = row.dataset.marketRow === drag.target && drag.target !== drag.id;
+      row.classList.toggle('favorite-dragging', row.dataset.marketRow === drag.id);
+      row.classList.toggle('favorite-drop-before', active && !drag.after);
+      row.classList.toggle('favorite-drop-after', active && drag.after);
+    }
+    this.dragFrame = requestAnimationFrame(() => this.dragOver());
+  }
+  finishDrag(commit) {
+    const drag = this.drag;
+    if (!drag) return;
+    this.drag = null; cancelAnimationFrame(this.dragFrame);
+    if (drag.handle.hasPointerCapture(drag.pointer)) drag.handle.releasePointerCapture(drag.pointer);
+    if (drag.moved) this.suppressHandleClick = true;
+    if (commit && drag.moved && drag.target && drag.target !== drag.id) this.moveFavorite(drag.id, drag.target, drag.after);
+    else if (drag.moved || !commit) this.renderRows();
+  }
+  reorderHandle(market) {
+    const handle = document.createElement('button');
+    handle.type = 'button'; handle.className = 'favorite-handle'; handle.dataset.reorder = market.id;
+    handle.setAttribute('aria-label', `Reorder ${market.symbol}`);
+    handle.setAttribute('aria-describedby', 'favorite-order-help');
+    handle.setAttribute('aria-pressed', String(this.pickedFavorite === market.id));
+    handle.title = 'Drag to reorder · ↑ ↓ move · Click then choose a destination';
+    const icon = document.createElement('span'); icon.className = 'icon icon-grip icon-solid'; icon.textContent = '⠿'; icon.setAttribute('aria-hidden', 'true'); handle.append(icon);
+    handle.addEventListener('click', event => {
+      if (this.suppressHandleClick && event.detail > 0) { this.suppressHandleClick = false; return; }
+      this.pickFavorite(market.id);
+    });
+    handle.addEventListener('keydown', event => {
+      if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      event.preventDefault(); event.stopPropagation(); this.cancelReorder();
+      const visible = [...this.rows.querySelectorAll('[data-reorder]')].map(button => button.dataset.reorder);
+      const target = visible[visible.indexOf(market.id) + (event.key === 'ArrowUp' ? -1 : 1)];
+      if (target) this.moveFavorite(market.id, target, event.key === 'ArrowDown');
+    });
+    handle.addEventListener('pointerdown', event => this.startDrag(event, market.id, handle));
+    handle.addEventListener('pointermove', event => {
+      const drag = this.drag;
+      if (!drag || drag.pointer !== event.pointerId) return;
+      drag.x = event.clientX; drag.y = event.clientY;
+      if (!drag.moved && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) > 4) { drag.moved = true; this.pickedFavorite = null; this.dragOver(); }
+    });
+    handle.addEventListener('pointerup', event => {
+      if (this.drag?.pointer !== event.pointerId) return;
+      if (this.drag.moved) {
+        this.drag.x = event.clientX; this.drag.y = event.clientY;
+        cancelAnimationFrame(this.dragFrame); this.dragOver(); event.preventDefault();
+      }
+      this.finishDrag(true);
+    });
+    for (const name of ['pointercancel', 'lostpointercapture']) handle.addEventListener(name, () => this.finishDrag(false));
+    return handle;
+  }
   open(favorites) {
+    this.cancelReorder();
     this.favoritesOnly = favorites;
     this.opener = document.getElementById(favorites ? 'favorites-open' : 'market-open');
     this.search.value = '';
@@ -152,10 +262,10 @@ class MarketPicker {
     return {bid: Number(market.bid), ask: Number(market.ask), last: market.last, received: market.received || 0};
   }
   renderRows() {
-    if (!this.dialog.open) return;
+    if (!this.dialog.open || this.drag) return;
     const focused = document.activeElement;
-    const focusId = focused.dataset.favorite || focused.dataset.market;
-    const favoriteFocus = focused.dataset.favorite !== undefined;
+    const focusKind = focused.dataset.reorder !== undefined ? 'reorder' : focused.dataset.favorite !== undefined ? 'favorite' : 'market';
+    const focusId = focused.dataset[focusKind];
     const query = this.search.value;
     const known = new Set(this.markets.map(market => market.id));
     const candidates = this.favoritesOnly ? [...this.markets, ...this.favorites.filter(id => !known.has(id))
@@ -163,10 +273,13 @@ class MarketPicker {
     const matches = this.sortedMarkets(candidates.filter(market =>
       (!this.favoritesOnly || this.favorites.includes(market.id)) && MarketPicker.matchesKind(market, this.kind) && MarketPicker.matches(market, query)));
     for (const button of document.querySelectorAll('.market-sort')) {
-      const active = button.dataset.sort === this.sortKey;
+      button.disabled = this.favoritesOnly;
+      button.title = this.favoritesOnly ? 'Favorites use saved order; drag the handles to rearrange them.' : '';
+      const active = !this.favoritesOnly && button.dataset.sort === this.sortKey;
       button.closest('th').setAttribute('aria-sort', active ? this.sortDirection : 'none');
-      button.querySelector('.sort-direction').textContent = active ? (this.sortDirection === 'ascending' ? '↑' : '↓') : '↕';
+      button.querySelector('.sort-direction').textContent = this.favoritesOnly ? '' : active ? (this.sortDirection === 'ascending' ? '↑' : '↓') : '↕';
     }
+    document.getElementById('favorite-order-help').hidden = !this.favoritesOnly;
     document.getElementById('markets-all').setAttribute('aria-pressed', String(!this.favoritesOnly));
     document.getElementById('markets-favorites').setAttribute('aria-pressed', String(this.favoritesOnly));
     const fragment = document.createDocumentFragment();
@@ -186,7 +299,10 @@ class MarketPicker {
       label.append(product);
       button.append(MarketPicker.pairIcon(MarketPicker.iconSymbol(market)), label);
       button.setAttribute('aria-pressed', String(market.id === this.selected));
-      button.addEventListener('click', () => this.choose(market)); name.append(button);
+      button.addEventListener('click', () => this.choose(market));
+      const marketName = document.createElement('div'); marketName.className = 'favorite-name';
+      if (this.favoritesOnly) marketName.append(this.reorderHandle(market));
+      marketName.append(button); name.append(marketName);
       price.textContent = MarketPicker.number(market.last);
       volume.textContent = MarketPicker.number(market.volume);
       const unit = document.createElement('small'); unit.textContent = market.volume_unit || ''; volume.append(unit);
@@ -203,8 +319,8 @@ class MarketPicker {
     document.getElementById('market-empty').hidden = matches.length > 0;
     this.updateFreshness();
     if (focusId) {
-      const target = [...this.rows.querySelectorAll(favoriteFocus ? '[data-favorite]' : '[data-market]')]
-        .find(button => (favoriteFocus ? button.dataset.favorite : button.dataset.market) === focusId);
+      const target = [...this.rows.querySelectorAll(`[data-${focusKind}]`)]
+        .find(button => button.dataset[focusKind] === focusId);
       (target || this.search).focus({preventScroll: true});
     }
   }

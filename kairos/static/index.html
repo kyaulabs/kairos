@@ -35,9 +35,13 @@
     <div class="metric"><span>Exposure · USD</span><strong id="exposure" aria-describedby="exposure-cap">—</strong></div>
   </div>
   <div class="header-controls">
+    <span id="connection" class="connection" role="status">Connecting</span>
     <span id="mode-badge" class="pill">DRY-RUN</span>
-    <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" title="Switch to light theme"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
-    <label class="header-accent"><span class="sr-only">Interface accent</span><select id="appearance-accent" title="Interface accent · browser-local"><option value="violet">Violet</option><option value="green">Green</option><option value="red">Red</option></select></label>
+    <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" aria-haspopup="dialog" aria-controls="appearance-menu" popovertarget="appearance-menu" popovertargetaction="show" aria-expanded="false" aria-describedby="appearance-help" title="Switch to light theme · Right-click for color schemes"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀︎</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
+    <span id="appearance-help" class="sr-only">Right-click, press Arrow Down or Shift+F10, or touch and hold for color schemes.</span>
+    <div id="appearance-menu" class="appearance-menu" popover="auto" role="dialog" aria-label="Color scheme">
+      <label>Interface accent<select id="appearance-accent" size="4" title="Interface accent · browser-local"><option value="violet">Violet</option><option value="green">Green</option><option value="red">Red</option><option value="blue">Info Blue</option></select></label>
+    </div>
     <span id="appearance-status" class="sr-only" role="status">Appearance is local to this browser. Gains remain green; losses remain red.</span>
   </div>
 </header>
@@ -231,7 +235,6 @@
   </div>
 </main>
 <footer class="desk-footer">
-  <span id="connection" class="connection" role="status">Connecting</span>
   <button id="favorites-open" class="favorites-open" type="button" aria-haspopup="dialog" aria-controls="market-dialog"><span class="icon icon-star icon-solid" aria-hidden="true">★</span> Favorites</button>
   <div id="watchlist" class="watchlist" role="region" aria-label="Favorite market prices" tabindex="0"><span class="muted">Star markets to watch their prices here.</span></div>
   <details class="safety-info"><summary>Safety notes</summary><div class="safety-popover">Stop cancels tracked orders; it does not sell holdings or close Futures positions. Loss limits stop new trading, not market losses. Never expose the backend port publicly.</div></details>
@@ -243,6 +246,8 @@
   <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="change_pct">24h change <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · native <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
   <p id="market-source-status" class="warning" role="status" hidden></p>
   <p id="market-storage-status" class="warning" role="status" hidden></p>
+  <p id="favorite-order-help" class="panel-note" hidden>Drag a handle to reorder the footer. Or click a handle, then another to move before it. Focus a handle and use ↑ ↓ to move; Esc cancels.</p>
+  <span id="favorite-order-status" class="sr-only" role="status"></span>
   <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Quotes refresh about every 10s; spot/xStocks 24h change about every minute. Volume units vary by product; futures quantities are contracts. — means unavailable. Favorites are saved in this browser.</p>
 </dialog>
 </body>
