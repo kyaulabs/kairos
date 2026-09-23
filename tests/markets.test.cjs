@@ -6,14 +6,14 @@ const {runInNewContext} = require('node:vm');
 
 function fixture(saved = null) {
   const values = new Map(saved === null ? [] : [['kairos:favorites', saved]]);
-  const warning = {hidden: true};
+  const warning = {hidden: true}, status = {};
   const timers = [];
   const browser = {};
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/vendor/crypto-icons/symbols.js'), 'utf8'), {window: browser});
   const storage = {getItem: key => values.get(key), setItem: (key, value) => values.set(key, value)};
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/markets.js'), 'utf8'), {
     window: browser, localStorage: storage,
-    document: {getElementById: () => warning},
+    document: {getElementById: id => id === 'favorite-order-status' ? status : warning},
     setTimeout: (callback, delay) => timers.push({callback, delay}),
   });
   const picker = Object.assign(Object.create(browser.MarketPicker.prototype), {
@@ -22,7 +22,7 @@ function fixture(saved = null) {
   });
   picker.favorites = picker.loadFavorites();
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/strategy-market.js'), 'utf8'), {window: browser});
-  return {picker, values, storage, warning, timers, browser};
+  return {picker, values, storage, warning, timers, browser, status};
 }
 
 test('product filters distinguish margin eligibility from new product execution', () => {
@@ -266,4 +266,50 @@ test('quotes use instrument identity and preserve per-venue age, not display sym
   assert.equal(picker.ticker('futures:BTC').received, 456);
   assert.equal(picker.ticker('ETH'), null);
   assert.equal(picker.ticker('BTC/USD'), null);
+});
+
+test('manual favorite order persists, keeps hidden/unavailable IDs, and never selects a market', () => {
+  const {picker, values, status} = fixture('["BTC","unavailable","ETH","DOGE"]');
+  picker.request = picker.select = () => assert.fail('Reordering must be browser-local');
+  picker.moveFavorite('DOGE', 'BTC');
+  assert.deepEqual(JSON.parse(values.get('kairos:favorites')), ['DOGE', 'BTC', 'unavailable', 'ETH']);
+  assert.match(status.textContent, /position 1 of 4/);
+  picker.moveFavorite('BTC', 'ETH', true);
+  assert.deepEqual(Array.from(fixture(values.get('kairos:favorites')).picker.favorites), ['DOGE', 'unavailable', 'ETH', 'BTC']);
+  const saved = values.get('kairos:favorites');
+  picker.moveFavorite('BTC', 'BTC'); picker.moveFavorite('not-saved', 'BTC'); picker.moveFavorite('BTC', 'not-saved');
+  assert.equal(values.get('kairos:favorites'), saved);
+});
+
+test('favorite view follows saved order while All markets keeps its independent sort', () => {
+  const {picker} = fixture('["ETH","BTC"]');
+  const rows = [{id: 'BTC', symbol: 'BTC/USD', last: '2'}, {id: 'ETH', symbol: 'ETH/USD', last: '1'}];
+  picker.sortBy('last');
+  picker.favoritesOnly = true;
+  picker.sortBy('symbol');
+  assert.equal(picker.sortKey, 'last');
+  assert.deepEqual(Array.from(picker.sortedMarkets(rows), row => row.id), ['ETH', 'BTC']);
+  picker.favoritesOnly = false;
+  assert.deepEqual(Array.from(picker.sortedMarkets(rows), row => row.id), ['BTC', 'ETH']);
+  assert.equal(rows[0].id, 'BTC');
+});
+
+test('click-to-move and cancel preserve storage until a destination is chosen', () => {
+  const {picker, values} = fixture('["BTC","ETH","DOGE"]');
+  picker.pickFavorite('DOGE');
+  assert.equal(values.get('kairos:favorites'), '["BTC","ETH","DOGE"]');
+  picker.cancelReorder();
+  assert.equal(picker.pickedFavorite, null);
+  picker.pickFavorite('DOGE'); picker.pickFavorite('BTC');
+  assert.deepEqual(JSON.parse(values.get('kairos:favorites')), ['DOGE', 'BTC', 'ETH']);
+  assert.equal(picker.pickedFavorite, null);
+});
+
+test('reorder remains usable with a visible warning when browser storage fails', () => {
+  const {picker, storage, warning} = fixture('["BTC","ETH"]');
+  storage.setItem = () => { throw new Error('Unavailable'); };
+  picker.moveFavorite('ETH', 'BTC');
+  assert.deepEqual(Array.from(picker.favorites), ['ETH', 'BTC']);
+  assert.equal(warning.hidden, false);
+  assert.match(warning.textContent, /page session/);
 });
