@@ -10,7 +10,7 @@
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
   let tickers = {}, connected = false;
   let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
-  let settingsSchema, settingsForm;
+  let settingsSchema, settingsForm, settingsHelp;
   let historyRevision, historyGeneration = 0, historyFloor = 0;
   const scheduledStrategy = strategy => settingsSchema.strategies[strategy].scheduled;
   const assessmentView = new AssessmentView($('assessment-viz'));
@@ -142,6 +142,7 @@
     $('program-settings').hidden = !scheduledStrategy(strategy);
     $('bot-market-label').textContent = strategy === 'rebalance' ? 'Anchor market · basket configured below' : 'Bot market';
     $('new-program').disabled = busy || state?.running || strategy !== state?.settings.strategy;
+    settingsHelp?.refresh();
   }
   function loadForm() {
     settingsForm.load(state.settings);
@@ -434,6 +435,7 @@
   async function boot() {
     [settingsSchema, pairs] = await Promise.all([request('settings-schema'), request('pairs')]);
     settingsForm = new SettingsForm(form, settingsSchema);
+    settingsHelp = new SettingsHelp($('settings-panel'), form, settingsSchema);
     SettingsForm.choices($('candle-interval'), settingsSchema.fields.candle_minutes.choices, $('candle-interval').value);
     priceChart.intervals = Object.keys(settingsSchema.fields.candle_minutes.choices).map(Number);
     strategyMarketPicker.setPairs(pairs);

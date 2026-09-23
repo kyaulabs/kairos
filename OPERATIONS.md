@@ -4,6 +4,8 @@ Kairos runs Jev-assisted trading strategies against Kraken market data. The work
 
 Product is the single execution-product selector under Strategy. Capital contains paper/live allocations, risk caps, reinvestment and product-specific leverage. Execution displays read-only Kraken account trading fees and contains spread, slippage and freshness limits. DCA/TWAP controls appear with their strategy; model and margin controls appear only where applicable. Unsupported strategies remain labeled, not silently substituted. A checked spot-only recovery switch stays visible until explicitly turned off before switching products. Hidden fields keep their saved values; an inactive draft is not submitted while saving another product or strategy.
 
+Question-mark icons in Kairos settings explain every editable field, action and read-only fee/data section across all three tabs. Hover or focus an icon to read; click, Enter or Space keeps the card open for scrolling. Touch users can tap. Close with Esc, the × button or an outside click. The settings-title icon explains the configuration workflow. Strategy help follows the current draft; displayed ranges, defaults and choice labels come from the server schema, not a second list of limits. Defaults are not profitability recommendations. Static instructional paragraphs are now in this help; active errors, fee/feed warnings and market limitations remain visible. Help stays available while the original native fieldset lock prevents configuration edits during running/busy states. Opening help never saves settings, selects a market or sends an API request. This help update needs matching static files and a reload, not a backend restart.
+
 The bot-settings contract lives in `kairos/settings.py`. The read-only `/api/settings-schema` endpoint supplies the browser's types, bounds and choices; it contains no credentials or live permissions. Legacy manual `maker_fee_bps` and `taker_fee_bps` settings are discarded on load. Other settings, portfolios, program identities and existing orders' fee snapshots are retained. See the [refactor analysis](REFACTOR-ANALYSIS.md) for duplicate controls removed and safeguards deliberately kept separate. Deploy the backend and static files together; the form stays unavailable if its contract cannot load.
 
 Paper rows in **Orders** have right-aligned archive and trash icons. Archive hides a completed paper order and its linked fill/order events from the default dashboard while retaining the records used for accounting. **Show archived** reveals archived rows; their restore icon returns them to the default view. Archiving/restoring completed paper records is allowed while running. Live rows have no history actions, and unfinished paper rows cannot be changed. The table retains its bounded history: up to 100 visible and 100 archived orders.
@@ -276,6 +278,7 @@ node --check kairos/static/chart.js
 node --test tests/*.test.cjs
 node --check kairos/static/app.js
 node --check kairos/static/settings.js
+node --check kairos/static/settings-help.js
 node --check kairos/static/markets.js
 node --check kairos/static/strategy-market.js
 node --check kairos/static/accounts.js

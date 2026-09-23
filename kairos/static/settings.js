@@ -44,7 +44,7 @@ class SettingsForm {
       const active = SettingsForm.applies(field, values);
       // An incompatible enabled switch stays visible until the operator explicitly turns it off.
       input.disabled = !active && !(field.must_be_off_when_inactive && input.checked);
-      const label = input.closest('label');
+      const label = input.closest('.setting-field') || input.closest('label');
       if (label) label.hidden = input.disabled;
       if (field.positive) input.setCustomValidity(active && !(Number(input.value) > 0) ? 'Enter an explicit positive limit price.' : '');
       if (field.must_be_off_when_inactive) input.setCustomValidity(!active && input.checked ? 'Turn off spot-only capital recovery before selecting this product or strategy.' : '');
