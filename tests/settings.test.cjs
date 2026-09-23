@@ -152,3 +152,18 @@ test('snapshot rendering does not replace drafts, but an explicit load restores 
   assert.equal(inputs.order_size.value, '1000');
   assert.equal(inputs.twap_limit.value, '501.25');
 });
+
+test('explicit labels and help wrappers preserve field applicability and inactive draft isolation', () => {
+  const {inputs, view, values} = fixture();
+  const wrappers = Object.fromEntries(Object.keys(inputs).map(name => [name, {hidden: false}]));
+  for (const [name, input] of Object.entries(inputs)) input.closest = selector => selector === '.setting-field' ? wrappers[name] : null;
+  inputs.live_budget.value = '987';
+  inputs.product.value = 'futures'; view.update();
+  assert.equal(wrappers.live_budget.hidden, true);
+  assert.equal(inputs.live_budget.disabled, true);
+  assert.equal(wrappers.futures_live_budget.hidden, false);
+  assert.equal(values().live_budget, defaults.live_budget);
+  inputs.product.value = 'spot'; view.update();
+  assert.equal(wrappers.live_budget.hidden, false);
+  assert.equal(inputs.live_budget.value, '987');
+});
