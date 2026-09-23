@@ -48,6 +48,7 @@ function documentFixture() {
       this.attributes=new Map();this.clientWidth=220;this.textContent='';
       this.style={setProperty(){},removeProperty(){}};
     }
+    get nextSibling() { return this.parentNode?.children[this.parentNode.children.indexOf(this)+1] || null; }
     appendChild(child) { return this.insertBefore(child,null); }
     insertBefore(child,next) {
       if(child.parentNode)child.parentNode.removeChild(child);
@@ -97,14 +98,18 @@ test('real D3 renders model, missing data, program and band instruments without 
   assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Not confidence or permission to trade/);
   assert.match(root.querySelector('.bollinger-instrument').getAttribute('aria-label'),/one-minute closing prices/);
   assert.equal(root.querySelector('.bollinger-instrument').getAttribute('viewBox'),'0 0 360 214');
-  assert.equal(root.querySelectorAll('path').length,31);
+  assert.equal(root.querySelectorAll('path').length,1);
+  const segments=root.querySelector('.range-segments').querySelectorAll('rect');
+  assert.equal(segments.length,30);
+  assert.equal(segments[0].getAttribute('x'),'14');
+  assert.ok(Math.abs(Number(segments.at(-1).getAttribute('x'))+Number(segments.at(-1).getAttribute('width'))-346)<1e-8);
   for(const node of root.querySelectorAll('*')) for(const value of node.attributes.values()) assert.doesNotMatch(value,/NaN|Infinity/);
   view.render({...rule,state:{...rule.state,lower:'100',middle:'100',upper:'100'}},{...state,settings:{...state.settings,strategy:'scalp'}});
   assert.ok(root.querySelectorAll('text').some(node=>node.textContent==='FLAT'));
   assert.equal(root.querySelector('.instrument-needle'),null);
 });
 
-test('mini gauge moves with assessed band position, caps the needle, and labels paused and saved data', () => {
+test('horizontal meter moves with band position, caps its needle, and labels paused and saved data', () => {
   const {root,view}=instrumentFixture();
   const state={running:true,mode:'dry-run',settings:{strategy:'scalp',product:'spot',pair:'XXBTZUSD'}};
   const input={window:30,candle_close_time:120,lower:'98',middle:'100',upper:'102',z_score:'-2',series:[{time:0,close:'100'},{time:60,close:'98'}]};
@@ -112,17 +117,29 @@ test('mini gauge moves with assessed band position, caps the needle, and labels 
   const before=JSON.stringify({state,decision});
   view.render(decision,state);
   const lower=Number(root.querySelector('.instrument-needle').getAttribute('x2'));
-  assert.ok(lower>180);
+  assert.equal(lower,346);
+  assert.equal(root.querySelector('.instrument-needle').getAttribute('x1'),String(lower));
+  assert.ok(Number(root.querySelector('.instrument-needle').getAttribute('y2'))>Number(root.querySelector('.instrument-needle').getAttribute('y1')));
   assert.equal(root.querySelector('svg'),root.querySelector('.range-gauge'));
   assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Latest assessed window/);
-  const plot=root.querySelector('.bollinger-instrument').querySelector('path').getAttribute('d');
+  const chart=root.querySelector('.bollinger-instrument');
+  const plot=chart.querySelector('path').getAttribute('d');
+  assert.equal(chart.querySelector('circle').getAttribute('cx'),'346');
+  assert.equal(chart.querySelector('rect').getAttribute('width'),'332');
+  for(const label of chart.querySelectorAll('.band-label')) {
+    assert.equal(label.getAttribute('text-anchor'),'end');
+    assert.ok(Number(label.getAttribute('x'))<346);
+    assert.ok(chart.children.indexOf(label)>chart.children.indexOf(chart.querySelector('path')));
+  }
   view.render({...decision,state:{...input,z_score:'2',series:[{time:0,close:'100'},{time:60,close:'102'}]}},state);
   const upper=Number(root.querySelector('.instrument-needle').getAttribute('x2'));
-  assert.ok(upper<180);
+  assert.equal(upper,14);
   assert.notEqual(root.querySelector('.bollinger-instrument').querySelector('path').getAttribute('d'),plot);
   view.render({...decision,state:{...input,z_score:'4',series:[{time:0,close:'100'},{time:60,close:'104'}]}},state);
   assert.equal(Number(root.querySelector('.instrument-needle').getAttribute('x2')),upper);
   assert.equal(root.querySelector('.instrument-score').textContent,'+4.00σ');
+  view.render({...decision,state:{...input,z_score:'0',series:[{time:0,close:'100'},{time:60,close:'100'}]}},state);
+  assert.equal(root.querySelector('.instrument-needle').getAttribute('x2'),'180');
   view.render(decision,{...state,running:false});
   assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Paused, last assessed/);
   view.render(null,{...state,running:false,scalp:{position:{signal:input,stop:'97',target:'100',deadline:300}}});

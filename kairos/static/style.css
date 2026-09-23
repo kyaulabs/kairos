@@ -110,8 +110,8 @@ small, .muted { color: var(--muted); }
 #decision-context { font-size: 11px; line-height: 1.65; }
 .assessment-viz { margin: 14px 0; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); overflow: hidden; }
 .assessment-instrument, .cost-instrument { display: block; width: 100%; height: auto; }
-.assessment-viz .range-gauge { width: 128px; max-width: 100%; margin: 6px auto 2px; }
 .bollinger-instrument { border-top: 1px solid var(--line); }
+.bollinger-instrument .band-label { paint-order: stroke; stroke: var(--surface-raised); stroke-width: 4px; stroke-linejoin: round; }
 .assessment-viz[data-kind="scalp"] .assessment-metrics > div { padding: 6px 8px; }
 .assessment-viz[data-kind="scalp"] .assessment-metrics strong { font-size: 11px; line-height: 1.4; }
 .assessment-viz[data-kind="scalp"] .assessment-protection { padding: 7px 8px; line-height: 1.4; }
