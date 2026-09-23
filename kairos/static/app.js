@@ -213,6 +213,9 @@
       textRow($('trading-fees'), row.symbol, `${percent(row.maker_bps)} maker · ${percent(row.taker_bps)} taker`);
     }
     updateFeeStatus();
+    const data = state.market_data;
+    $('market-data-status').textContent = state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
+    $('market-data-status').classList.toggle('warning', state.settings.product !== 'futures' && !!data?.books_total && (data.books_ready < data.books_total || !!data.error));
     const decision = AssessmentView.matches(state.decision, state) ? state.decision : null;
     const definition = settingsSchema.strategies[state.settings.strategy];
     $('assessment-panel').dataset.strategy = state.settings.strategy;
