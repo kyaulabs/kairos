@@ -76,6 +76,7 @@ class Engine:
             "futures_live_enabled": bool(self.futures.client and self.futures.client.allow_live),
             "settings": self.settings,
             "fees": self.fees.snapshot(self.fee_scope),
+            "market_data": self.kraken.market_data.snapshot(),
             "error": self.last_error
             or (
                 "Live Futures positions remain. Dry-run does not close them; arm Trading to reconcile/manage them."

@@ -2,6 +2,7 @@ import time
 from unittest.mock import AsyncMock
 
 from kairos.domain import Book, Pair, dec
+from kairos.market_data import PublicMarketData
 
 BTC = Pair(
     "XXBTZUSD",
@@ -69,6 +70,7 @@ def fake_kraken():
         pass
 
     fake = Fake()
+    fake.market_data = PublicMarketData(fake)
     fake.pairs = {p.id: p for p in (BTC, ETH, CROSS)}
     fake.allow_live = False
     fake.key = fake.secret = ""

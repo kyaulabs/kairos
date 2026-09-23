@@ -268,6 +268,18 @@ async def events(request):
 async def feeds(app):
     while True:
         engine = app["engine"]
+        candle = None
+        spot = engine.settings["product"] != "futures"
+        if spot and engine.settings["strategy"] in {"scalp", "htf"}:
+            scalp = engine.settings["strategy"] == "scalp"
+            candle = (
+                engine.resolve(engine.settings["pair"]),
+                1 if scalp else engine.settings["candle_minutes"],
+                engine.settings["scalp_window"] + 1 if scalp else 30,
+            )
+        await engine.kraken.market_data.configure(
+            engine.fee_scope if spot else [], candle, max_age=engine.settings["stale_seconds"]
+        )
         symbols = ["BTC/USD", "ETH/USD"]
         if engine.settings["product"] != "futures":
             symbols = list(
@@ -329,6 +341,7 @@ async def lifecycle(app):
                 with contextlib.suppress(asyncio.CancelledError):
                     await feed_task
             await engine.close()
+            await kraken.market_data.close()
             store.close()
             lock.close()
 

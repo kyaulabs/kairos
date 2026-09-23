@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 import aiohttp
 
 from kairos.domain import Book, Pair, SafetyError, dec
+from kairos.market_data import PublicMarketData, validate_levels
 
 
 class ExchangeRejected(SafetyError):
@@ -30,6 +31,7 @@ class Kraken:
         self.lock = asyncio.Lock()
         self.last_request = 0
         self.pairs = {}
+        self.market_data = PublicMarketData(self)
 
     async def request(self, method, params=None, private=False):
         """No automatic retries: a timed-out write may already have reached Kraken."""
@@ -132,16 +134,21 @@ class Kraken:
         return self.pairs
 
     async def book(self, pair):
+        cached = self.market_data.book(pair)
+        if cached is not None:
+            return cached
+        started = time.time()
         result = await self.request("Depth", {"pair": pair.id, "count": 100})
         data = next(iter(result.values()))
         book = Book(
             pair,
             [[dec(p), dec(v)] for p, v, *_ in data["bids"]],
             [[dec(p), dec(v)] for p, v, *_ in data["asks"]],
-            time.time(),
+            started,
         )
-        if not book.bids or not book.asks:
-            raise SafetyError("Empty order book")
+        validate_levels(book.bids, book.asks)
+        if time.time() < started:
+            raise SafetyError("Market snapshot clock moved backwards")
         book.fresh(10)
         return book
 
@@ -150,7 +157,10 @@ class Kraken:
         return next(v for k, v in result.items() if k != "last")
 
     async def candles(self, pair, minutes):
-        # Trading uses only completed candles; the chart also displays the forming candle.
+        # Browsing calls ohlc() directly and cannot configure or populate execution streams.
+        cached = await self.market_data.candles(pair, minutes)
+        if cached is not None:
+            return cached
         return (await self.ohlc(pair, minutes))[:-1]
 
     async def market_tickers(self):

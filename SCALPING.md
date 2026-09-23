@@ -14,6 +14,8 @@ Start with a flat selected paper portfolio. Select **Bollinger range scalping ·
 | Maximum holding time | 300 seconds | 60–1,800 seconds |
 | Post-exit cooldown | 60 seconds | 0–3,600 seconds |
 
+Spot execution uses a separate public WebSocket book and 1m candle stream, with REST bootstrap/recovery. A later candle bucket, not the clock alone, confirms a streamed candle is complete. Invalid or stale stream books are discarded; fresh REST depth may be used instead. Futures retains its separate REST market-data adapter. Streaming does not change the engine interval or run protection checks while paused. See [execution market data](OPERATIONS.md) for validation and recovery details.
+
 The bands use the arithmetic mean and population standard deviation of closing prices in the rolling window. One additional completed candle supplies the preceding window for re-entry confirmation. Missing minutes, an unavailable latest completed candle, invalid OHLC values and inadequate history block execution; the strategy does not forward-fill gaps.
 
 A long candidate requires the previous close below its lower band and the latest close back inside the current band, below the midpoint. Futures shorts use the mirrored upper-band condition. Spot never opens shorts. The efficiency filter divides the window's absolute endpoint movement by the sum of its absolute close-to-close movements. High efficiency indicates directional movement; flat windows and windows exceeding the configured threshold are rejected. This filter cannot reliably identify every trend or prevent losses.
