@@ -1,3 +1,22 @@
+# DOTenv
+.env
+.env.*
+!.env.example
+.htpasswd
+
+# Python and local runtime state
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+data/
+dist/
+*.egg-info/
+
+# Locally licensed Font Awesome Pro webfonts; do not redistribute in Git.
+kairos/static/fonts/*.woff2
+
 # Visual Studio cache directory
 */.vs/
 .vs/

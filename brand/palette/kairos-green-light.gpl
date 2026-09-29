@@ -1,0 +1,20 @@
+GIMP Palette
+Name: Kairos - green - light
+Columns: 6
+# sRGB semantic palette
+246 247 248	bg
+255 255 255	surface
+246 247 248	surface-raised
+235 237 240	border
+123 128 136	control-border
+ 34  34  34	text
+ 90  90  90	muted
+ 24 125  61	accent
+ 17 100  47	accent-hover
+255 255 255	on-accent
+230 245 235	accent-soft
+ 24 125  61	success
+200  48  67	danger
+139 100  31	warning
+  8 109 221	info
+ 24 125  61	focus

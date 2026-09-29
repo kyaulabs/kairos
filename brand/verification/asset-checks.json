@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "svgCount": 51,
+  "pngCount": 140,
+  "pdfCount": 2,
+  "guidePageCounts": {
+    "kairos-brand-guide-dark.pdf": 19,
+    "kairos-brand-guide-light.pdf": 19
+  },
+  "checks": [
+    "All SVGs parse and have viewBoxes",
+    "All SVG artwork is vector-only with outlined text",
+    "All PNGs decode",
+    "Palette JSON parses",
+    "Both PDF guides have 19 text-bearing pages",
+    "Logo PNG backgrounds are transparent",
+    "Monochrome icon PNGs use a single ink plus alpha",
+    "ICO includes 16/32/48px",
+    "Static local references resolve"
+  ],
+  "issues": []
+}

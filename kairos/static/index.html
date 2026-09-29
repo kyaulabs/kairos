@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-accent="violet">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kairos · Trading desk</title>
+  <meta name="theme-color" content="#181C20">
+  <meta name="description" content="Kairos trading workspace. Intelligence, with intention.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/static/brand/favicon.ico">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <script src="/static/appearance.js"></script>
+  <link rel="stylesheet" href="/static/brand/palette.css">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/vendor/d3.v7.9.0.min.js"></script>
+  <script defer src="/static/chart.js"></script>
+  <script defer src="/static/vendor/crypto-icons/symbols.js"></script>
+  <script defer src="/static/polling.js"></script>
+  <script defer src="/static/markets.js"></script>
+  <script defer src="/static/strategy-market.js"></script>
+  <script defer src="/static/accounts.js"></script>
+  <script defer src="/static/settings.js"></script>
+  <script defer src="/static/settings-help.js"></script>
+  <script defer src="/static/assessment.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+<header class="desk-header">
+  <a class="brand" href="/" aria-label="Kairos trading desk" title="Kairos · Intelligence, with intention."><img id="brand-wordmark" src="/static/brand/kairos-wordmark-on-dark.svg" alt="" width="120" height="31"><img id="brand-icon" src="/static/brand/kai-icon-on-dark.svg" alt="" width="48" height="25"></a>
+  <h1 class="sr-only">Trading desk</h1>
+  <button id="market-open" class="market-heading" type="button" aria-haspopup="dialog" aria-controls="market-dialog" title="Choose chart market; does not change the bot"><span class="market-symbol"><span id="market-icons" aria-hidden="true"></span><strong id="market-title">BTC/USD</strong></span><span class="eyebrow">CHART MARKET <span class="icon icon-chevron" aria-hidden="true">▾</span></span></button>
+  <div class="metric market-price"><span>Mid price</span><strong id="price" title="Live bid/ask midpoint">—</strong></div>
+  <div class="account-metrics" aria-label="Bot portfolio summary">
+    <div class="metric"><span>Equity · USD</span><strong id="equity" aria-describedby="valuation-time">—</strong></div>
+    <div class="metric"><span>Day P&amp;L · USD</span><strong id="pnl" title="Marked to market · UTC day">—</strong></div>
+    <div class="metric"><span>Exposure · USD</span><strong id="exposure" aria-describedby="exposure-cap">—</strong></div>
+  </div>
+  <div class="header-controls">
+    <span id="connection" class="connection" role="status">Connecting</span>
+    <span id="mode-badge" class="pill">DRY-RUN</span>
+    <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" aria-haspopup="dialog" aria-controls="appearance-menu" popovertarget="appearance-menu" popovertargetaction="show" aria-expanded="false" aria-describedby="appearance-help" title="Switch to light theme · Right-click for color schemes"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀︎</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
+    <span id="appearance-help" class="sr-only">Right-click, press Arrow Down or Shift+F10, or touch and hold for color schemes.</span>
+    <div id="appearance-menu" class="appearance-menu" popover="auto" role="dialog" aria-label="Color scheme">
+      <label>Interface accent<select id="appearance-accent" size="4" title="Interface accent · browser-local"><option value="violet">Violet</option><option value="green">Green</option><option value="red">Red</option><option value="blue">Blue</option></select></label>
+    </div>
+    <span id="appearance-status" class="sr-only" role="status">Appearance is local to this browser. Gains remain green; losses remain red.</span>
+  </div>
+</header>
+<main class="desk">
+  <div class="notices">
+    <p id="message" role="status" aria-live="polite"></p>
+    <p id="engine-error" class="warning" role="alert" hidden></p>
+  </div>
+  <nav class="workspace-switcher" aria-label="Workspace panels">
+    <button type="button" data-view="chart" aria-controls="market-panel" aria-pressed="true">Chart</button>
+    <button type="button" data-view="assessment" aria-controls="assessment-panel" aria-pressed="false">Assessment</button>
+    <button type="button" data-view="orders" aria-controls="records-panel" aria-pressed="false">Orders &amp; more</button>
+    <button type="button" data-view="settings" aria-controls="settings-panel" aria-pressed="false">Settings</button>
+  </nav>
+  <div class="workspace" data-view="chart">
+    <section id="market-panel" class="panel chart-panel" aria-labelledby="chart-title">
+      <div class="panel-head"><h2 id="chart-title"><span class="icon icon-chart" aria-hidden="true">↗</span> Market chart</h2><span id="chart-context" class="chart-context">Bot market</span></div>
+      <div class="chart-toolbar">
+        <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option></select></label><button id="follow" class="small">Follow live</button></div>
+        <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
+      </div>
+      <div class="chart-stage"><svg id="chart" role="img" tabindex="0" aria-label="Kraken candlestick chart with aligned volume in the selected market's native units. Drag to pan, scroll to zoom; use Follow live to show recent candles."></svg></div>
+      <div class="chart-footer"><div class="market-info"><span id="bid-ask">Waiting for prices</span><span id="feed-age">—</span></div><p id="candle-status" class="muted" role="status">Loading candles…</p><span class="chart-help">Drag to pan · scroll to zoom · crosshair to inspect</span></div>
+    </section>
+
+    <section id="assessment-panel" class="panel assessment-panel" aria-labelledby="assessment-title">
+      <div class="panel-head"><h2 id="assessment-title"><span class="icon icon-brain" aria-hidden="true">◇</span> <span id="assessment-label">Jev assessment</span></h2><span id="assessment-kind" class="eyebrow">MODEL</span></div>
+      <div class="assessment-market"><span id="bot-market-kind" class="eyebrow">BOT MARKET</span><button id="bot-market" type="button" title="Show the bot’s configured market on the chart">—</button></div>
+      <div class="panel-scroll" tabindex="0" role="region" aria-label="Assessment details">
+        <div class="decision"><strong id="decision">Waiting</strong><span id="confidence">—</span></div>
+        <div id="assessment-viz" class="assessment-viz"></div>
+        <p id="decision-context" class="muted"></p>
+        <p id="decision-market" class="muted"></p>
+        <p id="model-info" class="muted">No assessment yet.</p>
+        <p id="htf-review-status" class="muted" role="status" hidden></p>
+        <details><summary>Current run results and signals</summary><p id="signal-counts" class="muted"></p><ul id="hold-reasons"></ul></details>
+        <details><summary>Decision inputs</summary><pre id="decision-inputs">No assessment yet.</pre></details>
+        <p id="assessment-disclaimer" class="disclaimer">A model assessment is not a calibrated probability of trading profit.</p>
+      </div>
+    </section>
+
+    <section id="records-panel" class="panel records-panel" aria-label="Orders and portfolio">
+      <div class="tab-list" role="tablist" aria-label="Trading records">
+        <button type="button" id="orders-tab" role="tab" aria-selected="true" aria-controls="orders-view"><span class="icon icon-orders" aria-hidden="true">≡</span> Orders <span id="orders-count" class="count">0</span></button>
+        <button type="button" id="activity-tab" role="tab" aria-selected="false" aria-controls="activity-view" tabindex="-1"><span class="icon icon-activity" aria-hidden="true">∿</span> Activity</button>
+        <button type="button" id="portfolio-tab" role="tab" aria-selected="false" aria-controls="portfolio-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true"></span> Portfolio</button>
+        <button type="button" id="accounts-tab" role="tab" aria-selected="false" aria-controls="accounts-view" tabindex="-1"><span class="icon icon-bank" aria-hidden="true"></span> Exchange accounts</button>
+        <button type="button" id="equity-tab" role="tab" aria-selected="false" aria-controls="equity-view" tabindex="-1"><span class="icon icon-chart" aria-hidden="true">↗</span> Equity</button>
+      </div>
+      <div id="orders-view" class="dock-view" role="tabpanel" aria-labelledby="orders-tab">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Bot orders">
+          <table><thead><tr><th scope="col">Time</th><th scope="col">Mode / product</th><th scope="col">Market</th><th scope="col">Side</th><th scope="col">Limit</th><th scope="col">Requested</th><th scope="col">Filled</th><th scope="col">Fee</th><th scope="col">Status</th><th scope="col" class="order-actions"><span class="sr-only">Paper history actions</span></th></tr></thead><tbody id="orders"></tbody></table>
+          <div id="orders-empty" class="empty-state"><strong>No visible orders</strong><span>Orders appear here when the bot submits a trade. Enable Show archived to view archived paper orders.</span></div>
+        </div>
+        <div class="panel-note order-history-controls"><span>An accepted order is not a fill. History actions never reset balances.</span><label><input id="show-archived" type="checkbox"> Show archived <span id="archived-count">(0)</span></label></div>
+      </div>
+      <div id="activity-view" class="dock-view panel-scroll" role="tabpanel" aria-labelledby="activity-tab" tabindex="0" hidden><ol id="activity" class="activity" aria-label="Recent decisions, fills, and errors"></ol></div>
+      <div id="portfolio-view" class="dock-view panel-scroll" role="tabpanel" aria-labelledby="portfolio-tab" tabindex="0" hidden>
+        <p id="portfolio-label" class="muted">Bot allocation only, not your full Kraken account.</p>
+        <div id="holdings"></div><p id="margin-info" class="muted"></p>
+        <div class="portfolio-meta"><span id="valuation-time">Not yet valued</span><span id="exposure-cap">—</span></div>
+      </div>
+      <div id="accounts-view" class="dock-view" role="tabpanel" aria-labelledby="accounts-tab" hidden>
+        <div class="account-controls"><label>Live exchange data · read-only<select id="account-source">
+          <option value="spot-balances">Spot / FX / xStocks wallet</option><option value="spot-orders">Spot-family open orders</option><option value="spot-trades">Recent spot-family trades</option>
+          <option value="margin-balance">Spot margin collateral · USD</option><option value="margin-positions">Spot margin positions</option><option value="earn">Earn allocations</option>
+          <option value="deposits">Deposit ledger · recent</option><option value="withdrawals">Withdrawal ledger · recent</option>
+          <option value="futures-balances">Futures wallets</option><option value="futures-positions">Futures positions</option><option value="futures-orders">Futures open orders</option><option value="futures-fills">Recent futures fills</option>
+        </select></label><button id="account-refresh" type="button">Refresh</button></div>
+        <p id="account-status" class="panel-note" role="status">Read-only snapshots load when this tab opens. Credentials stay on the server.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Read-only exchange account records"><table><thead id="account-head"></thead><tbody id="account-rows"></tbody></table></div>
+        <p class="panel-note">Exchange wallet snapshots, not bot allocations. Values retain venue/currency units; no pooled equity. Margin collateral overlaps the spot wallet. No conversions, transfers, withdrawals, or staking actions.</p>
+      </div>
+      <div id="equity-view" class="dock-view" role="tabpanel" aria-labelledby="equity-tab" hidden><div class="chart-stage"><svg id="equity-chart" role="img" tabindex="0" aria-label="Bot equity over time"></svg></div><p class="panel-note">Session equity · USD · Includes trading fees · Marks updated each cycle</p></div>
+    </section>
+
+    <section id="settings-panel" class="panel settings-panel" aria-labelledby="settings-title">
+      <div class="panel-head"><h2 id="settings-title"><span class="icon icon-settings" aria-hidden="true">☷</span> Kairos settings</h2><strong id="engine-status" class="engine-status">Paused</strong></div>
+      <div class="execution-controls" aria-label="Trading controls">
+        <label class="execution-mode">Execution<select id="mode"><option value="dry-run">Dry-run</option><option value="trading">Trading — real funds</option></select></label>
+        <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="restart" hidden disabled>Restart engine</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
+        <span id="engine-strategy" class="muted">—</span>
+      </div>
+      <div class="tab-list settings-tabs" role="tablist" aria-label="Configuration sections">
+        <button type="button" id="strategy-tab" role="tab" aria-selected="true" aria-controls="strategy-settings"><span class="icon icon-strategy" aria-hidden="true">♞</span> Strategy</button>
+        <button type="button" id="capital-tab" role="tab" aria-selected="false" aria-controls="capital-settings" tabindex="-1"><span class="icon icon-coins" aria-hidden="true"></span> Capital</button>
+        <button type="button" id="execution-tab" role="tab" aria-selected="false" aria-controls="execution-settings" tabindex="-1"><span class="icon icon-execution" aria-hidden="true">↯</span> Execution</button>
+      </div>
+      <form id="settings">
+        <fieldset id="settings-fields" disabled>
+          <div class="settings-scroll">
+            <div id="strategy-settings" role="tabpanel" aria-labelledby="strategy-tab">
+              <div class="fields">
+                <label class="wide">Product<select name="product"></select></label>
+                <div id="strategy-market" class="strategy-market wide">
+                  <label id="bot-market-label" for="pair-search">Bot market</label>
+                  <input type="hidden" name="pair" id="pair">
+                  <input id="pair-search" type="search" role="combobox" aria-expanded="false" aria-controls="pair-options" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search all markets…">
+                  <div id="pair-options" class="pair-options" role="listbox" aria-label="Bot markets" hidden></div>
+                  <p id="pair-status" class="muted" role="status"></p>
+                </div>
+                <label class="wide">Strategy<select name="strategy"></select></label>
+                <label>Engine cycle · sec<input name="interval_seconds" type="number"></label>
+                <label>HTF candle interval<select name="candle_minutes"></select></label>
+                <label>HTF price stop · bps<input name="htf_stop_bps" type="number"></label>
+                <label>HTF maximum hold · sec<input name="htf_max_hold_seconds" type="number"></label>
+                <label class="wide">Jev minimum confidence<input name="min_confidence" type="number"></label>
+                <div class="fields wide" data-settings-group>
+                  <label>Rolling candles<input name="scalp_window" type="number"></label>
+                  <label>Band deviations<input name="scalp_sigma" type="number"></label>
+                  <label>Maximum trend efficiency<input name="scalp_max_efficiency" type="number"></label>
+                  <label>Net-cost margin · bps<input name="scalp_margin_bps" type="number"></label>
+                  <label>Price stop · bps<input name="scalp_stop_bps" type="number"></label>
+                  <label>Maximum hold · seconds<input name="scalp_max_hold_seconds" type="number"></label>
+                  <label>Exit cooldown · seconds<input name="scalp_cooldown_seconds" type="number"></label>
+                </div>
+                <label class="wide">Min arbitrage edge · bps<input name="arb_min_profit_bps" type="number"></label>
+              </div>
+              <div id="program-settings" hidden>
+                <div class="fields" data-settings-group hidden>
+                  <label>Slice notional · USD incl. fees<input name="dca_amount" type="number"></label>
+                  <label>Slices<input name="dca_count" type="number"></label>
+                  <label>Slice period · sec<input name="dca_period_seconds" type="number"></label>
+                  <label>DCA direction<select name="futures_dca_side"></select></label>
+                </div>
+                <div class="fields" data-settings-group hidden>
+                  <label>Side<select name="twap_side"></select></label>
+                  <label><span id="twap-quantity-label">Total base quantity</span><input name="twap_quantity" type="number"></label>
+                  <label>Parent limit · USD<input name="twap_limit" type="number" placeholder="Enter price per unit"></label>
+                  <label>Slices<input name="twap_slices" type="number"></label>
+                  <label>Total duration · sec<input name="twap_duration_seconds" type="number"></label>
+                  <label>Futures parent notional cap · USD<input name="futures_parent_notional" type="number"></label>
+                </div>
+                <div class="fields" data-settings-group hidden>
+                  <label class="wide">Basket weights · percent<input name="rebalance_targets" type="text" placeholder="BTC/USD=50,ETH/USD=30,CASH=20"></label>
+                  <label>Drift band · percentage points<input name="rebalance_band_pct" type="number"></label>
+                  <label>Minimum trade · USD<input name="rebalance_min_trade" type="number"></label>
+                  <label>UTC-day turnover · USD incl. fees<input name="rebalance_daily_turnover" type="number"></label>
+                  <label>Cooldown · sec<input name="rebalance_cooldown_seconds" type="number"></label>
+                </div>
+                <div class="fields" data-settings-group hidden><label class="check wide"><input name="futures_reduce_only" type="checkbox"> Futures: reduce existing position only</label></div>
+                <button id="new-program" type="button">New strategy run…</button>
+              </div>
+            </div>
+            <div id="capital-settings" role="tabpanel" aria-labelledby="capital-tab" hidden>
+              <div class="fields">
+                <label>Paper starting balance · USD<input name="paper_balance" type="number"></label>
+                <label>Spot live allocation · USD<input name="live_budget" type="number"></label>
+                <label>Futures live collateral · USD<input name="futures_live_budget" type="number"></label>
+                <label>Order cap · USD<input name="order_size" type="number"></label>
+                <label>Exposure cap · USD<input name="max_exposure" type="number"></label>
+                <label>Daily loss limit · USD<input name="daily_loss" type="number"></label>
+                <label>Paper margin leverage<select name="leverage"></select></label>
+                <label>Futures local leverage cap<select name="futures_leverage"></select></label>
+                <label>Spot recovery check · sec<input name="recovery_check_seconds" type="number"></label>
+                <label class="check wide"><input name="reinvest_profits" type="checkbox"> Scale order/exposure caps with equity (reinvest)</label>
+                <label class="check wide"><input name="recover_initial" type="checkbox"> Spot only: recover original allocation once above 2× equity</label>
+              </div>
+              <div class="capital-actions"><button id="reset" type="button">Reset selected paper portfolio</button></div>
+              <div id="futures-settings" hidden>
+                <button id="close-futures" type="button">Reduce Futures position…</button>
+              </div>
+            </div>
+            <div id="execution-settings" role="tabpanel" aria-labelledby="execution-tab" hidden>
+              <h3 id="fees-heading">Kraken account fees</h3>
+              <div id="trading-fees"></div>
+              <p id="fees-status" class="muted" role="status">Kraken account fees not loaded.</p>
+              <h3 id="data-heading">Execution market data</h3>
+              <p id="market-data-status" class="muted" role="status">Execution market data not loaded.</p>
+              <div class="fields">
+                <label>Slippage / offset · bps<input name="slippage_bps" type="number"></label>
+                <label>Max spread · bps<input name="max_spread_bps" type="number"></label>
+                <label>Max depth age · sec<input name="stale_seconds" type="number"></label>
+                <label>Margin opening fee · bps<input name="margin_open_fee_bps" type="number"></label>
+                <label>Margin rollover / 4h · bps<input name="margin_rollover_bps" type="number"></label>
+                <label>Margin maintenance ratio<input name="maintenance_ratio" type="number"></label>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions"><button id="save-settings" class="primary" type="submit">Save settings</button></div>
+        </fieldset>
+      </form>
+    </section>
+  </div>
+</main>
+<footer class="desk-footer">
+  <button id="favorites-open" class="favorites-open" type="button" aria-haspopup="dialog" aria-controls="market-dialog"><span class="icon icon-star icon-solid" aria-hidden="true">★</span> Favorites</button>
+  <div id="watchlist" class="watchlist" role="region" aria-label="Favorite market prices" tabindex="0"><span class="muted">Star markets to watch their prices here.</span></div>
+  <details class="safety-info"><summary>Safety notes</summary><div class="safety-popover">Stop cancels tracked orders; it does not sell holdings or close Futures positions. Loss limits stop new trading, not market losses. Never expose the backend port publicly.</div></details>
+</footer>
+<dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title" aria-describedby="market-dialog-note">
+  <div class="market-dialog-head"><div><h2 id="market-dialog-title">Choose a chart market</h2><p id="market-dialog-note">Browse without changing the bot’s trading market.</p></div><button id="market-close" type="button" aria-label="Close market picker"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
+  <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search Kraken markets</span><input id="market-search" type="search" placeholder="Search BTC, AAPLx or PF_XBTUSD" autocomplete="off" spellcheck="false"></label>
+  <div class="market-filters" aria-label="Market filters"><button id="markets-all" type="button" aria-pressed="true">All markets</button><button id="markets-favorites" type="button" aria-pressed="false"><span class="icon icon-star" aria-hidden="true">☆</span> Favorites</button><label class="market-kind">Product<select id="market-kind"><option value="all">All products</option><option value="spot">Crypto spot</option><option value="margin">Margin-eligible crypto</option><option value="fx">FX spot</option><option value="xstocks">xStocks · tokenized</option><option value="futures">Futures</option></select></label><div class="market-feed-times"><span id="market-feed-status" role="status">Loading prices…</span><span id="market-change-status">Loading 24h change…</span></div></div>
+  <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="change_pct">24h change <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · native <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
+  <p id="market-source-status" class="warning" role="status" hidden></p>
+  <p id="market-storage-status" class="warning" role="status" hidden></p>
+  <p id="favorite-order-help" class="panel-note" hidden>Drag a handle to reorder the footer. Or click a handle, then another to move before it. Focus a handle and use ↑ ↓ to move; Esc cancels.</p>
+  <span id="favorite-order-status" class="sr-only" role="status"></span>
+  <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Quotes refresh about every 10s; spot/xStocks 24h change about every minute. Volume units vary by product; futures quantities are contracts. — means unavailable. Favorites are saved in this browser.</p>
+</dialog>
+</body>
+</html>

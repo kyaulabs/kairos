@@ -1,0 +1,21 @@
+{
+  "mode": "light",
+  "tokens": {
+    "bg": "#F6F7F8",
+    "surface": "#FFFFFF",
+    "surface-raised": "#F6F7F8",
+    "border": "#EBEDF0",
+    "control-border": "#7B8088",
+    "text": "#222222",
+    "muted": "#5A5A5A",
+    "accent": "#6B43B5",
+    "accent-hover": "#583399",
+    "on-accent": "#FFFFFF",
+    "accent-soft": "#EFE7FF",
+    "success": "#187D3D",
+    "danger": "#C83043",
+    "warning": "#8B641F",
+    "info": "#086DDD",
+    "focus": "#6B43B5"
+  }
+}

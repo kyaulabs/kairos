@@ -1,0 +1,433 @@
+import asyncio
+import base64
+import hashlib
+import hmac
+import json
+import time
+from urllib.parse import urlencode
+
+import aiohttp
+
+from kairos import diagnostics
+from kairos.domain import Book, Pair, SafetyError, dec
+from kairos.market_data import PublicMarketData, validate_levels
+
+
+class ExchangeRejected(SafetyError):
+    pass
+
+
+class TransientFeeRead(SafetyError):
+    """An explicitly retryable read failure; never an order-write retry token."""
+
+
+def signature(path, payload, secret, post=None):
+    post = urlencode(payload) if post is None else post
+    digest = hashlib.sha256((str(payload["nonce"]) + post).encode()).digest()
+    return base64.b64encode(
+        hmac.new(base64.b64decode(secret), path.encode() + digest, hashlib.sha512).digest()
+    ).decode()
+
+
+class Kraken:
+    def __init__(self, session, store, key="", secret="", allow_live=False):
+        self.session, self.store = session, store
+        self.key, self.secret, self.allow_live = key, secret, allow_live
+        diagnostics.register_secrets(key, secret)
+        self.lock = asyncio.Lock()
+        self.last_request = 0
+        self.pairs = {}
+        self.market_data = PublicMarketData(self)
+
+    async def request(self, method, params=None, private=False):
+        """No automatic retries: a timed-out write may already have reached Kraken."""
+        if private and method not in {
+            "BalanceEx",
+            "TradeVolume",
+            "QueryOrders",
+            "OpenOrders",
+            "ClosedOrders",
+            "TradeBalance",
+            "OpenPositions",
+            "TradesHistory",
+            "Earn/Allocations",
+            "Ledgers",
+        }:
+            if method not in {"AddOrder", "CancelOrder"} or not self.allow_live:
+                raise SafetyError("Exchange write is not authorized")
+        params = dict(params or {})
+        headers = {}
+        path = f"/0/{'private' if private else 'public'}/{method}"
+        # Serialize authenticated nonces and pace REST calls conservatively.
+        async with self.lock:
+            await asyncio.sleep(max(0, 0.8 - (time.monotonic() - self.last_request)))
+            self.last_request = time.monotonic()
+            if private:
+                if not self.key or not self.secret:
+                    raise SafetyError("Kraken credentials are not configured")
+                nonce = max(time.time_ns() // 1000, self.store.get("nonce", 0) + 1)
+                self.store.put("nonce", nonce)
+                params["nonce"] = nonce
+                # Structured asset-class fee queries require JSON rather than form encoding.
+                encoded = (
+                    json.dumps(params, separators=(",", ":"))
+                    if isinstance(params.get("pair"), list)
+                    else None
+                )
+                headers = {
+                    "API-Key": self.key,
+                    "API-Sign": signature(path, params, self.secret, encoded),
+                }
+                if encoded is not None:
+                    headers["Content-Type"] = "application/json"
+            else:
+                encoded = None
+            try:
+                async with self.session.request(
+                    "POST" if private else "GET",
+                    "https://api.kraken.com" + path,
+                    data=(encoded if encoded is not None else params) if private else None,
+                    params=None if private else params,
+                    headers=headers,
+                    allow_redirects=False,
+                    timeout=aiohttp.ClientTimeout(total=12),
+                ) as response:
+                    if response.status != 200:
+                        error = (
+                            TransientFeeRead
+                            if method == "TradeVolume"
+                            and (response.status in {408, 429} or 500 <= response.status < 600)
+                            else SafetyError
+                        )
+                        raise error(
+                            f"Kraken {method} HTTP {response.status}; request outcome may be unknown"
+                        )
+                    result = await response.json()
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+                retryable = isinstance(
+                    exc, (TimeoutError, aiohttp.ClientConnectionError, aiohttp.ClientPayloadError)
+                ) and not isinstance(
+                    exc, (aiohttp.ClientSSLError, aiohttp.ServerFingerprintMismatch)
+                )
+                error = TransientFeeRead if method == "TradeVolume" and retryable else SafetyError
+                raise error("Kraken transport failure; request outcome may be unknown") from exc
+            if result.get("error"):
+                # Never echo a remote response body or credentials to logs/browser.
+                known = [
+                    e.split(":", 1)[-1]
+                    for e in result["error"]
+                    if e
+                    in {
+                        "EAPI:Invalid key",
+                        "EAPI:Invalid signature",
+                        "EAPI:Invalid nonce",
+                        "EGeneral:Permission denied",
+                        "EOrder:Insufficient funds",
+                        "EOrder:Order minimum not met",
+                        "EOrder:Cost minimum not met",
+                        "EOrder:Rate limit exceeded",
+                        "EAPI:Rate limit exceeded",
+                        "EOrder:Unknown order",
+                        "EOrder:Post only order",
+                    }
+                ]
+                transient = {"EAPI:Rate limit exceeded", "EService:Unavailable", "EService:Busy"}
+                error = (
+                    TransientFeeRead
+                    if method == "TradeVolume" and all(e in transient for e in result["error"])
+                    else ExchangeRejected
+                )
+                failure = error("Kraken rejected request: " + (", ".join(known) or "API error"))
+                failure.diagnostic_details = {
+                    "endpoint": method,
+                    "exchange_errors": result["error"],
+                }
+                raise failure
+            return result["result"]
+
+    async def catalog(self):
+        data = await self.request("AssetPairs")
+        self.pairs = {
+            key: Pair.parse(key, value)
+            for key, value in data.items()
+            if value.get("wsname")
+            and value.get("status") == "online"
+            and value.get("aclass_base", "currency") == "currency"
+            and value.get("asset_class", "crypto") == "crypto"
+            and not key.endswith(".d")
+        }
+        return self.pairs
+
+    async def book(self, pair):
+        cached = self.market_data.book(pair)
+        if cached is not None:
+            return cached
+        started = time.time()
+        result = await self.request("Depth", {"pair": pair.id, "count": 100})
+        data = next(iter(result.values()))
+        book = Book(
+            pair,
+            [[dec(p), dec(v)] for p, v, *_ in data["bids"]],
+            [[dec(p), dec(v)] for p, v, *_ in data["asks"]],
+            started,
+        )
+        validate_levels(book.bids, book.asks)
+        if time.time() < started:
+            raise SafetyError("Market snapshot clock moved backwards")
+        book.fresh(10)
+        return book
+
+    async def ohlc(self, pair, minutes):
+        result = await self.request("OHLC", {"pair": pair.id, "interval": minutes})
+        return next(v for k, v in result.items() if k != "last")
+
+    async def candles(self, pair, minutes):
+        # Browsing calls ohlc() directly and cannot configure or populate execution streams.
+        cached = await self.market_data.candles(pair, minutes)
+        if cached is not None:
+            return cached
+        return (await self.ohlc(pair, minutes))[:-1]
+
+    async def market_tickers(self):
+        # One public snapshot for browsing/watchlists, never an execution input.
+        result = await self.request("Ticker")
+        return {
+            key: {
+                "bid": str(dec(row["b"][0])),
+                "ask": str(dec(row["a"][0])),
+                "last": str(dec(row["c"][0])),
+                "volume": str(dec(row["v"][1])),
+            }
+            for key, row in result.items()
+            if key in self.pairs
+        }
+
+    async def market_changes(self, extra_pairs=None):
+        """Bounded public snapshots: REST's opening price is midnight UTC, not 24h ago."""
+        symbols = {
+            "/".join("DOGE" if asset == "XDG" else asset for asset in p.symbol.split("/")): p.id
+            for p in self.pairs.values()
+        }
+        symbols.update(extra_pairs or {})
+        changes = {}
+        if not symbols:
+            return changes
+        try:
+            async with (
+                asyncio.timeout(12),
+                self.session.ws_connect("wss://ws.kraken.com/v2", heartbeat=20) as ws,
+            ):
+                names = list(symbols)
+                # A single catalog-sized subscription exceeds the server's message limit.
+                for offset in range(0, len(names), 100):
+                    if offset:
+                        await asyncio.sleep(0.1)
+                    pending = set(names[offset : offset + 100])
+                    await ws.send_json(
+                        {
+                            "method": "subscribe",
+                            "params": {
+                                "channel": "ticker",
+                                "symbol": sorted(pending),
+                                "snapshot": True,
+                            },
+                        }
+                    )
+                    while pending:
+                        message = await ws.receive()
+                        if message.type != aiohttp.WSMsgType.TEXT:
+                            return changes
+                        data = json.loads(message.data)
+                        if not isinstance(data, dict):
+                            return changes
+                        if data.get("channel") == "ticker" and data.get("type") == "snapshot":
+                            for row in data["data"]:
+                                symbol = row["symbol"]
+                                if symbol not in pending:
+                                    continue
+                                pending.remove(symbol)
+                                try:
+                                    changes[symbols[symbol]] = str(dec(row["change_pct"]))
+                                except (KeyError, SafetyError):
+                                    pass  # Missing/non-finite change is unavailable, never zero.
+                        elif data.get("success") is False:
+                            symbol = data.get("symbol")
+                            if symbol not in pending:
+                                return changes
+                            pending.remove(symbol)  # Some REST pairs have no WS v2 ticker.
+        except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError) as exc:
+            diagnostics.capture(exc, "market-change-snapshots")
+            # Keep valid partial snapshots; quote prices use an independent REST call.
+        return changes
+
+    async def marks(self, pairs):
+        if not pairs:
+            return {}
+        result = await self.request("Ticker", {"pair": ",".join(p.id for p in pairs)})
+        return {key: dec(value["b"][0]) for key, value in result.items()}
+
+    async def balances(self):
+        result = await self.request("BalanceEx", private=True)
+        return {
+            asset: max(dec(0), dec(row["balance"]) - dec(row.get("hold_trade", 0)))
+            for asset, row in result.items()
+        }
+
+    async def fees(self, pairs):
+        result = await self.request("TradeVolume", {"pair": ",".join(p.id for p in pairs)}, True)
+        taker = {key: dec(row["fee"]) * 100 for key, row in result.get("fees", {}).items()}
+        maker = {key: dec(row["fee"]) * 100 for key, row in result.get("fees_maker", {}).items()}
+        if any(p.id not in taker for p in pairs):
+            raise SafetyError("Cannot verify fee tier for every active pair")
+        return maker, taker
+
+    async def query(self, txid):
+        result = await self.request("QueryOrders", {"txid": txid}, True)
+        if txid not in result:
+            raise SafetyError("Tracked order missing from Kraken response")
+        return result[txid]
+
+    async def find_order(self, client_id, since):
+        opened = await self.request("OpenOrders", private=True)
+        for txid, row in opened["open"].items():
+            if row.get("cl_ord_id") == client_id:
+                return txid, row
+        # Paginate rather than silently overlooking an order in a busy account.
+        offset = 0
+        while offset < 1000:
+            result = await self.request(
+                "ClosedOrders", {"start": int(since) - 60, "ofs": offset}, True
+            )
+            for txid, row in result["closed"].items():
+                if row.get("cl_ord_id") == client_id:
+                    return txid, row
+            offset += len(result["closed"])
+            if offset >= result["count"] or not result["closed"]:
+                break
+        raise SafetyError(
+            "Uncertain order not found. Keep stopped; reconcile its client ID with Kraken"
+        )
+
+    async def add(self, params):
+        if not self.allow_live:
+            raise SafetyError("Live exchange writes are disabled by ALLOW_LIVE_TRADING")
+        return await self.request("AddOrder", params, True)
+
+    async def cancel(self, txid):
+        if not self.allow_live:
+            raise SafetyError("Live exchange writes are disabled by ALLOW_LIVE_TRADING")
+        return await self.request("CancelOrder", {"txid": txid}, True)
+
+    async def trades(self, pair, since):
+        result = await self.request("Trades", {"pair": pair.id, "since": since})
+        rows = next(v for k, v in result.items() if k != "last")
+        return rows, str(result["last"])
+
+
+class Jev:
+    DEFAULT_MODEL = "jev-latest"
+
+    def __init__(self, session, key, model=DEFAULT_MODEL):
+        self.session, self.key, self.model = session, key, model
+        diagnostics.register_secrets(key)
+
+    async def decide(self, state):
+        if not self.key:
+            raise SafetyError("JEV_API_KEY is not configured")
+        started = time.monotonic()
+        body = {
+            "model": self.model,
+            "state": state,
+            "questions": {
+                "action": {
+                    "type": "choice",
+                    "instructions": (
+                        "Assess the supplied strategy and product state. Choose buy, sell, or hold. "
+                        "Use the computed trend and liquidity descriptions; do not calculate sizing "
+                        "or invent unseen data. In spot mode there is no leverage or short selling. "
+                        "In paper margin or Futures mode buy opens/increases long or reduces short; sell "
+                        "opens/increases short or reduces long. Futures have funding and liquidation risk. Fees and hard risk "
+                        "checks are enforced by code. For arbitrage, buy means permit the computed "
+                        "cycle, hold means abstain, and sell is not applicable. The reported "
+                        "probabilities are assessments, not guaranteed future returns."
+                    ),
+                    "criteria": {
+                        "buy": "Conditions support the proposed long entry, reducing a permitted short, bid quote, or positive-net arbitrage cycle.",
+                        "sell": "Conditions support reducing existing long inventory, a product-permitted short entry, or offering an ask quote.",
+                        "hold": "Conditions are unclear, costs dominate, or no permitted action is justified.",
+                    },
+                }
+            },
+        }
+        try:
+            async with self.session.post(
+                "https://api.typesafe.ai/v1/systemone",
+                json=body,
+                headers={"Authorization": "Bearer " + self.key},
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as response:
+                if response.status != 200:
+                    raise SafetyError(f"Jev HTTP {response.status}; no trade")
+                result = await response.json()
+            answer = result["answers"]["action"]
+            probabilities = answer["probabilities"]
+            if (
+                answer["type"] != "choice"
+                or answer["choice"] not in {"buy", "sell", "hold"}
+                or set(probabilities) != {"buy", "sell", "hold"}
+                or not all(0 <= dec(p) <= 1 for p in probabilities.values())
+                or abs(sum(dec(p) for p in probabilities.values()) - 1) > dec("0.02")
+                or not 0 <= dec(answer["confidence"]) <= 1
+            ):
+                raise ValueError("Invalid decision")
+            return {
+                "action": answer["choice"],
+                "confidence": float(answer["confidence"]),
+                "probabilities": probabilities,
+                "model": str(result["model"]),
+                "latency_ms": round((time.monotonic() - started) * 1000),
+                "usage": result.get("usage", {}),
+            }
+        except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError) as exc:
+            raise SafetyError("Jev response failed validation or timed out; no trade") from exc
+
+
+async def ticker_feed(session, symbols, callback):
+    """Public WS v2 stream; display only. Execution independently fetches fresh depth."""
+    backoff = 1
+    while True:
+        try:
+            async with session.ws_connect(
+                "wss://ws.kraken.com/v2", heartbeat=20, receive_timeout=40
+            ) as ws:
+                await ws.send_json(
+                    {
+                        "method": "subscribe",
+                        "params": {"channel": "ticker", "symbol": symbols, "event_trigger": "bbo"},
+                    }
+                )
+                async for message in ws:
+                    if message.type == aiohttp.WSMsgType.TEXT:
+                        data = json.loads(message.data)
+                        if data.get("success") is False:
+                            raise SafetyError("Kraken ticker subscription rejected")
+                        if data.get("channel") == "ticker":
+                            backoff = 1
+                            for row in data["data"]:
+                                callback(
+                                    "ticker",
+                                    {
+                                        "symbol": row["symbol"],
+                                        "bid": row["bid"],
+                                        "ask": row["ask"],
+                                        "last": row.get("last"),
+                                        "received": time.time(),
+                                    },
+                                )
+                    elif message.type in (aiohttp.WSMsgType.ERROR, aiohttp.WSMsgType.CLOSED):
+                        break
+        except (aiohttp.ClientError, TimeoutError, SafetyError, ValueError, KeyError) as exc:
+            diagnostics.capture(exc, "display-ticker-stream")
+        callback("feed", {"status": "disconnected", "retry_seconds": backoff})
+        await asyncio.sleep(backoff)
+        backoff = min(backoff * 2, 30)

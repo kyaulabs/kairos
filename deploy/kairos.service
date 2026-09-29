@@ -1,0 +1,23 @@
+[Unit]
+Description=Kairos trading desk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kairos
+Group=kairos
+WorkingDirectory=/srv/kairos
+ExecStart=/srv/kairos/.venv/bin/kairos
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kairos/data
+
+[Install]
+WantedBy=multi-user.target

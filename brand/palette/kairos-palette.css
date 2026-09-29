@@ -1,0 +1,146 @@
+/* Kairos v1.0 - #09 + Things 2.2.4. All values in sRGB. */
+:root {
+  --kai-lilac: #C1A0FF;
+  --kai-ink: #161022;
+  --kai-cloud: #E5EEF9;
+  --kai-violet: #6B43B5;
+  --kai-violet-hover: #583399;
+  --kai-lilac-hover: #D2BAFF;
+  --kai-lilac-soft: #EFE7FF;
+  --kai-charcoal: #181C20;
+  --kai-slate: #1C2127;
+  --kai-raised: #282C34;
+  --kai-line-dark: #35393E;
+  --kai-control-dark: #707986;
+  --kai-text-dark: #DADADA;
+  --kai-muted-dark: #BABABA;
+  --kai-paper: #FFFFFF;
+  --kai-mist: #F6F7F8;
+  --kai-line-light: #EBEDF0;
+  --kai-control-light: #7B8088;
+  --kai-text-light: #222222;
+  --kai-muted-light: #5A5A5A;
+  --kai-success-dark: #44CF6E;
+  --kai-success-light: #187D3D;
+  --kai-danger-dark: #FF7378;
+  --kai-danger-light: #C83043;
+  --kai-warning-dark: #E0DE71;
+  --kai-warning-light: #8B641F;
+  --kai-info-dark: #7EB6FF;
+  --kai-info-light: #086DDD;
+  --radius-control: 8px;
+  --radius-card: 16px;
+  --space-unit: 4px;
+  --font-ui: "Kairos UI", "Neo Sans Pro", "Noto Sans", system-ui, sans-serif;
+  --font-data: "Kairos Mono", "OperatorMonoLig Nerd Font", "Noto Sans Mono", ui-monospace, monospace;
+}
+:root, [data-theme="dark"] {
+  --bg: var(--kai-charcoal);
+  --surface: var(--kai-slate);
+  --surface-raised: var(--kai-raised);
+  --border: var(--kai-line-dark);
+  --control-border: var(--kai-control-dark);
+  --text: var(--kai-text-dark);
+  --muted: var(--kai-muted-dark);
+  --accent: var(--kai-lilac);
+  --accent-hover: var(--kai-lilac-hover);
+  --on-accent: var(--kai-ink);
+  --accent-soft: var(--kai-raised);
+  --success: var(--kai-success-dark);
+  --danger: var(--kai-danger-dark);
+  --warning: var(--kai-warning-dark);
+  --info: var(--kai-info-dark);
+  --focus: var(--kai-lilac);
+}
+[data-theme="light"] {
+  --bg: var(--kai-mist);
+  --surface: var(--kai-paper);
+  --surface-raised: var(--kai-mist);
+  --border: var(--kai-line-light);
+  --control-border: var(--kai-control-light);
+  --text: var(--kai-text-light);
+  --muted: var(--kai-muted-light);
+  --accent: var(--kai-violet);
+  --accent-hover: var(--kai-violet-hover);
+  --on-accent: var(--kai-paper);
+  --accent-soft: var(--kai-lilac-soft);
+  --success: var(--kai-success-light);
+  --danger: var(--kai-danger-light);
+  --warning: var(--kai-warning-light);
+  --info: var(--kai-info-light);
+  --focus: var(--kai-violet);
+}
+@media (prefers-color-scheme: light) {
+:root:not([data-theme]) {
+  --bg: var(--kai-mist);
+  --surface: var(--kai-paper);
+  --surface-raised: var(--kai-mist);
+  --border: var(--kai-line-light);
+  --control-border: var(--kai-control-light);
+  --text: var(--kai-text-light);
+  --muted: var(--kai-muted-light);
+  --accent: var(--kai-violet);
+  --accent-hover: var(--kai-violet-hover);
+  --on-accent: var(--kai-paper);
+  --accent-soft: var(--kai-lilac-soft);
+  --success: var(--kai-success-light);
+  --danger: var(--kai-danger-light);
+  --warning: var(--kai-warning-light);
+  --info: var(--kai-info-light);
+  --focus: var(--kai-violet);
+}
+}
+
+/* Alternate trading interface accents. The primary #09 logo remains lavender. */
+:root {
+  --kai-green-hover-dark: #73DF94;
+  --kai-green-hover-light: #11642F;
+  --kai-green-soft: #E6F5EB;
+  --kai-red-hover-dark: #FF979B;
+  --kai-red-hover-light: #A52435;
+  --kai-red-soft: #FDE9EC;
+}
+[data-theme="dark"][data-accent="green"] {
+  --accent: #44CF6E;
+  --accent-hover: #73DF94;
+  --on-accent: #161022;
+  --accent-soft: #282C34;
+  --focus: #44CF6E;
+}
+[data-theme="light"][data-accent="green"] {
+  --accent: #187D3D;
+  --accent-hover: #11642F;
+  --on-accent: #FFFFFF;
+  --accent-soft: #E6F5EB;
+  --focus: #187D3D;
+}
+[data-theme="dark"][data-accent="red"] {
+  --accent: #FF7378;
+  --accent-hover: #FF979B;
+  --on-accent: #161022;
+  --accent-soft: #282C34;
+  --focus: #FF7378;
+}
+[data-theme="light"][data-accent="red"] {
+  --accent: #C83043;
+  --accent-hover: #A52435;
+  --on-accent: #FFFFFF;
+  --accent-soft: #FDE9EC;
+  --focus: #C83043;
+}
+@media (prefers-color-scheme: light) {
+:root:not([data-theme])[data-accent="green"] {
+  --accent: #187D3D;
+  --accent-hover: #11642F;
+  --on-accent: #FFFFFF;
+  --accent-soft: #E6F5EB;
+  --focus: #187D3D;
+}
+:root:not([data-theme])[data-accent="red"] {
+  --accent: #C83043;
+  --accent-hover: #A52435;
+  --on-accent: #FFFFFF;
+  --accent-soft: #FDE9EC;
+  --focus: #C83043;
+}
+}

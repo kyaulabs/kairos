@@ -1,0 +1,569 @@
+{
+  "name": "Kairos",
+  "version": "1.0.0",
+  "source": {
+    "selectedConcept": "09 AI module",
+    "thingsTheme": "Things 2.2.4 by Colin Eckert",
+    "thingsCommit": "9b8bef93d3919f7693ac78597beaa35bbbd4cfff",
+    "url": "https://github.com/colineckert/obsidian-things/blob/9b8bef93d3919f7693ac78597beaa35bbbd4cfff/theme.css"
+  },
+  "colors": {
+    "lilac": {
+      "hex": "#C1A0FF",
+      "rgb": [
+        193,
+        160,
+        255
+      ],
+      "role": "Primary brand / AI capsule",
+      "origin": "Selected logo"
+    },
+    "ink": {
+      "hex": "#161022",
+      "rgb": [
+        22,
+        16,
+        34
+      ],
+      "role": "AI lettering / app tile",
+      "origin": "Selected logo"
+    },
+    "cloud": {
+      "hex": "#E5EEF9",
+      "rgb": [
+        229,
+        238,
+        249
+      ],
+      "role": "Primary wordmark on dark",
+      "origin": "Selected logo"
+    },
+    "violet": {
+      "hex": "#6B43B5",
+      "rgb": [
+        107,
+        67,
+        181
+      ],
+      "role": "Accessible action / light mode",
+      "origin": "Kairos accessible derivative"
+    },
+    "violet-hover": {
+      "hex": "#583399",
+      "rgb": [
+        88,
+        51,
+        153
+      ],
+      "role": "Light action hover",
+      "origin": "Kairos accessible derivative"
+    },
+    "lilac-hover": {
+      "hex": "#D2BAFF",
+      "rgb": [
+        210,
+        186,
+        255
+      ],
+      "role": "Dark action hover",
+      "origin": "Kairos accessible derivative"
+    },
+    "lilac-soft": {
+      "hex": "#EFE7FF",
+      "rgb": [
+        239,
+        231,
+        255
+      ],
+      "role": "Light selected surface",
+      "origin": "Kairos accessible derivative"
+    },
+    "charcoal": {
+      "hex": "#181C20",
+      "rgb": [
+        24,
+        28,
+        32
+      ],
+      "role": "Dark canvas",
+      "origin": "Things exact"
+    },
+    "slate": {
+      "hex": "#1C2127",
+      "rgb": [
+        28,
+        33,
+        39
+      ],
+      "role": "Dark surface",
+      "origin": "Things exact"
+    },
+    "raised": {
+      "hex": "#282C34",
+      "rgb": [
+        40,
+        44,
+        52
+      ],
+      "role": "Dark raised surface",
+      "origin": "Things exact"
+    },
+    "line-dark": {
+      "hex": "#35393E",
+      "rgb": [
+        53,
+        57,
+        62
+      ],
+      "role": "Dark decorative divider",
+      "origin": "Things exact"
+    },
+    "control-dark": {
+      "hex": "#707986",
+      "rgb": [
+        112,
+        121,
+        134
+      ],
+      "role": "Dark control boundary",
+      "origin": "Kairos accessible derivative"
+    },
+    "text-dark": {
+      "hex": "#DADADA",
+      "rgb": [
+        218,
+        218,
+        218
+      ],
+      "role": "Dark body text",
+      "origin": "Things exact"
+    },
+    "muted-dark": {
+      "hex": "#BABABA",
+      "rgb": [
+        186,
+        186,
+        186
+      ],
+      "role": "Dark secondary text",
+      "origin": "Things exact"
+    },
+    "paper": {
+      "hex": "#FFFFFF",
+      "rgb": [
+        255,
+        255,
+        255
+      ],
+      "role": "Light surface",
+      "origin": "Things exact"
+    },
+    "mist": {
+      "hex": "#F6F7F8",
+      "rgb": [
+        246,
+        247,
+        248
+      ],
+      "role": "Light canvas / raised surface",
+      "origin": "Things exact"
+    },
+    "line-light": {
+      "hex": "#EBEDF0",
+      "rgb": [
+        235,
+        237,
+        240
+      ],
+      "role": "Light decorative divider",
+      "origin": "Things exact"
+    },
+    "control-light": {
+      "hex": "#7B8088",
+      "rgb": [
+        123,
+        128,
+        136
+      ],
+      "role": "Light control boundary",
+      "origin": "Kairos accessible derivative"
+    },
+    "text-light": {
+      "hex": "#222222",
+      "rgb": [
+        34,
+        34,
+        34
+      ],
+      "role": "Light body text",
+      "origin": "Things exact"
+    },
+    "muted-light": {
+      "hex": "#5A5A5A",
+      "rgb": [
+        90,
+        90,
+        90
+      ],
+      "role": "Light secondary text",
+      "origin": "Things exact"
+    },
+    "success-dark": {
+      "hex": "#44CF6E",
+      "rgb": [
+        68,
+        207,
+        110
+      ],
+      "role": "Positive / dark",
+      "origin": "Things exact"
+    },
+    "success-light": {
+      "hex": "#187D3D",
+      "rgb": [
+        24,
+        125,
+        61
+      ],
+      "role": "Positive / light",
+      "origin": "Kairos accessible derivative"
+    },
+    "danger-dark": {
+      "hex": "#FF7378",
+      "rgb": [
+        255,
+        115,
+        120
+      ],
+      "role": "Negative / dark",
+      "origin": "Kairos accessible derivative"
+    },
+    "danger-light": {
+      "hex": "#C83043",
+      "rgb": [
+        200,
+        48,
+        67
+      ],
+      "role": "Negative / light",
+      "origin": "Kairos accessible derivative"
+    },
+    "warning-dark": {
+      "hex": "#E0DE71",
+      "rgb": [
+        224,
+        222,
+        113
+      ],
+      "role": "Caution / dark",
+      "origin": "Things exact"
+    },
+    "warning-light": {
+      "hex": "#8B641F",
+      "rgb": [
+        139,
+        100,
+        31
+      ],
+      "role": "Caution / light",
+      "origin": "Kairos accessible derivative"
+    },
+    "info-dark": {
+      "hex": "#7EB6FF",
+      "rgb": [
+        126,
+        182,
+        255
+      ],
+      "role": "Information / dark",
+      "origin": "Kairos accessible derivative"
+    },
+    "info-light": {
+      "hex": "#086DDD",
+      "rgb": [
+        8,
+        109,
+        221
+      ],
+      "role": "Information / light",
+      "origin": "Things exact"
+    },
+    "green-hover-dark": {
+      "hex": "#73DF94",
+      "rgb": [
+        115,
+        223,
+        148
+      ],
+      "role": "Alternate interface accent / green-hover-dark",
+      "origin": "Kairos accessible derivative"
+    },
+    "green-hover-light": {
+      "hex": "#11642F",
+      "rgb": [
+        17,
+        100,
+        47
+      ],
+      "role": "Alternate interface accent / green-hover-light",
+      "origin": "Kairos accessible derivative"
+    },
+    "green-soft": {
+      "hex": "#E6F5EB",
+      "rgb": [
+        230,
+        245,
+        235
+      ],
+      "role": "Alternate interface accent / green-soft",
+      "origin": "Kairos accessible derivative"
+    },
+    "red-hover-dark": {
+      "hex": "#FF979B",
+      "rgb": [
+        255,
+        151,
+        155
+      ],
+      "role": "Alternate interface accent / red-hover-dark",
+      "origin": "Kairos accessible derivative"
+    },
+    "red-hover-light": {
+      "hex": "#A52435",
+      "rgb": [
+        165,
+        36,
+        53
+      ],
+      "role": "Alternate interface accent / red-hover-light",
+      "origin": "Kairos accessible derivative"
+    },
+    "red-soft": {
+      "hex": "#FDE9EC",
+      "rgb": [
+        253,
+        233,
+        236
+      ],
+      "role": "Alternate interface accent / red-soft",
+      "origin": "Kairos accessible derivative"
+    }
+  },
+  "themes": {
+    "dark": {
+      "bg": "#181C20",
+      "surface": "#1C2127",
+      "surface-raised": "#282C34",
+      "border": "#35393E",
+      "control-border": "#707986",
+      "text": "#DADADA",
+      "muted": "#BABABA",
+      "accent": "#C1A0FF",
+      "accent-hover": "#D2BAFF",
+      "on-accent": "#161022",
+      "accent-soft": "#282C34",
+      "success": "#44CF6E",
+      "danger": "#FF7378",
+      "warning": "#E0DE71",
+      "info": "#7EB6FF",
+      "focus": "#C1A0FF"
+    },
+    "light": {
+      "bg": "#F6F7F8",
+      "surface": "#FFFFFF",
+      "surface-raised": "#F6F7F8",
+      "border": "#EBEDF0",
+      "control-border": "#7B8088",
+      "text": "#222222",
+      "muted": "#5A5A5A",
+      "accent": "#6B43B5",
+      "accent-hover": "#583399",
+      "on-accent": "#FFFFFF",
+      "accent-soft": "#EFE7FF",
+      "success": "#187D3D",
+      "danger": "#C83043",
+      "warning": "#8B641F",
+      "info": "#086DDD",
+      "focus": "#6B43B5"
+    }
+  },
+  "themeAliases": {
+    "dark": {
+      "bg": "charcoal",
+      "surface": "slate",
+      "surface-raised": "raised",
+      "border": "line-dark",
+      "control-border": "control-dark",
+      "text": "text-dark",
+      "muted": "muted-dark",
+      "accent": "lilac",
+      "accent-hover": "lilac-hover",
+      "on-accent": "ink",
+      "accent-soft": "raised",
+      "success": "success-dark",
+      "danger": "danger-dark",
+      "warning": "warning-dark",
+      "info": "info-dark",
+      "focus": "lilac"
+    },
+    "light": {
+      "bg": "mist",
+      "surface": "paper",
+      "surface-raised": "mist",
+      "border": "line-light",
+      "control-border": "control-light",
+      "text": "text-light",
+      "muted": "muted-light",
+      "accent": "violet",
+      "accent-hover": "violet-hover",
+      "on-accent": "paper",
+      "accent-soft": "lilac-soft",
+      "success": "success-light",
+      "danger": "danger-light",
+      "warning": "warning-light",
+      "info": "info-light",
+      "focus": "violet"
+    }
+  },
+  "spacing": {
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "6": 24,
+    "8": 32,
+    "12": 48,
+    "16": 64
+  },
+  "radii": {
+    "control": 8,
+    "card": 16,
+    "pill": 999
+  },
+  "typography": {
+    "ui": "Neo Sans Pro",
+    "data": "Operator Mono Lig Nerd Font",
+    "logo": "Neo Sans Pro Ultra / supplied as outlines"
+  },
+  "motion": {
+    "fast": "120ms",
+    "standard": "180ms"
+  },
+  "accentVariants": {
+    "violet": {
+      "dark": {
+        "bg": "#181C20",
+        "surface": "#1C2127",
+        "surface-raised": "#282C34",
+        "border": "#35393E",
+        "control-border": "#707986",
+        "text": "#DADADA",
+        "muted": "#BABABA",
+        "accent": "#C1A0FF",
+        "accent-hover": "#D2BAFF",
+        "on-accent": "#161022",
+        "accent-soft": "#282C34",
+        "success": "#44CF6E",
+        "danger": "#FF7378",
+        "warning": "#E0DE71",
+        "info": "#7EB6FF",
+        "focus": "#C1A0FF"
+      },
+      "light": {
+        "bg": "#F6F7F8",
+        "surface": "#FFFFFF",
+        "surface-raised": "#F6F7F8",
+        "border": "#EBEDF0",
+        "control-border": "#7B8088",
+        "text": "#222222",
+        "muted": "#5A5A5A",
+        "accent": "#6B43B5",
+        "accent-hover": "#583399",
+        "on-accent": "#FFFFFF",
+        "accent-soft": "#EFE7FF",
+        "success": "#187D3D",
+        "danger": "#C83043",
+        "warning": "#8B641F",
+        "info": "#086DDD",
+        "focus": "#6B43B5"
+      }
+    },
+    "green": {
+      "dark": {
+        "bg": "#181C20",
+        "surface": "#1C2127",
+        "surface-raised": "#282C34",
+        "border": "#35393E",
+        "control-border": "#707986",
+        "text": "#DADADA",
+        "muted": "#BABABA",
+        "accent": "#44CF6E",
+        "accent-hover": "#73DF94",
+        "on-accent": "#161022",
+        "accent-soft": "#282C34",
+        "success": "#44CF6E",
+        "danger": "#FF7378",
+        "warning": "#E0DE71",
+        "info": "#7EB6FF",
+        "focus": "#44CF6E"
+      },
+      "light": {
+        "bg": "#F6F7F8",
+        "surface": "#FFFFFF",
+        "surface-raised": "#F6F7F8",
+        "border": "#EBEDF0",
+        "control-border": "#7B8088",
+        "text": "#222222",
+        "muted": "#5A5A5A",
+        "accent": "#187D3D",
+        "accent-hover": "#11642F",
+        "on-accent": "#FFFFFF",
+        "accent-soft": "#E6F5EB",
+        "success": "#187D3D",
+        "danger": "#C83043",
+        "warning": "#8B641F",
+        "info": "#086DDD",
+        "focus": "#187D3D"
+      }
+    },
+    "red": {
+      "dark": {
+        "bg": "#181C20",
+        "surface": "#1C2127",
+        "surface-raised": "#282C34",
+        "border": "#35393E",
+        "control-border": "#707986",
+        "text": "#DADADA",
+        "muted": "#BABABA",
+        "accent": "#FF7378",
+        "accent-hover": "#FF979B",
+        "on-accent": "#161022",
+        "accent-soft": "#282C34",
+        "success": "#44CF6E",
+        "danger": "#FF7378",
+        "warning": "#E0DE71",
+        "info": "#7EB6FF",
+        "focus": "#FF7378"
+      },
+      "light": {
+        "bg": "#F6F7F8",
+        "surface": "#FFFFFF",
+        "surface-raised": "#F6F7F8",
+        "border": "#EBEDF0",
+        "control-border": "#7B8088",
+        "text": "#222222",
+        "muted": "#5A5A5A",
+        "accent": "#C83043",
+        "accent-hover": "#A52435",
+        "on-accent": "#FFFFFF",
+        "accent-soft": "#FDE9EC",
+        "success": "#187D3D",
+        "danger": "#C83043",
+        "warning": "#8B641F",
+        "info": "#086DDD",
+        "focus": "#C83043"
+      }
+    }
+  },
+  "defaultAccent": "violet"
+}
