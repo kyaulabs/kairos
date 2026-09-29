@@ -32,7 +32,7 @@ class AssessmentView {
   }
   static dial(svg, value, score, caption, left, right) {
     const text = (x,y,label,cls) => svg.append('text').attr('x',x).attr('y',y).attr('class',cls).attr('text-anchor','middle').text(label);
-    text(180,18,caption,'instrument-caption');
+    text(180,24,caption,'instrument-caption');
     const arc=d3.arc().innerRadius(73).outerRadius(84);
     svg.append('g').attr('transform','translate(180,120)').selectAll('path').data(d3.range(30)).join('path').attr('d',i=>arc({startAngle:-Math.PI/2+i*Math.PI/30+.008,endAngle:-Math.PI/2+(i+1)*Math.PI/30-.008})).attr('fill',i=>i<14?'var(--danger)':i>15?'var(--success)':'var(--muted)').attr('opacity',value == null ? .12 : .35);
     if (value != null) {
@@ -50,7 +50,7 @@ class AssessmentView {
     const text = (x, y, value, cls = '', anchor = 'start') => svg.append('text').attr('x', x).attr('y', y).attr('class', cls).attr('text-anchor', anchor).text(value);
     const rules = state.settings.strategy === 'scalp';
     const input = decision?.state || (rules && state.scalp?.position ? {...state.scalp.position.signal, position: state.scalp.position} : {});
-    root.attr('data-kind', rules ? 'scalp' : 'model');
+    root.attr('data-kind', rules ? 'scalp' : state.settings.strategy === 'htf' ? 'htf' : 'model');
     if (definition.scheduled) {
       svg.attr('viewBox', '0 0 360 100').attr('aria-label', 'Deterministic program status. Claimed slots are not confirmed fills.');
       const total = state.settings.strategy === 'dca' ? state.settings.dca_count : state.settings.strategy === 'twap' ? state.settings.twap_slices : null;
@@ -64,8 +64,8 @@ class AssessmentView {
       const position=AssessmentView.bandPosition(input), z=AssessmentView.number(input.z_score);
       const source=input.position ? 'ENTRY' : state.running ? 'ASSESSED' : 'PAUSED';
       svg.attr('viewBox','0 0 360 96').attr('class','assessment-instrument range-gauge').attr('aria-label',position == null ? 'Bollinger band position unavailable; awaiting a non-flat window.' : `${source === 'ENTRY' ? 'Saved entry window' : source === 'PAUSED' ? 'Paused, last assessed window' : 'Latest assessed window'}: ${z == null ? 'standard deviation unavailable' : `${z.toFixed(2)} standard deviations from the midpoint`}. Upper band left, lower band right; needle capped at bands. Not confidence or permission to trade.`);
-      text(14,24,position == null ? 'RANGE · AWAITING DATA' : `${source} · RANGE`,'instrument-caption');
-      text(346,24,position != null && z != null ? `${z>0?'+':''}${z.toFixed(2)}σ` : '—','instrument-score','end');
+      text(14,28,position == null ? 'RANGE · AWAITING DATA' : `${source} · RANGE`,'instrument-caption');
+      text(346,28,position != null && z != null ? `${z>0?'+':''}${z.toFixed(2)}σ` : '—','instrument-score','end');
       const level=position == null ? null : (1-Math.max(-1,Math.min(1,position)))/2;
       const step=(332+2)/30; // Equal segments with gaps only between them.
       svg.append('g').attr('class','range-segments').selectAll('rect').data(d3.range(30)).join('rect').attr('x',i=>14+i*step).attr('y',44).attr('width',step-2).attr('height',12).attr('rx',1).attr('fill',i=>i<14?'var(--danger)':i>15?'var(--success)':'var(--muted)').attr('opacity',i=>level == null ? .12 : i/29<=level ? .75 : .2);
@@ -82,13 +82,13 @@ class AssessmentView {
         const levels = ['lower', 'middle', 'upper'].map(name => ({name, value: AssessmentView.number(input[name])}));
         if (series.length > 1 && levels.every(row => row.value > 0) && levels[0].value <= levels[1].value && levels[1].value <= levels[2].value) {
           svg.attr('aria-label', 'Rolling one-minute closing prices with the latest window bands; fixed entry window while holding.');
-          text(14, 18, input.position ? 'ENTRY WINDOW · FIXED TARGET' : `${input.window} × 1 MINUTE · LOCAL RANGE`, 'instrument-caption');
+          text(14, 24, input.position ? 'ENTRY · FIXED TARGET' : `${input.window} × 1 MIN · LOCAL RANGE`, 'instrument-caption');
           const extent = d3.extent([...series.map(row => row.close), ...levels.map(row => row.value)]);
           const pad = Math.max((extent[1]-extent[0])*.15, extent[1]*.0001);
           const y = d3.scaleLinear().domain([extent[0]-pad, extent[1]+pad]).range([166, 32]);
           const x = d3.scaleLinear().domain(d3.extent(series, row => row.time)).range([14, 346]);
           svg.append('rect').attr('x',14).attr('y',y(levels[2].value)).attr('width',332).attr('height',y(levels[0].value)-y(levels[2].value)).attr('fill','var(--accent)').attr('opacity',.09);
-          const gap=12*360/Math.max(180,this.element.clientWidth || 360);
+          const gap=16*360/Math.max(180,this.element.clientWidth || 360);
           const middleY=Math.max(32+gap,Math.min(166-gap,y(levels[1].value)));
           const labels=levels[2].value===levels[0].value ? [{name:'flat',value:levels[1].value,labelY:y(levels[1].value)}] : levels.map((level,i)=>({...level,labelY:i===0?Math.max(y(level.value),middleY+gap):i===2?Math.min(y(level.value),middleY-gap):middleY}));
           for (const level of labels) {
@@ -107,6 +107,11 @@ class AssessmentView {
           text(180,110,'NO USABLE PRICE RANGE','instrument-caption','middle');
         }
       }
+    } else if (state.settings.strategy === 'htf') {
+      svg.attr('viewBox', '0 0 360 100').attr('aria-label', 'Deterministic HTF trend; historical momentum is not a profit forecast.');
+      text(14, 20, `${state.settings.candle_minutes} MINUTE · HTF RULES`, 'instrument-caption');
+      text(14, 50, input.trend ? `${input.trend.toUpperCase()} TREND` : 'AWAITING CANDLES', 'instrument-value');
+      text(14, 80, input.entry_policy ? 'PULLBACK · PASSIVE ENTRY' : 'RULES · NO PROFIT FORECAST', 'instrument-caption');
     } else {
       svg.attr('viewBox', '0 0 360 228');
       const rows = AssessmentView.weights(decision);
@@ -127,16 +132,19 @@ class AssessmentView {
       }
     }
     if (!rules && decision) {
-      const move=AssessmentView.number(input.eight_candle_return_bps), cost=AssessmentView.number(input.round_trip_cost_bps);
+      const pullback=!!input.entry_policy;
+      const side=input.entry_signal==='sell' || (input.trend==='falling' && state.settings.product!=='spot') ? 'sell' : 'buy';
+      const move=AssessmentView.number(pullback ? input.target_net_room_bps?.[side] : input.eight_candle_return_bps), cost=AssessmentView.number(pullback ? input.required_net_room_bps : input.round_trip_cost_bps);
       if(move!=null && cost!=null && cost>=0) {
-        const gauge=root.append('svg').attr('viewBox','0 0 360 58').attr('class','cost-instrument').attr('role','img').attr('aria-label',`Historical move magnitude ${Math.abs(move).toFixed(1)} bps; round-trip fee/slippage threshold ${cost.toFixed(1)} bps. Not a forecast.`);
-        const x=d3.scaleLinear().domain([0,Math.max(Math.abs(move),cost,1)*1.15]).range([14,346]);
-        gauge.append('text').attr('x',14).attr('y',12).attr('class','instrument-caption').text('MOVE MAGNITUDE / COSTS');
+        const shown=pullback ? Math.max(0,move) : Math.abs(move);
+        const gauge=root.append('svg').attr('viewBox','0 0 360 58').attr('class','cost-instrument').attr('role','img').attr('aria-label',pullback ? `Estimated ${side} target room after costs ${move.toFixed(1)} bps; required buffer ${cost.toFixed(1)} bps. Historical target, not a forecast or trade permission.` : `Historical move magnitude ${Math.abs(move).toFixed(1)} bps; round-trip fee/slippage threshold ${cost.toFixed(1)} bps. Not a forecast.`);
+        const x=d3.scaleLinear().domain([0,Math.max(shown,cost,1)*1.15]).range([14,346]);
+        gauge.append('text').attr('x',14).attr('y',12).attr('class','instrument-caption').text(pullback ? 'TARGET NET / REQUIRED BUFFER' : 'MOVE MAGNITUDE / COSTS');
         gauge.append('rect').attr('x',14).attr('y',23).attr('width',332).attr('height',5).attr('fill','var(--border)');
-        gauge.append('rect').attr('x',14).attr('y',23).attr('width',x(Math.abs(move))-14).attr('height',5).attr('fill','var(--accent)');
+        gauge.append('rect').attr('x',14).attr('y',23).attr('width',x(shown)-14).attr('height',5).attr('fill','var(--accent)');
         gauge.append('line').attr('x1',x(cost)).attr('x2',x(cost)).attr('y1',18).attr('y2',33).attr('stroke','var(--warning)').attr('stroke-width',2);
-        gauge.append('text').attr('x',14).attr('y',49).attr('class','instrument-caption').text(`${Math.abs(move).toFixed(1)} bps move`);
-        gauge.append('text').attr('x',346).attr('y',49).attr('text-anchor','end').attr('class','instrument-caption').text(`${cost.toFixed(1)} bps costs`);
+        gauge.append('text').attr('x',14).attr('y',49).attr('class','instrument-caption').text(pullback ? `${move.toFixed(1)} bps net room` : `${Math.abs(move).toFixed(1)} bps move`);
+        gauge.append('text').attr('x',346).attr('y',49).attr('text-anchor','end').attr('class','instrument-caption').text(`${cost.toFixed(1)} bps ${pullback ? 'buffer' : 'costs'}`);
       }
       const tape=events.filter(e=>e.kind==='decision' && AssessmentView.matches(e.data,state)).slice(-12);
       if(tape.length) {
@@ -146,14 +154,20 @@ class AssessmentView {
       }
     }
     const scale = 360 / Math.max(180, this.element.clientWidth || 360);
-    root.selectAll('.instrument-caption').style('font-size', `${9*scale}px`);
-    root.selectAll('.instrument-score').style('font-size', `${20*scale}px`);
-    root.selectAll('.instrument-value').style('font-size', `${12*scale}px`);
-    if (rules) svg.selectAll('.instrument-score').style('font-size', `${12*scale}px`);
+    root.selectAll('.instrument-caption').style('font-size', `calc(.75rem * ${scale})`);
+    root.selectAll('.instrument-score').style('font-size', `calc(1.5rem * ${scale})`);
+    root.selectAll('.instrument-value').style('font-size', `calc(1rem * ${scale})`);
+    if (rules) svg.selectAll('.instrument-score').style('font-size', `calc(1rem * ${scale})`);
     const metrics=definition.scheduled ? [['ORDERS',state.program?.orders || 0],['MISSED SLOTS',state.program?.skipped_slots || 0],['TURNOVER · USD',state.program?.spent_including_fees || 0]] : rules ? [['WINDOW Z', input.z_score],['TREND ER',input.efficiency],['NET · BPS',input.net_room_bps]] : [['TREND',input.trend],['SPREAD · BPS',input.spread_bps],['INVENTORY',input.inventory]];
     const cells=root.append('div').attr('class','assessment-metrics').selectAll('div').data(metrics).join('div');
     cells.append('span').text(row=>row[0]);
     cells.append('strong').text(row=>row[1]==null?'—':AssessmentView.number(row[1])!=null?Number(row[1]).toLocaleString(undefined,{maximumFractionDigits:3}):String(row[1]));
+    if (state.settings.strategy === 'htf') {
+      const plan = state.htf?.position;
+      root.append('p').attr('class', 'assessment-protection muted').text(plan ? `Stop ${Number(plan.stop).toLocaleString()}${plan.target ? ` · target ${Number(plan.target).toLocaleString()}` : ''} · deadline ${new Date(plan.deadline*1000).toLocaleString()} · trend-reversal exit. Protection only while running; bounded fills may leave residuals.` : 'Flat · passive pullback entries · no pyramiding or taker fallback. A target is not a profit forecast.');
+      const observed=state.htf_review?.range_observation;
+      if (observed) root.append('p').attr('class','assessment-protection muted').text(`Range observation only: ${observed.eligible ? observed.signal.toUpperCase()+' candidate' : 'no qualifying signal'}. Not orders, fills or P&L.`);
+    }
     const position = state.scalp?.position;
     if(rules) root.append('p').attr('class','assessment-protection muted').text(position ? `Stop ${Number(position.stop).toLocaleString(undefined,{maximumFractionDigits:8})} · target ${Number(position.target).toLocaleString(undefined,{maximumFractionDigits:8})} · until ${new Date(position.deadline*1000).toLocaleTimeString()}. Protection only while running.` : 'Flat · 1 position max · fixed target / stop / deadline');
   }

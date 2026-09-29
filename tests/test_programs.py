@@ -429,6 +429,7 @@ class ProgramTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(programs.snapshot(self.engine))
         with self.assertRaisesRegex(SafetyError, "JEV_API_KEY"):
             await self.engine.start()
+        self.jev.decide.assert_not_awaited()
         del legacy["daily_loss"]
         self.store.put("settings", legacy)
         with self.assertRaisesRegex(SafetyError, "documented fields"):

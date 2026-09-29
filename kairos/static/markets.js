@@ -12,6 +12,7 @@ class MarketPicker {
     this.changeReceived = 0;
     this.error = '';
     this.selected = null;
+    this.poller = new window.VisiblePoller(signal => this.refresh(signal), 10000);
     this.favoritesOnly = false;
     this.sortKey = 'symbol';
     this.sortDirection = 'ascending';
@@ -23,7 +24,7 @@ class MarketPicker {
     document.getElementById('market-open').addEventListener('click', () => this.open(false));
     document.getElementById('favorites-open').addEventListener('click', () => this.open(true));
     document.getElementById('market-close').addEventListener('click', () => this.dialog.close());
-    this.dialog.addEventListener('close', () => { this.cancelReorder(); this.opener?.focus({preventScroll: true}); });
+    this.dialog.addEventListener('close', () => { this.cancelReorder(); this.opener?.focus({preventScroll: true}); this.poller.refresh(); });
     window.addEventListener('blur', () => this.cancelReorder());
     this.dialog.addEventListener('click', event => {
       const r = this.dialog.getBoundingClientRect();
@@ -53,7 +54,7 @@ class MarketPicker {
     }
     window.addEventListener('storage', event => {
       if (event.key !== 'kairos:favorites' && event.key !== null) return;
-      this.cancelReorder(); this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows();
+      this.cancelReorder(); this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows(); this.poller.refresh();
     });
     this.renderFooter();
   }
@@ -136,7 +137,7 @@ class MarketPicker {
       warning.textContent = 'Browser storage is unavailable. Favorites will last only for this page session.';
       warning.hidden = false;
     }
-    this.renderFooter(); this.renderRows();
+    this.renderFooter(); this.renderRows(); this.poller.refresh();
   }
   moveFavorite(id, target, after = false) {
     if (id === target || !this.favorites.includes(id) || !this.favorites.includes(target)) return;
@@ -241,13 +242,13 @@ class MarketPicker {
     this.opener = document.getElementById(favorites ? 'favorites-open' : 'market-open');
     this.search.value = '';
     if (!this.dialog.open) this.dialog.showModal();
-    this.renderRows(); this.updateFreshness(); this.search.focus();
+    this.renderRows(); this.updateFreshness(); this.search.focus(); this.poller.start();
   }
   setSelected(pair) {
     if (this.selected === pair.id) return;
     this.selected = pair.id;
     document.getElementById('market-icons').replaceChildren(MarketPicker.pairIcon(MarketPicker.iconSymbol(pair)));
-    this.renderRows(); this.renderFooter();
+    this.renderRows(); this.renderFooter(); this.poller.refresh();
   }
   choose(market) {
     this.select(market);
@@ -367,11 +368,18 @@ class MarketPicker {
       button.title = `${market?.symbol || button.dataset.watch} · ${market ? MarketPicker.kindLabel(market) : 'Unavailable'} · ${market?.last == null ? 'Price unavailable' : `${quoteAge > 30 ? 'STALE · ' : ''}Quote ${quoteAge.toFixed(0)}s ago`} · Chart only`;
     }
   }
-  async refresh() {
+  async refresh(signal) {
+    if (document.hidden) return;
     try {
-      const data = await this.request('markets');
+      const full = !this.markets.length || this.dialog.open || (this.selected && !this.markets.some(row => row.id === this.selected));
+      const wanted = new Set([this.selected, ...this.favorites]);
+      const ids = this.markets.filter(row => wanted.has(row.id)).map(row => row.id);
+      const query = full ? 'markets' : `markets?${new URLSearchParams({ids: ids.join(',')})}`;
+      const data = await this.request(query, undefined, signal);
+      if (signal?.aborted) return;
       if (!Array.isArray(data.markets) || !Number.isFinite(data.received)) throw new Error('Invalid market snapshot');
-      this.markets = data.markets;
+      const updates = new Map(data.markets.map(row => [row.id, row]));
+      this.markets = data.partial ? this.markets.map(row => updates.get(row.id) || row) : data.markets;
       this.received = data.received;
       this.changeReceived = Number.isFinite(data.change_received) ? data.change_received : 0;
       this.error = data.errors?.length ? 'Some feeds unavailable' : '';
@@ -379,10 +387,9 @@ class MarketPicker {
       status.textContent = (data.errors || []).join(' · '); status.hidden = !this.error;
       this.catalogChanged(this.markets);
       this.renderRows(); this.renderFooter();
-    } catch {
+    } catch (error) {
+      if (signal?.aborted || error.name === 'AbortError') return;
       this.error = 'Market prices unavailable — retrying'; this.updateFreshness();
-    } finally {
-      this.timer = setTimeout(() => this.refresh(), 10000);
     }
   }
 }

@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 import aiohttp
 from yarl import URL
 
+from kairos import diagnostics
 from kairos.domain import ZERO, Book, Pair, SafetyError, dec
 from kairos.retail import Futures, futures_signature, linear_perpetual
 
@@ -59,8 +60,9 @@ class FuturesTrading(Futures):
                     "APIKey": self.key,
                     "Authent": futures_signature(path, self.secret, post),
                 }
-            except ValueError:
-                raise SafetyError("Invalid Futures credential encoding") from None
+            except ValueError as exc:
+                diagnostics.capture(exc, "futures-credential-encoding")
+                raise SafetyError("Invalid Futures credential encoding") from exc
         url = "https://futures.kraken.com" + ("" if history else "/derivatives") + path
         # Sign exactly the URL-encoded bytes sent, including history query parameters.
         if verb == "GET" and post:
@@ -81,16 +83,25 @@ class FuturesTrading(Futures):
                 ) as response:
                     if response.status != 200:
                         raise SafetyError(
-                            "Futures request failed; any write outcome may be unknown"
+                            f"Futures request failed (HTTP {response.status}, endpoint {method}); any write outcome may be unknown"
                         )
                     data = await response.json()
                     continuation = response.headers.get("Next-Continuation-Token")
-            except (aiohttp.ClientError, TimeoutError, ValueError):
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
                 raise SafetyError(
                     "Futures transport failed; any write outcome may be unknown"
-                ) from None
+                ) from exc
         if not isinstance(data, dict) or data.get("result", "success") != "success":
-            raise SafetyError("Futures request rejected; inspect permissions and reconcile writes")
+            failure = SafetyError(
+                "Futures request rejected; inspect permissions and reconcile writes"
+            )
+            failure.diagnostic_details = {
+                "endpoint": method,
+                "exchange_error": data.get("error")
+                if isinstance(data, dict)
+                else "Non-object response",
+            }
+            raise failure
         if history:
             data["continuationToken"] = continuation or data.get("continuationToken")
         return data

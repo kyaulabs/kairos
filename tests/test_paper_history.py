@@ -80,13 +80,25 @@ class PaperHistoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([o["id"] for o in state["archived_orders"]], ["paper-1"])
         self.assertEqual(state["order_history_revision"], 1)
         self.assertEqual(len(self.engine.orders("dry-run")), 1)
-        self.assertFalse(any(e["data"].get("mode") == "dry-run" for e in self.store.history()))
+        self.assertFalse(
+            any(
+                e["kind"] in {"order", "fill"} and e["data"].get("mode") == "dry-run"
+                for e in self.store.history()
+            )
+        )
         self.assertEqual(self.engine.ledger(), before_ledger)
         await self.mutate(operation="restore")
         self.assertEqual([o["id"] for o in self.store.orders()], ["paper-1", "live-1"])
         self.assertEqual(len(self.engine.snapshot()["orders"]), 2)
         self.assertEqual(
-            len([e for e in self.store.history() if e["data"].get("mode") == "dry-run"]), 2
+            len(
+                [
+                    e
+                    for e in self.store.history()
+                    if e["kind"] in {"order", "fill"} and e["data"].get("mode") == "dry-run"
+                ]
+            ),
+            2,
         )
         self.assertEqual(self.engine.snapshot()["order_history_revision"], 2)
         self.spot.add.assert_not_awaited()

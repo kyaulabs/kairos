@@ -9,7 +9,7 @@
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
   let tickers = {}, connected = false;
-  let candleTimer, candleController, candleGeneration = 0, candleReceived = 0, candleError = '';
+  let candleGeneration = 0, candleReceived = 0, candleError = '';
   let settingsSchema, settingsForm, settingsHelp;
   let historyRevision, historyGeneration = 0, historyFloor = 0;
   const scheduledStrategy = strategy => settingsSchema.strategies[strategy].scheduled;
@@ -95,31 +95,26 @@
     }
     return parts.join(' ');
   }
-  function restartCandles() {
-    clearTimeout(candleTimer);
-    candleController?.abort();
-    const generation = ++candleGeneration;
+  const candlePoller = new VisiblePoller(async signal => {
+    const generation = candleGeneration;
     const pair = chartPair.id, interval = Number($('candle-interval').value);
+    try {
+      const data = await request(`candles?${new URLSearchParams({pair, interval})}`, undefined, signal);
+      if (signal.aborted || generation !== candleGeneration) return;
+      if (data.pair !== pair || data.interval !== interval) throw new Error('Candle market or interval mismatch');
+      priceChart.volumeUnit = data.volume_unit || 'base asset';
+      priceChart.setCandles(data.candles);
+      candleReceived = data.received; candleError = '';
+    } catch (error) {
+      if (signal.aborted || generation !== candleGeneration || error.name === 'AbortError') return;
+      candleError = 'Candle feed unavailable — retrying';
+    }
+  }, 5000);
+  function restartCandles() {
+    candleGeneration++;
     candleReceived = 0; candleError = '';
     $('candle-status').textContent = 'Loading candles…';
-    async function refresh() {
-      candleController = new AbortController();
-      try {
-        const data = await request(`candles?${new URLSearchParams({pair, interval})}`, undefined, candleController.signal);
-        if (generation !== candleGeneration) return;
-        if (data.pair !== pair || data.interval !== interval) throw new Error('Candle market or interval mismatch');
-        priceChart.volumeUnit = data.volume_unit || 'base asset';
-        priceChart.setCandles(data.candles);
-        candleReceived = data.received; candleError = '';
-      } catch (error) {
-        if (generation !== candleGeneration || error.name === 'AbortError') return;
-        candleError = 'Candle feed unavailable — retrying';
-      } finally {
-        // No overlapping polls; obsolete market/interval requests cannot redraw or reschedule.
-        if (generation === candleGeneration) candleTimer = setTimeout(refresh, 5000);
-      }
-    }
-    refresh();
+    candlePoller.start();
   }
   function updateStrategyMarket() {
     strategyMarketPicker.update({
@@ -206,14 +201,16 @@
     $('exposure-cap').textContent = `Effective limit ${money(state.effective_exposure_cap)} USD`;
     $('valuation-time').textContent = state.valuation_ts ? `Valued ${time(state.valuation_ts)}` : 'Not yet valued';
     if (state.valuation_ts && state.equity != null) equityChart.add(state.valuation_ts, Number(state.equity));
-    $('engine-status').textContent = state.running ? 'Running' : 'Paused';
+    $('engine-status').textContent = state.running ? (state.fee_recovery ? 'Recovering fees' : state.data_recovery?.attempts ? 'Recovering data' : 'Running') : state.error ? 'Stopped · error' : 'Paused';
     $('engine-status').classList.toggle('running', state.running);
     $('engine-strategy').textContent = settingsSchema.strategies[state.settings.strategy].label;
     $('engine-error').hidden = !state.error;
     $('engine-error').textContent = state.error || '';
-    $('start').hidden = state.running;
+    $('start').hidden = state.running || !!state.error;
+    $('restart').hidden = state.running || !state.error;
     $('stop').hidden = !state.running;
     $('start').disabled = busy || !connected || state.running || !state.ready;
+    $('restart').disabled = busy || !connected || state.running || !state.ready || state.recovery_required;
     $('settings-fields').disabled = busy || state.running;
     updateStrategyMarket(); updateProgramFields();
     $('mode').disabled = busy || !connected;
@@ -234,7 +231,7 @@
     $('mode').querySelector('option[value="trading"]').disabled = !!definition.paper_only;
     $('assessment-label').textContent = rules ? 'Strategy signals' : 'Jev assessment';
     $('assessment-kind').textContent = rules ? 'RULES' : 'MODEL';
-    $('assessment-disclaimer').textContent = scheduled ? 'Scheduled orders and rebalancing do not guarantee profit. Missed or unfilled slices are not caught up automatically.' : rules ? 'Paper signals are not evidence of profitability. Price bounds, liquidity and data failures can prevent exits; Stop pauses protection checks.' : 'Model weights and directional bias are not calibrated probabilities of profit. Historical moves are not forecasts.';
+    $('assessment-disclaimer').textContent = scheduled ? 'Scheduled orders and rebalancing do not guarantee profit. Missed or unfilled slices are not caught up automatically.' : rules ? 'Rule-based signals are not evidence of profitability. Price bounds, liquidity and data failures can prevent exits; Stop pauses protection checks.' : 'Model weights and directional bias are not calibrated probabilities of profit. Historical moves are not forecasts.';
     if (scheduled) {
       const program = state.program;
       $('decision').textContent = program?.configuration_changed ? 'Rearm required' : program?.status === 'complete' ? 'Complete' : state.running ? 'Running' : 'Paused';
@@ -248,7 +245,7 @@
       $('decision').textContent = decisionLabel(decision);
       $('decision').className = decision.action === 'buy' ? 'buy' : decision.action === 'sell' ? 'sell' : '';
       const confidence = AssessmentView.number(decision.confidence);
-      $('confidence').textContent = decision.deterministic ? 'DETERMINISTIC · PAPER · 1 MINUTE' : confidence != null && confidence >= 0 && confidence <= 1 ? `${(confidence*100).toFixed(1)}% confidence in ${decision.action === 'hold' ? 'no trade' : decision.action}` : 'Confidence unavailable';
+      $('confidence').textContent = decision.deterministic ? `DETERMINISTIC · ${decision.mode.toUpperCase()} · ${decision.state?.candle_minutes || '—'} MINUTE` : confidence != null && confidence >= 0 && confidence <= 1 ? `${(confidence*100).toFixed(1)}% confidence in ${decision.model_action || (decision.action === 'hold' ? 'no trade' : decision.action)}` : 'Confidence unavailable';
       $('decision-context').textContent = decisionContext(decision);
       $('decision-market').textContent = `Assessment market: ${decision.state?.symbol || decision.pair}`;
       $('model-info').textContent = decision.deterministic ? `${time(decision.ts)} · ${decision.mode}` : `${decision.model} · ${decision.latency_ms} ms · ${time(decision.ts)} · ${decision.mode}`;
@@ -258,6 +255,15 @@
       $('confidence').textContent = '—'; $('decision-context').textContent = '';
       $('decision-market').textContent = '';
       $('model-info').textContent = $('decision-inputs').textContent = state.decision ? 'Previous assessment belongs to another configuration.' : 'No assessment yet.';
+    }
+    $('htf-review-status').hidden = !state.htf_review;
+    $('htf-review-status').textContent = state.htf_review ? `${state.htf_review.status} · Jev cadence ≥${state.htf_review.interval_seconds}s${state.htf_review.window_end ? ` · window ends ${new Date(state.htf_review.window_end * 1000).toLocaleTimeString()}` : ''}` : '';
+    const summary = state.decision_summary;
+    const run = state.execution_run;
+    $('signal-counts').textContent = run && summary ? `Run ${run.id.slice(0, 8)} · revision ${run.execution_revision} · ${summary.assessments} assessments: ${summary.actions.buy} buy / ${summary.actions.sell} sell / ${summary.actions.hold} hold. ${run.filled_orders} filled orders · trading fees ${Object.entries(run.paid_fees).map(([currency, value]) => `${money(value)} ${currency}`).join(', ') || '0'} · marked equity change $${money(run.equity_change)}. Carried holdings affect equity; this is not realized strategy profit.` : 'A new run begins on Start. Earlier runs remain in Activity; assessments are not fills.';
+    $('hold-reasons').replaceChildren();
+    for (const row of summary?.hold_reasons || []) {
+      const li = document.createElement('li'); li.textContent = `${row.count} × ${row.reason}`; $('hold-reasons').append(li);
     }
     assessmentView.render(decision, state, events, definition);
     $('holdings').replaceChildren();
@@ -362,7 +368,7 @@
   }
   async function action(path, body = {}, refreshForm = false) {
     if (busy) return;
-    const focusedAction = ['start', 'stop'].includes(path) && document.activeElement === $(path);
+    const focusedAction = ['start', 'stop', 'restart'].includes(path) && document.activeElement === $(path);
     const focusedOrder = path === 'paper-order' && document.activeElement.dataset.orderId === body.order_id;
     busy = true; message('Working…');
     if (state) render(state);
@@ -379,7 +385,7 @@
       busy = false; if (state) render(state);
       if (focusedOrder && (document.activeElement === document.body || document.activeElement.dataset.orderId === body.order_id)) focusOrder(body.order_id, body.operation);
       if (focusedAction && state && [document.body, $(path)].includes(document.activeElement)) {
-        $(state.running ? 'stop' : 'start').focus();
+        $(state.running ? 'stop' : state.error ? 'restart' : 'start').focus();
       }
     }
   }
@@ -394,6 +400,10 @@
     if (confirm('Submit one bounded reduce-only order for the saved Futures market? The order cap and available liquidity may leave a residual position. Live mode sends a REAL order.')) action('close-futures', {confirmation: 'REDUCE FUTURES POSITION'});
   });
   $('start').addEventListener('click', () => action('start'));
+  $('restart').addEventListener('click', () => {
+    const mode = state?.mode === 'trading' ? 'LIVE trading with REAL funds' : 'paper trading';
+    if (confirm(`Restart the stopped engine and resume ${mode} using SAVED settings? This refreshes market-data streams and repeats preflight checks. It does not reset holdings, risk limits, schedules or uncertain orders.`)) action('restart', {confirmation: 'RESTART ENGINE'});
+  });
   $('stop').addEventListener('click', () => action('stop'));
   $('reconcile').addEventListener('click', () => {
     const acknowledge = state?.cycle ? confirm('An interrupted arbitrage cycle may have left intermediate holdings. Have you reviewed the order records and balances? Acknowledging retains those holdings; it does not liquidate them.') : false;
@@ -440,7 +450,7 @@
     priceChart.intervals = Object.keys(settingsSchema.fields.candle_minutes.choices).map(Number);
     strategyMarketPicker.setPairs(pairs);
     render(await request('state'));
-    marketPicker.refresh();
+    marketPicker.poller.start();
     await refreshHistory();
     const stream = new EventSource('/api/events');
     stream.onopen = async () => {
@@ -452,7 +462,7 @@
     stream.addEventListener('state', event => render(JSON.parse(event.data)));
     stream.addEventListener('ticker', event => { const ticker = JSON.parse(event.data); tickers[ticker.symbol] = ticker; });
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });
-    for (const kind of ['decision','order','fill','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
+    for (const kind of ['decision','order','fill','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
   }
   boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); $('connection').textContent = 'DISCONNECTED'; });
 })();

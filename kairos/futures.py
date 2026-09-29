@@ -5,10 +5,11 @@ import time
 import uuid
 from datetime import UTC, datetime
 
-from kairos import scalping
+from kairos import htf, scalping
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.futures_client import UnsettledFutures, timestamp
-from kairos.strategies import limit_price, trend_state
+from kairos.htf_review import check_intent, intent_deadline
+from kairos.strategies import limit_price
 
 
 def new_ledger(amount):
@@ -378,7 +379,7 @@ class FuturesDesk:
         return values, exposure
 
     def intent(self, pair, side, volume, price, maker, reducing):
-        now = time.time()
+        now = self.engine.clock()
         order = {
             "id": str(uuid.uuid4()),
             "txid": None,
@@ -466,12 +467,15 @@ class FuturesDesk:
         for order in self.engine.orders("dry-run", True):
             if order.get("product") != "futures":
                 continue
-            if time.time() >= order["expires"]:
+            if self.engine.clock() >= order["expires"]:
                 order["status"] = "expired"
                 self.engine.store.save_order(order)
                 continue
             pair = self.engine.resolve(order["pair"])
             book = await self.client.book(pair)
+            book.fresh(self.settings["stale_seconds"])
+            if not order["created"] < book.received <= min(order["expires"], self.engine.clock()):
+                continue
             price = dec(order["price"])
             levels = book.asks if order["side"] == "buy" else book.bids
             visible = sum(
@@ -492,10 +496,22 @@ class FuturesDesk:
             )
 
     async def place(
-        self, pair, side, volume, price, book, maker=False, *, program=None, close=False
+        self,
+        pair,
+        side,
+        volume,
+        price,
+        book,
+        maker=False,
+        *,
+        program=None,
+        close=False,
+        review=None,
     ):
         engine = self.engine
         stop_generation = engine.stop_generation
+        if engine.shutting_down:
+            raise SafetyError("Service shutting down; Futures submission blocked")
         if self.settings["strategy"] == "scalp" and engine.mode != "dry-run":
             raise SafetyError("Bollinger scalping is paper-only")
         if (not engine.running and not close) or engine.orders(active=True):
@@ -558,10 +574,17 @@ class FuturesDesk:
             raise SafetyError("Futures post-only price crosses the book")
         if (not engine.running and not close) or engine.stop_generation != stop_generation:
             raise SafetyError("Stopped before Futures order submission")
-        deadline = min(time.time() + 5, program["deadline"] if program else time.time() + 5)
+        check_intent(engine, review)
+        deadline = intent_deadline(
+            min(time.time() + 5, program["deadline"] if program else time.time() + 5), review
+        )
         if time.time() + 1 >= deadline:
             raise SafetyError("Futures scheduled slot expired before submission")
         order = self.intent(pair, side, volume, price, maker, reducing)
+        if maker:
+            order["expires"] = intent_deadline(order["expires"], review)
+        htf.tag(engine, order)
+        engine.tag_order(order)
         if program:
             order.update(program_id=program["id"], program_slot=program["slot"])
         engine.store.save_order(order)
@@ -633,6 +656,8 @@ class FuturesDesk:
 
     async def directional(self, pair):
         engine = self.engine
+        if self.settings["strategy"] == "htf":
+            return await htf.run(engine)
         maker = self.settings["strategy"] == "maker"
         position = self.position(pair)
         state = {
@@ -643,22 +668,6 @@ class FuturesDesk:
             "long_only": False,
             "note": "USD linear perpetual; buys close shorts before opening longs, sells close longs before opening shorts. Funding and liquidation risk apply.",
         }
-        if not maker:
-            state.update(
-                trend_state(
-                    await self.client.completed_candles(pair, self.settings["candle_minutes"]),
-                    self.settings,
-                    engine.fees.reserve(pair),
-                )
-            )
-            state["short_entry_eligible"] = state["exit_eligible"] and dec(
-                state["eight_candle_return_bps"]
-            ) < -dec(state["round_trip_cost_bps"])
-            key = "candle:futures:" + engine.mode
-            candle = f"{pair.id}:{self.settings['candle_minutes']}:{state['candle_close_time']}"
-            if engine.store.get(key) == candle:
-                return
-            engine.store.put(key, candle)
         book = await self.client.book(pair)
         state.update(
             mid=str(book.mid),
@@ -670,15 +679,6 @@ class FuturesDesk:
         )
         side = await engine.decision(state)
         if not engine.running or side == "hold":
-            return
-        allowed = True
-        if not maker:
-            if side == "buy":
-                allowed = state["trend"] == "rising" if position < 0 else state["entry_eligible"]
-            else:
-                allowed = state["exit_eligible"] if position > 0 else state["short_entry_eligible"]
-        if not allowed:
-            engine.event("skip", {"reason": "Futures trend/cost filter vetoed the model action"})
             return
         book = await self.client.book(pair)
         price = limit_price(

@@ -16,6 +16,7 @@
   <script defer src="/static/vendor/d3.v7.9.0.min.js"></script>
   <script defer src="/static/chart.js"></script>
   <script defer src="/static/vendor/crypto-icons/symbols.js"></script>
+  <script defer src="/static/polling.js"></script>
   <script defer src="/static/markets.js"></script>
   <script defer src="/static/strategy-market.js"></script>
   <script defer src="/static/accounts.js"></script>
@@ -77,6 +78,8 @@
         <p id="decision-context" class="muted"></p>
         <p id="decision-market" class="muted"></p>
         <p id="model-info" class="muted">No assessment yet.</p>
+        <p id="htf-review-status" class="muted" role="status" hidden></p>
+        <details><summary>Current run results and signals</summary><p id="signal-counts" class="muted"></p><ul id="hold-reasons"></ul></details>
         <details><summary>Decision inputs</summary><pre id="decision-inputs">No assessment yet.</pre></details>
         <p id="assessment-disclaimer" class="disclaimer">A model assessment is not a calibrated probability of trading profit.</p>
       </div>
@@ -86,8 +89,8 @@
       <div class="tab-list" role="tablist" aria-label="Trading records">
         <button type="button" id="orders-tab" role="tab" aria-selected="true" aria-controls="orders-view"><span class="icon icon-orders" aria-hidden="true">≡</span> Orders <span id="orders-count" class="count">0</span></button>
         <button type="button" id="activity-tab" role="tab" aria-selected="false" aria-controls="activity-view" tabindex="-1"><span class="icon icon-activity" aria-hidden="true">∿</span> Activity</button>
-        <button type="button" id="portfolio-tab" role="tab" aria-selected="false" aria-controls="portfolio-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true">▣</span> Portfolio</button>
-        <button type="button" id="accounts-tab" role="tab" aria-selected="false" aria-controls="accounts-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true">▣</span> Exchange accounts</button>
+        <button type="button" id="portfolio-tab" role="tab" aria-selected="false" aria-controls="portfolio-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true"></span> Portfolio</button>
+        <button type="button" id="accounts-tab" role="tab" aria-selected="false" aria-controls="accounts-view" tabindex="-1"><span class="icon icon-bank" aria-hidden="true"></span> Exchange accounts</button>
         <button type="button" id="equity-tab" role="tab" aria-selected="false" aria-controls="equity-view" tabindex="-1"><span class="icon icon-chart" aria-hidden="true">↗</span> Equity</button>
       </div>
       <div id="orders-view" class="dock-view" role="tabpanel" aria-labelledby="orders-tab">
@@ -121,12 +124,12 @@
       <div class="panel-head"><h2 id="settings-title"><span class="icon icon-settings" aria-hidden="true">☷</span> Kairos settings</h2><strong id="engine-status" class="engine-status">Paused</strong></div>
       <div class="execution-controls" aria-label="Trading controls">
         <label class="execution-mode">Execution<select id="mode"><option value="dry-run">Dry-run</option><option value="trading">Trading — real funds</option></select></label>
-        <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
+        <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="restart" hidden disabled>Restart engine</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
         <span id="engine-strategy" class="muted">—</span>
       </div>
       <div class="tab-list settings-tabs" role="tablist" aria-label="Configuration sections">
         <button type="button" id="strategy-tab" role="tab" aria-selected="true" aria-controls="strategy-settings"><span class="icon icon-strategy" aria-hidden="true">♞</span> Strategy</button>
-        <button type="button" id="capital-tab" role="tab" aria-selected="false" aria-controls="capital-settings" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true">▣</span> Capital</button>
+        <button type="button" id="capital-tab" role="tab" aria-selected="false" aria-controls="capital-settings" tabindex="-1"><span class="icon icon-coins" aria-hidden="true"></span> Capital</button>
         <button type="button" id="execution-tab" role="tab" aria-selected="false" aria-controls="execution-settings" tabindex="-1"><span class="icon icon-execution" aria-hidden="true">↯</span> Execution</button>
       </div>
       <form id="settings">
@@ -145,6 +148,8 @@
                 <label class="wide">Strategy<select name="strategy"></select></label>
                 <label>Engine cycle · sec<input name="interval_seconds" type="number"></label>
                 <label>HTF candle interval<select name="candle_minutes"></select></label>
+                <label>HTF price stop · bps<input name="htf_stop_bps" type="number"></label>
+                <label>HTF maximum hold · sec<input name="htf_max_hold_seconds" type="number"></label>
                 <label class="wide">Jev minimum confidence<input name="min_confidence" type="number"></label>
                 <div class="fields wide" data-settings-group>
                   <label>Rolling candles<input name="scalp_window" type="number"></label>

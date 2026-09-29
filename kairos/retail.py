@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 import aiohttp
 
+from kairos import diagnostics
 from kairos.domain import CANDLE_INTERVALS, SafetyError, dec
 
 FIAT = {"USD", "EUR", "GBP", "CAD", "JPY", "AUD", "CHF", "AED", "BRL", "ARS", "MXN"}
@@ -44,6 +45,7 @@ class Futures:
 
     def __init__(self, session, key="", secret=""):
         self.session, self.key, self.secret = session, key, secret
+        diagnostics.register_secrets(key, secret)
         self.lock = asyncio.Lock()
         self.last_request = 0
 
@@ -75,12 +77,18 @@ class Futures:
                     timeout=aiohttp.ClientTimeout(total=12),
                 ) as response:
                     if response.status != 200:
-                        raise SafetyError("Futures data request failed")
+                        raise SafetyError(f"Futures data request failed (HTTP {response.status})")
                     data = await response.json()
-            except (aiohttp.ClientError, TimeoutError, ValueError):
-                raise SafetyError("Futures data unavailable") from None
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+                raise SafetyError("Futures data unavailable") from exc
             if not isinstance(data, dict) or data.get("result", "success") != "success":
-                raise SafetyError("Futures request rejected; check API access and permissions")
+                failure = SafetyError("Futures request rejected; check API access and permissions")
+                failure.diagnostic_details = {
+                    "exchange_error": data.get("error")
+                    if isinstance(data, dict)
+                    else "Non-object response"
+                }
+                raise failure
             return data
 
     async def candles(self, symbol, minutes):
@@ -197,7 +205,8 @@ class RetailMarkets:
                             }
                     self.extra[kind] = records
                     self.catalog_errors.pop(kind, None)
-                except (SafetyError, KeyError, TypeError, ValueError, AttributeError):
+                except (SafetyError, KeyError, TypeError, ValueError, AttributeError) as exc:
+                    diagnostics.capture(exc, "catalog:" + kind)
                     self.catalog_errors[kind] = (
                         f"{kind} catalog unavailable; any prior catalog is retained"
                     )
@@ -250,7 +259,8 @@ class RetailMarkets:
                 self.quotes[kind] = {
                     key: {**value, "received": received} for key, value in values.items()
                 }
-            except (SafetyError, KeyError, TypeError, ValueError, AttributeError):
+            except (SafetyError, KeyError, TypeError, ValueError, AttributeError) as exc:
+                diagnostics.capture(exc, "quotes:" + kind)
                 errors[kind] = (
                     f"{kind} quotes unavailable; prior quotes retain their original timestamps"
                 )

@@ -11,6 +11,7 @@ from decimal import Decimal
 
 import aiohttp
 
+from kairos import diagnostics
 from kairos.domain import Book, SafetyError, dec
 
 
@@ -82,7 +83,7 @@ class CandleHistory:
         self.rows, self.seed = {}, {}
         self.ready = False
 
-    def validate(self, row):
+    def validate(self, row, *, vwap_optional=False):
         ts = dec(row[0])
         opening, high, low, close, vwap, volume = map(dec, row[1:7])
         trades = dec(row[7])
@@ -91,7 +92,7 @@ class CandleHistory:
             or ts < 0
             or not 0 < low <= min(opening, close) <= max(opening, close) <= high
             or vwap < 0
-            or (volume > 0 and not low <= vwap <= high)
+            or (volume > 0 and not (vwap_optional and vwap == 0) and not low <= vwap <= high)
             or volume < 0
             or trades < 0
             or trades != int(trades)
@@ -404,6 +405,7 @@ class PublicMarketData:
                     finally:
                         self.invalidate()
             except (aiohttp.ClientError, TimeoutError, SafetyError, ValueError) as exc:
+                diagnostics.capture(exc, "execution-public-stream")
                 reason = str(exc) if isinstance(exc, SafetyError) else "Public stream unavailable"
                 self.error = reason + "; using fresh REST reads while reconnecting."
             await asyncio.sleep(backoff)

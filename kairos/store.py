@@ -3,7 +3,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from kairos.domain import TERMINAL, SafetyError
+from kairos.domain import TERMINAL, SafetyError, dec
 
 
 def encode(value):
@@ -11,7 +11,8 @@ def encode(value):
 
 
 class Store:
-    def __init__(self, path):
+    def __init__(self, path, *, clock=None):
+        self.clock = clock or (lambda: time.time())
         if path != ":memory:":
             Path(path).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)
@@ -20,6 +21,9 @@ class Store:
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS htf_minutes (
+                pair TEXT NOT NULL, ts INTEGER NOT NULL, data TEXT NOT NULL,
+                PRIMARY KEY (pair, ts));
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL,
                 kind TEXT NOT NULL, data TEXT NOT NULL);
@@ -73,6 +77,22 @@ class Store:
     def save_order(self, order, ledger=None):
         # The cumulative fill checkpoint and its ledger update must commit together.
         with self.db:
+            previous = self.db.execute(
+                "SELECT data FROM orders WHERE id=?", (order["id"],)
+            ).fetchone()
+            previous = json.loads(previous[0]) if previous else {}
+            if order.get("run_id"):
+                key = "execution-run-totals:" + order["run_id"]
+                totals = self.get(key, {"filled_orders": 0, "paid_fees": {}})
+                if dec(order["filled"]) > 0 and not dec(previous.get("filled", 0)):
+                    totals["filled_orders"] += 1
+                delta = dec(order["fee"]) - dec(previous.get("fee", 0))
+                if delta:
+                    currency = order.get("quote", "USD")
+                    totals["paid_fees"][currency] = str(
+                        dec(totals["paid_fees"].get(currency, 0)) + delta
+                    )
+                self._put(key, totals)
             self.db.execute(
                 "INSERT OR REPLACE INTO orders VALUES (?, ?)", (order["id"], encode(order))
             )
@@ -86,7 +106,7 @@ class Store:
                 self._put(key, ledger)
 
     def event(self, kind, data):
-        ts = time.time()
+        ts = self.clock()
         with self.db:
             cursor = self.db.execute(
                 "INSERT INTO events(ts,kind,data) VALUES (?,?,?)", (ts, kind, encode(data))
@@ -110,6 +130,31 @@ class Store:
         return [
             {"id": r[0], "ts": r[1], "kind": r[2], "data": json.loads(r[3])} for r in reversed(rows)
         ]
+
+    def decision_summary(self, strategy, pair, mode, product, run_id=None):
+        rows = self.db.execute(
+            """SELECT json_extract(data, '$.action'),
+                COALESCE(json_extract(data, '$.reason'), 'Legacy model assessment'), COUNT(*)
+            FROM events WHERE kind='decision'
+                AND json_extract(data, '$.strategy')=? AND json_extract(data, '$.pair')=?
+                AND json_extract(data, '$.mode')=?
+                AND COALESCE(json_extract(data, '$.product'), json_extract(data, '$.state.product'), 'spot')=?
+                AND (? IS NULL OR json_extract(data, '$.run_id')=?)
+            GROUP BY 1, 2 ORDER BY COUNT(*) DESC""",
+            (strategy, pair, mode, product, run_id, run_id),
+        ).fetchall()
+        return {
+            "assessments": sum(count for _, _, count in rows),
+            "actions": {
+                action: sum(n for a, _, n in rows if a == action)
+                for action in ("buy", "sell", "hold")
+            },
+            "hold_reasons": [
+                {"reason": reason, "count": count}
+                for action, reason, count in rows
+                if action == "hold"
+            ],
+        }
 
     def close(self):
         self.db.close()

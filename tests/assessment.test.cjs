@@ -83,7 +83,7 @@ function instrumentFixture() {
 test('real D3 renders model, missing data, program and band instruments without invalid geometry or input mutations', () => {
   const {root,view}=instrumentFixture();
   const model={action:'buy',probabilities:{buy:.72,hold:.2,sell:.08},state:{eight_candle_return_bps:'195.4',round_trip_cost_bps:'100',trend:'rising',spread_bps:'10',inventory:'0'}};
-  const state={mode:'dry-run',settings:{strategy:'htf',product:'spot',pair:'XXBTZUSD'}};
+  const state={mode:'dry-run',settings:{strategy:'maker',product:'spot',pair:'XXBTZUSD'}};
   const before=JSON.stringify({model,state});
   view.render(model,state);
   assert.equal(root.querySelectorAll('path').length,30);
@@ -91,6 +91,10 @@ test('real D3 renders model, missing data, program and band instruments without 
   assert.equal(JSON.stringify({model,state}),before);
   view.render(null,state);
   assert.match(root.querySelector('svg').getAttribute('aria-label'),/No current model/);
+  view.render({deterministic:true,state:{trend:'rising'}},{...state,settings:{...state.settings,strategy:'htf',candle_minutes:60}});
+  assert.match(root.querySelector('svg').getAttribute('aria-label'),/Deterministic HTF/);
+  assert.equal(root.querySelectorAll('path').length,0);
+  assert.ok(root.querySelectorAll('text').some(node=>node.textContent==='RISING TREND'));
   view.render(null,{...state,settings:{...state.settings,strategy:'twap',twap_slices:12} },[],{scheduled:true});
   assert.match(root.querySelector('svg').getAttribute('aria-label'),/Claimed slots/);
   const rule={deterministic:true,state:{window:30,candle_close_time:1800,lower:'99',middle:'100',upper:'101',series:[{time:0,close:'100'},{time:60,close:'98'},{time:120,close:'99.5'}]}};
@@ -107,6 +111,19 @@ test('real D3 renders model, missing data, program and band instruments without 
   view.render({...rule,state:{...rule.state,lower:'100',middle:'100',upper:'100'}},{...state,settings:{...state.settings,strategy:'scalp'}});
   assert.ok(root.querySelectorAll('text').some(node=>node.textContent==='FLAT'));
   assert.equal(root.querySelector('.instrument-needle'),null);
+});
+
+test('pullback room preserves negative costs and range observations cannot imply fills or profits', () => {
+  const {root,view}=instrumentFixture();
+  const state={mode:'dry-run',settings:{strategy:'htf',product:'spot',pair:'XXBTZUSD',candle_minutes:60},htf_review:{range_observation:{eligible:true,signal:'buy'}}};
+  const decision={deterministic:true,action:'hold',state:{entry_policy:'pullback-v1',trend:'rising',entry_signal:'hold',target_net_room_bps:{buy:'-25'},required_net_room_bps:'15'}};
+  view.render(decision,state);
+  const gauge=root.querySelector('.cost-instrument');
+  assert.match(gauge.getAttribute('aria-label'),/after costs -25.0 bps/);
+  assert.ok(gauge.querySelectorAll('text').some(node=>node.textContent==='-25.0 bps net room'));
+  assert.equal(gauge.querySelectorAll('rect')[1].getAttribute('width'),'0');
+  assert.ok(root.querySelectorAll('p').some(node=>/Range observation only: BUY candidate. Not orders, fills or P&L/.test(node.textContent)));
+  for(const node of root.querySelectorAll('*')) for(const value of node.attributes.values()) assert.doesNotMatch(value,/NaN|Infinity/);
 });
 
 test('horizontal meter moves with band position, caps its needle, and labels paused and saved data', () => {

@@ -13,12 +13,12 @@ import aiohttp
 
 from kairos.clients import Kraken
 from kairos.domain import SafetyError, dec
-from kairos.engine import Engine
 from kairos.market_data import checksum, ws_symbol
 from kairos.settings import DEFAULTS
 from kairos.store import Store
 from kairos.web import feeds
 from tests.helpers import BTC, ETH, candle_rows, fake_jev, fake_kraken
+from tests.helpers import RuleEngine as Engine
 from tests.test_scalping import candles
 
 
@@ -623,9 +623,8 @@ class MarketDataTests(unittest.IsolatedAsyncioTestCase):
             task = asyncio.create_task(feeds(app))
             try:
                 await wait_calls(1)
-                market_data.configure.assert_awaited_with(
-                    [BTC, ETH], (BTC, engine.settings["candle_minutes"], 30), max_age=10
-                )
+                # HTF now archives confirmed REST minutes independently; books still stream.
+                market_data.configure.assert_awaited_with([BTC, ETH], None, max_age=10)
                 engine.settings = {
                     **engine.settings,
                     "strategy": "scalp",
