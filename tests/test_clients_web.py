@@ -13,11 +13,11 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from kairos.clients import Jev, Kraken, signature
 from kairos.domain import SafetyError
-from kairos.engine import Engine
 from kairos.settings import DEFAULTS, schema
 from kairos.store import Store
 from kairos.web import create_app
 from tests.helpers import BTC, CROSS, ETH, candle_rows, fake_jev, fake_kraken
+from tests.helpers import RuleEngine as Engine
 
 
 class Response:
@@ -242,6 +242,75 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
 
     def headers(self):
         return {"Origin": "https://kairos.example.test", "X-CSRF-Token": self.app["csrf"]}
+
+    async def test_shutdown_closes_open_event_stream_and_blocks_late_start(self):
+        await self.engine.start()
+        response = await self.client.get("/api/events")
+        await response.content.readuntil(b"\n\n")
+        self.assertEqual(len(self.app["hub"].listeners), 1)
+        await asyncio.wait_for(self.client.server.close(), timeout=1)
+        self.assertFalse(self.engine.running)
+        self.assertTrue(self.app["hub"].closed)
+        self.assertEqual(len(self.app["hub"].listeners), 0)
+        with self.assertRaisesRegex(SafetyError, "shutting down"):
+            await self.engine.start()
+        response.close()
+
+    async def test_read_errors_are_recorded_without_query_or_exception_secrets(self):
+        self.engine.kraken.market_tickers.side_effect = RuntimeError("private-upstream-body")
+        response = await self.client.get("/api/markets?token=private-query-value")
+        self.assertEqual(response.status, 500)
+        event = self.store.history()[-1]
+        self.assertEqual(event["kind"], "request-error")
+        self.assertEqual(event["data"]["route"], "/api/markets")
+        self.assertEqual(event["data"]["exception_type"], "RuntimeError")
+        self.assertNotIn("private-upstream-body", json.dumps(event))
+        self.assertNotIn("private-query-value", json.dumps(event))
+        self.assertIsNone(self.engine.last_error)
+        response = await self.client.get(f"/api/candles?pair={BTC.id}&interval=2")
+        self.assertEqual(response.status, 409)
+        self.assertIn("Unsupported candle interval", self.store.history()[-1]["data"]["message"])
+
+    async def test_selected_quotes_share_full_cache_without_changing_execution(self):
+        settings = self.engine.settings.copy()
+        all_rows = await (await self.client.get("/api/markets")).json()
+        selected = await (await self.client.get(f"/api/markets?ids={BTC.id}")).json()
+        self.assertTrue(selected["partial"])
+        self.assertEqual([row["id"] for row in selected["markets"]], [BTC.id])
+        self.assertEqual(
+            selected["markets"], [row for row in all_rows["markets"] if row["id"] == BTC.id]
+        )
+        self.assertEqual(json.loads(json.dumps(self.app["market_cache"]["data"])), all_rows)
+        self.engine.kraken.market_tickers.assert_awaited_once()
+        self.assertEqual(self.engine.settings, settings)
+        self.assertEqual(self.engine.orders(), [])
+        bad = await self.client.get("/api/markets?ids=missing")
+        self.assertEqual(bad.status, 409)
+
+    async def test_restart_is_csrf_confirmed_and_does_not_reset_or_arm(self):
+        self.engine.last_error = "Execution candles are stale or incomplete"
+        ledger = self.engine.ledger()
+        response = await self.client.post("/api/restart", json={"confirmation": "RESTART ENGINE"})
+        self.assertEqual(response.status, 403)
+        response = await self.client.post("/api/restart", json={}, headers=self.headers())
+        self.assertEqual(response.status, 409)
+        self.assertFalse(self.engine.running)
+        response = await self.client.post(
+            "/api/restart", json={"confirmation": "RESTART ENGINE"}, headers=self.headers()
+        )
+        self.assertEqual(response.status, 200)
+        state = await response.json()
+        self.assertTrue(state["running"])
+        self.assertEqual(state["mode"], "dry-run")
+        self.assertEqual(state["ledger"], ledger)
+        self.assertEqual(state["orders"], [])
+        self.assertIsNone(state["error"])
+        self.assertTrue(self.app["feed_restart"].is_set())
+        self.engine.kraken.add.assert_not_awaited()
+        response = await self.client.post(
+            "/api/restart", json={"confirmation": "RESTART ENGINE"}, headers=self.headers()
+        )
+        self.assertEqual(response.status, 409)  # Must be stopped first.
 
     async def test_page_assets_and_security_headers(self):
         for path in (

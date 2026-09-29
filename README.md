@@ -103,7 +103,7 @@ Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Take
 
 | Strategy | Behavior |
 | --- | --- |
-| Higher-timeframe trend | Assesses completed candles from 1 minute through 1 day (1m, 5m, 15m, 30m, 1h, 4h, 1d). Code calculates trend and cost filters; Jev selects buy, sell, or hold. |
+| Higher-timeframe trend | Paper-only passive pullback entries on rolling HTF windows, with cost-qualified swing targets. Jev reviews permitted actions no faster than twice the engine cycle; protection remains independent. Range-reversion signals are observation-only. See [HTF operation](OPERATIONS.md). |
 | Bollinger range scalping | Paper-only spot longs / linear Futures longs and shorts. Uses a rolling 1-minute window, band re-entry, trend/cost filters and a durable fixed target, stop and holding deadline. No Jev calls. |
 | Market making | Posts one fee-aware, post-only quote and reconciles it before replacement. Quotes expire after 30 seconds. This is rate-limited market making, not exchange-grade HFT. |
 | Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
@@ -119,7 +119,7 @@ Existing spot holdings remain tracked when you change markets, but the newly sel
 
 ## 💰 Capital and recovery
 
-HTF, market making, arbitrage, and rebalancing have no scheduled end or profit target. DCA and TWAP stop after their finite run; their budgets do not grow automatically with profits. Continuous strategies reuse available capital and proceeds without forcing a trade when none qualifies. With reinvestment enabled, order and exposure caps scale with current equity relative to the initial allocation. Sizing reserves fees and respects exchange minimums.
+HTF has per-position swing targets but no scheduled strategy end. Market making, arbitrage, and rebalancing have no scheduled end or profit target. DCA and TWAP stop after their finite run; their budgets do not grow automatically with profits. Continuous strategies reuse available capital and proceeds without forcing a trade when none qualifies. With reinvestment enabled, order and exposure caps scale with current equity relative to the initial allocation. Sizing reserves fees and respects exchange minimums.
 
 For spot portfolios, **Recover original allocation once above 2× equity** can protect the starting allocation. With a $100 start, the bot attempts to reserve $100 only when active equity is greater than $200. It sells enough bot-owned inventory if cash is needed and execution limits permit, then excludes the reserve from future orders and compounds the remainder.
 

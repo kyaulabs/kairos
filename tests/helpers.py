@@ -2,7 +2,18 @@ import time
 from unittest.mock import AsyncMock
 
 from kairos.domain import Book, Pair, dec
+from kairos.engine import Engine
 from kairos.market_data import PublicMarketData
+from kairos.replay import RuleReview
+
+
+class RuleEngine(Engine):
+    """Order/risk fixture with explicit offline review; integration tests use real HTFReview."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.htf_review = RuleReview(self)
+
 
 BTC = Pair(
     "XXBTZUSD",
@@ -108,6 +119,18 @@ def fake_kraken():
     fake.candles = AsyncMock(return_value=rows)
     fake.ohlc = AsyncMock(side_effect=lambda pair, minutes: candle_rows(minutes))
     return fake
+
+
+async def htf_baseline(engine, candles):
+    """Observe a flat startup baseline, then offer the fixture's next-candle signal."""
+    rows = candles.return_value
+    candles.return_value = [row.copy() for row in rows]
+    for row in candles.return_value:
+        row[4] = rows[0][4]
+    await engine.tick()
+    candles.return_value = [
+        [row[0] + engine.settings["candle_minutes"] * 60, *row[1:]] for row in rows
+    ]
 
 
 def fake_jev(action="buy"):

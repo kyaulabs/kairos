@@ -12,6 +12,7 @@ import aiohttp
 from aiohttp import web
 from dotenv import load_dotenv
 
+from kairos import diagnostics
 from kairos.accounts import SOURCES, account_snapshot
 from kairos.clients import Jev, Kraken, ticker_feed
 from kairos.domain import CANDLE_INTERVALS, SafetyError
@@ -28,8 +29,19 @@ class Hub:
     def __init__(self):
         self.listeners = set()
         self.tickers = {}
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+        for queue in tuple(self.listeners):
+            while not queue.empty():
+                queue.get_nowait()
+            queue.put_nowait(None)
+        self.listeners.clear()
 
     def publish(self, kind, data):
+        if self.closed:
+            return
         if kind == "ticker":
             self.tickers[data["symbol"]] = data
         message = f"event: {kind}\ndata: {encode(data)}\n\n".encode()
@@ -47,6 +59,8 @@ class Hub:
 @web.middleware
 async def security(request, handler):
     if request.method not in {"GET", "HEAD"}:
+        if request.app["engine"].shutting_down:
+            raise web.HTTPServiceUnavailable(text="Service shutting down")
         token = request.headers.get("X-CSRF-Token", "")
         if (
             request.headers.get("Origin") != request.app["origin"]
@@ -57,13 +71,38 @@ async def security(request, handler):
     try:
         return await handler(request)
     except SafetyError as exc:
+        error_id = diagnostics.capture(exc, "api:" + request.match_info.route.resource.canonical)
+        request.app["engine"].event(
+            "request-error",
+            {
+                "message": str(exc),
+                "error_id": error_id,
+                "route": request.match_info.route.resource.canonical,
+                "method": request.method,
+                "status": 409,
+            },
+        )
         return web.json_response({"error": str(exc)}, status=409)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        diagnostics.capture(exc, "api-invalid-request")
         return web.json_response({"error": "Invalid request"}, status=400)
     except web.HTTPException:
         raise
-    except Exception:
-        # Do not expose credential-bearing exception details or remote response bodies.
+    except Exception as exc:
+        error_id = diagnostics.capture(exc, "api:" + request.match_info.route.resource.canonical)
+        # Keep exception type/route, never headers, bodies, query strings or raw
+        # exception text, which can contain credentials and upstream responses.
+        request.app["engine"].event(
+            "request-error",
+            {
+                "message": "Internal request failure",
+                "error_id": error_id,
+                "route": request.match_info.route.resource.canonical,
+                "method": request.method,
+                "status": 500,
+                "exception_type": type(exc).__name__,
+            },
+        )
         return web.json_response(
             {"error": "Internal error; inspect engine state and reconcile"}, status=500
         )
@@ -155,7 +194,14 @@ async def markets(request):
                 "markets": rows,
             }
             cached.update(expires=time.monotonic() + 10, data=data)
-        return web.json_response(cached["data"])
+        data = cached["data"]
+        if "ids" in request.query:
+            wanted = set(request.query["ids"].split(",")) - {""}
+            rows = [row for row in data["markets"] if row["id"] in wanted]
+            if wanted != {row["id"] for row in rows}:
+                raise SafetyError("Unknown market in quote selection")
+            data = {**data, "markets": rows, "partial": True}
+        return web.json_response(data)
 
 
 async def candles(request):
@@ -220,6 +266,9 @@ async def command(request):
         await engine.set_mode(data["mode"], data.get("confirmation"))
     elif action == "start":
         await engine.start()
+    elif action == "restart":
+        await engine.start(restart=True, confirmation=data.get("confirmation"))
+        request.app["feed_restart"].set()
     elif action == "stop":
         await engine.stop()
     elif action == "reconcile":
@@ -241,6 +290,8 @@ async def command(request):
 
 async def events(request):
     hub = request.app["hub"]
+    if hub.closed:
+        raise web.HTTPServiceUnavailable(text="Service shutting down")
     if len(hub.listeners) >= 12:
         raise web.HTTPServiceUnavailable(text="Too many event streams")
     queue = asyncio.Queue(maxsize=128)
@@ -274,12 +325,11 @@ async def feeds(app):
         engine = app["engine"]
         candle = None
         spot = engine.settings["product"] != "futures"
-        if spot and engine.settings["strategy"] in {"scalp", "htf"}:
-            scalp = engine.settings["strategy"] == "scalp"
+        if spot and engine.settings["strategy"] == "scalp":
             candle = (
                 engine.resolve(engine.settings["pair"]),
-                1 if scalp else engine.settings["candle_minutes"],
-                engine.settings["scalp_window"] + 1 if scalp else 30,
+                1,
+                engine.settings["scalp_window"] + 1,
             )
         await engine.kraken.market_data.configure(
             engine.fee_scope if spot else [], candle, max_age=engine.settings["stale_seconds"]
@@ -299,6 +349,25 @@ async def feeds(app):
                 await task
 
 
+async def shutdown(app):
+    # aiohttp drains handlers BEFORE cleanup_ctx. Never leave SSE handlers or
+    # the trading loop alive throughout that grace period.
+    engine = app["engine"]
+    engine.shutting_down = True
+    app["hub"].close()
+    try:
+        await engine.stop()  # Latches Stop before awaiting an in-flight cycle.
+    except Exception as exc:
+        error_id = diagnostics.capture(exc, "shutdown-reconciliation")
+        engine.event(
+            "error",
+            {
+                "error_id": error_id,
+                "message": "Shutdown reconciliation incomplete; inspect tracked orders before restarting",
+            },
+        )
+
+
 async def lifecycle(app):
     data_dir = Path(os.environ.get("DATA_DIR", "data"))
     data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)  # noqa: ASYNC240 -- startup, before serving
@@ -308,6 +377,7 @@ async def lifecycle(app):
     except BlockingIOError:
         lock.close()
         raise RuntimeError("Another Kairos process owns this data directory") from None
+    diagnostic_handler = diagnostics.configure(data_dir / "kairos-errors.jsonl")
     store = Store(str(data_dir / "kairos.sqlite3"))
     async with aiohttp.ClientSession() as session:
         kraken = Kraken(
@@ -339,6 +409,9 @@ async def lifecycle(app):
             engine.task = asyncio.create_task(engine.run())
             feed_task = asyncio.create_task(feeds(app))
             yield
+        except Exception as exc:
+            diagnostics.capture(exc, "application-lifecycle")
+            raise
         finally:
             if feed_task:
                 feed_task.cancel()
@@ -348,6 +421,8 @@ async def lifecycle(app):
             await kraken.market_data.close()
             store.close()
             lock.close()
+            diagnostics.logger.removeHandler(diagnostic_handler)
+            diagnostic_handler.close()
 
 
 async def index(request):
@@ -366,8 +441,10 @@ def create_app(engine=None, origin=None, futures=None):
     app["account_lock"] = asyncio.Lock()
     app["market_lock"] = asyncio.Lock()
     app["csrf"] = secrets.token_urlsafe(32)
+    diagnostics.register_secrets(app["csrf"])
     app["origin"] = (origin or os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8000")).rstrip("/")
     app.on_response_prepare.append(response_headers)
+    app.on_shutdown.append(shutdown)
     if engine is None:
         app.cleanup_ctx.append(lifecycle)
     else:

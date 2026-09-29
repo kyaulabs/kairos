@@ -2,6 +2,8 @@
 
 import time
 
+from kairos import diagnostics
+from kairos.clients import TransientFeeRead
 from kairos.domain import ZERO, SafetyError, dec
 
 MAX_AGE = 60
@@ -9,10 +11,17 @@ MAX_AGE = 60
 REFRESH_AFTER = 30
 
 
+class FeeUnavailable(SafetyError):
+    def __init__(self, message, *, retryable=False, error_id=None):
+        super().__init__(message)
+        self.retryable, self.error_id = retryable, error_id
+
+
 class AccountFees:
     def __init__(self, spot, futures):
         self.spot, self.futures = spot, futures
         self.rates, self.errors, self.attempts = {}, {}, {}
+        self.failures = {}
 
     async def refresh(self, pairs, *, force=False):
         pairs = list({pair.id: pair for pair in pairs}.values())
@@ -56,19 +65,30 @@ class AccountFees:
                 self.rates.update(checked)
                 for pair in due:
                     self.errors.pop(pair.id, None)
-            except (SafetyError, KeyError, TypeError, ValueError, AttributeError):
+                    self.failures.pop(pair.id, None)
+            except (SafetyError, KeyError, TypeError, ValueError, AttributeError) as exc:
+                error_id = diagnostics.capture(exc, "account-fees")
+                retryable = isinstance(exc, TransientFeeRead)
                 for pair in due:
                     self.errors[pair.id] = (
                         "Kraken account fees unavailable; new orders blocked. Check read credentials and fee-query permissions."
                     )
-                raise SafetyError(self.errors[due[0].id]) from None
+                    self.failures[pair.id] = (retryable, error_id)
+                raise FeeUnavailable(
+                    self.errors[due[0].id], retryable=retryable, error_id=error_id
+                ) from exc
         for pair in pairs:
             self.rate(pair)
 
     def rate(self, pair, maker=False):
         row = self.rates.get(pair.id)
         if pair.id in self.errors or not row or not 0 <= time.time() - row["received"] < MAX_AGE:
-            raise SafetyError("Kraken account fees missing or stale; refresh before trading")
+            retryable, error_id = self.failures.get(pair.id, (False, None))
+            raise FeeUnavailable(
+                "Kraken account fees missing or stale; refresh before trading",
+                retryable=retryable,
+                error_id=error_id,
+            )
         return dec(row["maker_bps" if maker else "taker_bps"])
 
     def reserve(self, pair, maker=False):
@@ -102,6 +122,7 @@ class AccountFees:
                     **row,
                     "stale": not fresh or pair.id in self.errors,
                     "error": self.errors.get(pair.id),
+                    "error_id": self.failures.get(pair.id, (False, None))[1],
                 }
             )
         return {

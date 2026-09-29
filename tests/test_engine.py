@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, patch
 
 from kairos import margin
 from kairos.domain import SafetyError, dec
-from kairos.engine import Engine
 from kairos.store import Store
-from tests.helpers import BTC, CROSS, ETH, book, fake_jev, fake_kraken
+from tests.helpers import BTC, CROSS, ETH, book, fake_jev, fake_kraken, htf_baseline
+from tests.helpers import RuleEngine as Engine
 
 
 class EngineTests(unittest.IsolatedAsyncioTestCase):
@@ -44,10 +44,12 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.set_mode("trading", "ENABLE LIVE TRADING")
         self.engine.running = True
 
-    async def test_dry_run_uses_jev_but_never_exchange_writes(self):
+    async def test_rule_review_fixture_uses_shared_executor_without_exchange_writes(self):
         await self.engine.start()
+        await htf_baseline(self.engine, self.kraken.candles)
+        self.assertEqual(self.engine.orders(), [])
         await self.engine.tick()
-        self.jev.decide.assert_awaited_once()
+        self.jev.decide.assert_not_awaited()
         self.kraken.add.assert_not_awaited()
         self.kraken.cancel.assert_not_awaited()
         self.assertTrue(self.engine.orders())
@@ -62,8 +64,7 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
             "day:futures:dry-run",
             "day:futures:trading",
         )
-        with patch("kairos.engine.datetime") as clock:
-            clock.now.return_value = now
+        with patch.object(self.engine, "clock", return_value=now.timestamp()) as clock:
             for index, key in enumerate(keys):
                 self.engine.record_valuation(dec(100 + index), dec(5), key)
                 self.assertEqual(dec(self.engine.daily_pnl), 0)
@@ -72,7 +73,7 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.engine.exposure, "7")
             for index, key in enumerate(keys):
                 self.assertEqual(dec(self.store.get(key)["equity"]), dec(100 + index))
-            clock.now.return_value = now + timedelta(minutes=2)
+            clock.return_value = (now + timedelta(minutes=2)).timestamp()
             self.engine.record_valuation(dec(90), dec(7), keys[0])
             self.assertEqual(dec(self.engine.daily_pnl), 0)
             self.assertEqual(self.store.get(keys[0])["date"], "2026-09-23")
@@ -80,19 +81,23 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_buy_planning_values_once_and_submission_still_rechecks(self):
         self.engine.running = True
+        await htf_baseline(self.engine, self.kraken.candles)
         self.engine.valuation = AsyncMock(wraps=self.engine.valuation)
         await self.engine.directional(BTC)
-        self.assertEqual(self.engine.valuation.await_count, 2)  # Planning, then guarded placement.
+        self.assertEqual(
+            self.engine.valuation.await_count, 3
+        )  # Protection, entry planning, submission.
         self.assertEqual(self.store.orders()[-1]["status"], "closed")
         self.kraken.add.assert_not_awaited()
 
     async def test_htf_evaluates_each_completed_candle_once(self):
-        self.jev.decide.return_value["action"] = "hold"
+        for row in self.kraken.candles.return_value:
+            row[4] = "10000"
         for minutes in (1, 5, 15):
             with self.subTest(minutes=minutes):
                 await self.engine.stop()
                 await self.engine.configure({**self.engine.settings, "candle_minutes": minutes})
-                self.jev.decide.reset_mock()
+                self.events.clear()
                 rows = self.kraken.candles.return_value
                 end = int(time.time()) // (minutes * 60) * (minutes * 60)
                 for i, row in enumerate(rows):
@@ -100,14 +105,16 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
                 await self.engine.start()
                 await self.engine.tick()
                 await self.engine.tick()
-                self.jev.decide.assert_awaited_once()
+                self.jev.decide.assert_not_awaited()
                 self.kraken.candles.assert_awaited_with(BTC, minutes)
-                self.assertEqual(self.jev.decide.call_args.args[0]["candle_close_time"], end)
+                self.assertEqual(self.engine.latest_decision["state"]["candle_close_time"], end)
+                self.assertEqual(sum(k == "decision" for k, _ in self.events), 1)
                 rows.append([end, *rows[-1][1:]])
                 await self.engine.tick()
-                self.assertEqual(self.jev.decide.await_count, 2)
+                self.assertEqual(sum(k == "decision" for k, _ in self.events), 2)
 
     async def test_stop_during_inference_prevents_later_order(self):
+        await self.engine.configure({**self.engine.settings, "strategy": "maker"})
         entered, release = asyncio.Event(), asyncio.Event()
 
         async def delayed_decision(state):
@@ -129,6 +136,7 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.kraken.add.assert_not_awaited()
 
     async def test_high_confidence_hold_keeps_cash_without_creating_a_position(self):
+        await self.engine.configure({**self.engine.settings, "strategy": "maker"})
         self.jev.decide.return_value.update(action="hold", confidence=0.99)
         cash = self.engine.balance(BTC.quote)
         await self.engine.start()
@@ -151,19 +159,19 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.engine.running)
         self.assertEqual(self.engine.orders(), [])
         self.assertFalse(self.engine.latest_decision["state"]["entry_eligible"])
-        self.assertIn(
-            {"reason": "Deterministic trend/cost filter vetoed the Jev action"},
-            [event["data"] for kind, event in self.events if kind == "skip"],
-        )
+        self.assertIn("momentum/cost screen", self.engine.latest_decision["reason"])
+        self.jev.decide.assert_not_awaited()
         self.kraken.add.assert_not_awaited()
 
     async def test_low_confidence_abstains(self):
+        await self.engine.configure({**self.engine.settings, "strategy": "maker"})
         self.jev.decide.return_value["confidence"] = 0.1
         await self.engine.start()
         await self.engine.tick()
         self.assertEqual(self.engine.orders(), [])
 
     async def test_model_failure_stops_without_trade(self):
+        await self.engine.configure({**self.engine.settings, "strategy": "maker"})
         self.jev.decide.side_effect = SafetyError("Model timeout")
         await self.engine.start()
         await self.engine.tick()
@@ -316,6 +324,7 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
     async def test_paper_maker_requires_later_crossing_trade_not_touch(self):
         order = await self.buy(maker=True)
         ts = order["created"] + 1
+        self.engine.clock = lambda: ts + 1  # Crossing evidence must not be in the future.
         self.kraken.trades.return_value = (
             [
                 ["9990", "1", order["created"] - 1, "s"],

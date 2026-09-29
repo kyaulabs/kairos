@@ -11,18 +11,20 @@ function fixture(saved = null) {
   const browser = {};
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/vendor/crypto-icons/symbols.js'), 'utf8'), {window: browser});
   const storage = {getItem: key => values.get(key), setItem: (key, value) => values.set(key, value)};
+  const document = {hidden: false, getElementById: id => id === 'favorite-order-status' ? status : warning};
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/markets.js'), 'utf8'), {
-    window: browser, localStorage: storage,
-    document: {getElementById: id => id === 'favorite-order-status' ? status : warning},
+    window: browser, localStorage: storage, URLSearchParams,
+    document,
     setTimeout: (callback, delay) => timers.push({callback, delay}),
   });
   const picker = Object.assign(Object.create(browser.MarketPicker.prototype), {
     markets: [], received: 0, error: '', sortKey: 'symbol', sortDirection: 'ascending',
     renderRows() {}, renderFooter() {}, updateFreshness() {}, catalogChanged() {},
+    dialog: {open: false}, poller: {refresh() {}, start() {}}, selected: null,
   });
   picker.favorites = picker.loadFavorites();
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/strategy-market.js'), 'utf8'), {window: browser});
-  return {picker, values, storage, warning, timers, browser, status};
+  return {picker, values, storage, warning, timers, browser, status, document};
 }
 
 test('product filters distinguish margin eligibility from new product execution', () => {
@@ -234,8 +236,8 @@ test('a healthy venue cannot hide stale prices in another venue’s favorites', 
   assert.doesNotMatch(buttons[0].title, /STALE/);
 });
 
-test('market refresh failures retain the old timestamp and schedule a retry', async () => {
-  const {picker, timers} = fixture();
+test('market refresh failures retain old data until a successful refresh', async () => {
+  const {picker} = fixture();
   picker.received = 123;
   picker.markets = [{id: 'XXBTZUSD', symbol: 'BTC/USD', last: '100'}];
   picker.request = async () => { throw new Error('Offline'); };
@@ -243,12 +245,48 @@ test('market refresh failures retain the old timestamp and schedule a retry', as
   assert.equal(picker.received, 123);
   assert.equal(picker.markets[0].last, '100');
   assert.match(picker.error, /unavailable/);
-  assert.equal(timers.length, 1);
-  assert.equal(timers[0].delay, 10000);
   picker.request = async () => ({received: 456, markets: [{id: 'XXBTZUSD', symbol: 'BTC/USD', last: '101'}]});
   await picker.refresh();
   assert.equal(picker.received, 456);
   assert.equal(picker.markets[0].last, '101');
+  assert.equal(picker.error, '');
+});
+
+test('closed picker requests only selected/favorite quotes and preserves catalog and old ages', async () => {
+  const {picker} = fixture();
+  picker.markets = ['BTC', 'ETH', 'SOL'].map(id => ({id, symbol: `${id}/USD`, received: 100}));
+  picker.selected = 'BTC'; picker.favorites = ['ETH', 'no-longer-listed'];
+  let query;
+  picker.request = async path => { query = path; return {received: 200, partial: true, markets: [
+    {id: 'BTC', symbol: 'BTC/USD', received: 200}, {id: 'ETH', symbol: 'ETH/USD', received: 200},
+  ]}; };
+  await picker.refresh();
+  assert.deepEqual(new URLSearchParams(query.split('?')[1]).get('ids').split(','), ['BTC', 'ETH']);
+  assert.equal(picker.markets.length, 3);
+  assert.equal(picker.markets.find(row => row.id === 'SOL').received, 100);
+  assert.equal(picker.markets.find(row => row.id === 'BTC').received, 200);
+  picker.dialog.open = true;
+  picker.request = async path => { query = path; return {received: 300, markets: [...picker.markets, {id: 'NEW'}]}; };
+  await picker.refresh();
+  assert.equal(query, 'markets');
+  assert.equal(picker.markets.length, 4);
+});
+
+test('hidden or aborted market polls cannot fetch or replace visible state', async () => {
+  const {picker, document} = fixture();
+  let calls = 0, finish;
+  picker.request = () => { calls++; return new Promise(resolve => { finish = resolve; }); };
+  document.hidden = true;
+  await picker.refresh();
+  assert.equal(calls, 0);
+  document.hidden = false;
+  const controller = new AbortController();
+  const pending = picker.refresh(controller.signal);
+  controller.abort();
+  finish({received: 123, markets: [{id: 'obsolete'}]});
+  await pending;
+  assert.equal(picker.received, 0);
+  assert.equal(picker.markets.length, 0);
   assert.equal(picker.error, '');
 });
 

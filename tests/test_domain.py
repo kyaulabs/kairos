@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from kairos import margin
 from kairos.domain import SafetyError, dec
 from kairos.settings import DEFAULTS, validate_settings
-from kairos.strategies import limit_price, plan_cycle, trend_state, triangle
+from kairos.strategies import limit_price, plan_cycle, round_trip_cost_bps, trend_state, triangle
 from tests.helpers import BTC, CROSS, ETH, book
 
 
@@ -130,16 +130,48 @@ class DomainTests(unittest.TestCase):
 
     def test_one_minute_entry_requires_positive_move_strictly_above_round_trip_cost(self):
         settings = {**DEFAULTS, "candle_minutes": 1, "slippage_bps": "10"}
-        for close, eligible in (("100.203", False), ("101", False), ("101.001", True)):
+        for close, eligible in (
+            ("100.203", False),
+            ("101", False),
+            ("101.001", False),
+            ("101.01", True),
+        ):
             with self.subTest(close=close):
                 rows = [[i * 60, "0", "0", "0", "100"] for i in range(30)]
                 rows[-1][4] = close
                 state = trend_state(rows, settings, dec(40))
                 self.assertEqual(state["trend"], "rising")
                 self.assertEqual(state["entry_eligible"], eligible)
-                self.assertEqual(dec(state["round_trip_cost_bps"]), dec(100))
+                self.assertAlmostEqual(
+                    float(state["round_trip_cost_bps"]), 100.502108534237, places=10
+                )
                 self.assertEqual(dec(state["eight_candle_return_bps"]), (dec(close) - 100) * 100)
                 self.assertEqual(state["candle_close_time"], 1800)
+
+    def test_cost_screen_rejects_recorded_link_move_once_spread_is_counted(self):
+        rows = [[i * 3600, "0", "0", "0", "100"] for i in range(30)]
+        rows[-1][4] = "101.860907400859955"
+        self.assertTrue(trend_state(rows, DEFAULTS, dec(80), dec(0))["entry_eligible"])
+        state = trend_state(rows, DEFAULTS, dec(80), dec("7.41960458697"))
+        self.assertFalse(state["entry_eligible"])
+        self.assertGreater(dec(state["round_trip_cost_bps"]), dec(state["eight_candle_return_bps"]))
+
+    def test_exact_cost_threshold_covers_fees_on_both_different_notionals(self):
+        appreciation = round_trip_cost_bps(80, 0, 0) / 10000
+        paid = dec(100) * dec("1.008")
+        received = dec(100) * (1 + appreciation) * dec(".992")
+        self.assertAlmostEqual(paid, received, places=20)
+        self.assertGreater(round_trip_cost_bps(80, 10, 7), round_trip_cost_bps(80, 10, 0))
+        for args in (
+            (-1, 10, 1),
+            (80, -1, 1),
+            (80, 10, -1),
+            (10000, 0, 0),
+            (0, 10000, 0),
+            (0, 0, 20000),
+        ):
+            with self.subTest(args=args), self.assertRaises(SafetyError):
+                round_trip_cost_bps(*args)
 
     def test_trend_requires_completed_history(self):
         with self.assertRaises(SafetyError):

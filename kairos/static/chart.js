@@ -11,7 +11,6 @@ class LiveChart {
     this.points = [];
     this.fills = [];
     this.transform = d3.zoomIdentity;
-    this.margin = {top: this.intervalMs ? 72 : 28, right: 82, bottom: 26, left: 4};
     const defs = this.svg.append('defs');
     const gradient = defs.append('linearGradient').attr('id', `${prefix}-gradient`)
       .attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 1);
@@ -109,13 +108,17 @@ class LiveChart {
   draw() {
     const width = this.node.clientWidth, height = this.node.clientHeight;
     if (!width || !height) return;
-    const m = this.margin;
+    // SVG coordinates are CSS pixels here. Reserve space using the rendered text size,
+    // so larger browser fonts do not clip axis prices, badges or the OHLC readout.
+    const textSize = parseFloat(getComputedStyle(this.tip.node()).fontSize);
+    this.textSize = textSize;
+    const m = this.margin = {top: (this.intervalMs ? 6 : 2.5)*textSize, right: 9*textSize, bottom: 2.5*textSize, left: 4};
     this.cross.attr('display', 'none'); this.tip.text('');
     this.width = width; this.height = height;
     this.svg.attr('viewBox', `0 0 ${width} ${height}`);
     const bottom = height-m.bottom;
     const volumeTop = bottom - (bottom-m.top)*.23;
-    this.priceBottom = this.intervalMs ? volumeTop-30 : bottom;
+    this.priceBottom = this.intervalMs ? volumeTop-3*textSize : bottom;
     this.clip.attr('x', m.left).attr('y', m.top).attr('width', width-m.left-m.right).attr('height', this.priceBottom-m.top);
     this.volumeClip.attr('x', m.left).attr('y', volumeTop).attr('width', width-m.left-m.right).attr('height', bottom-volumeTop);
     const showVolume = this.intervalMs && this.points.length;
@@ -123,10 +126,10 @@ class LiveChart {
     this.volumeAxis.attr('display', showVolume ? null : 'none');
     this.volumeLabel.attr('display', showVolume ? null : 'none');
     this.volumeDivider.attr('display', showVolume ? null : 'none')
-      .attr('x1', m.left).attr('x2', width).attr('y1', volumeTop-22).attr('y2', volumeTop-22);
+      .attr('x1', m.left).attr('x2', width).attr('y1', volumeTop-2*textSize).attr('y2', volumeTop-2*textSize);
     this.zoom.extent([[m.left, m.top], [width-m.right, height-m.bottom]])
       .translateExtent([[m.left, m.top], [width-m.right, height-m.bottom]]);
-    this.empty.attr('x', (width-m.right)/2).attr('y', height/2).attr('display', this.points.length ? 'none' : null);
+    this.empty.attr('x', width/2).attr('y', height/2).attr('display', this.points.length ? 'none' : null);
     if (!this.points.length) {
       this.area.attr('d', null); this.line.attr('d', null); this.fillGroup.selectAll('*').remove();
       this.candleGroup.selectAll('*').remove(); this.volumeGroup.selectAll('*').remove();
@@ -152,10 +155,10 @@ class LiveChart {
     const pad = Math.max((high-low)*.15, Math.abs(high)*.00005, .000001);
     this.y = d3.scaleLinear().domain([low-pad, high+pad]).range([this.priceBottom, m.top]);
     this.xAxis.attr('transform', `translate(0,${height-m.bottom})`)
-      .call(d3.axisBottom(this.x).ticks(Math.max(2, Math.floor((width-m.left-m.right)/100))).tickFormat(this.intervalMs ? null : d3.timeFormat('%H:%M:%S')).tickSize(0).tickPadding(12));
-    this.xAxis.selectAll('.tick text').attr('text-anchor', d => this.x(d) < m.left+30 ? 'start' : this.x(d) > width-m.right-30 ? 'end' : 'middle');
+      .call(d3.axisBottom(this.x).ticks(Math.max(2, Math.floor((width-m.left-m.right)/(10*textSize)))).tickFormat(this.intervalMs ? null : d3.timeFormat('%H:%M:%S')).tickSize(0).tickPadding(textSize));
+    this.xAxis.selectAll('.tick text').attr('text-anchor', d => this.x(d) < m.left+3*textSize ? 'start' : this.x(d) > width-m.right-3*textSize ? 'end' : 'middle');
     this.yAxis.attr('transform', `translate(${width-m.right},0)`)
-      .call(d3.axisRight(this.y).ticks(this.priceBottom-m.top < 200 ? 3 : 6).tickFormat(d3.format(',.5~f')).tickSize(0).tickPadding(12));
+      .call(d3.axisRight(this.y).ticks(this.priceBottom-m.top < 200 ? 3 : 6).tickFormat(d3.format(',.5~f')).tickSize(0).tickPadding(textSize));
     this.grid.attr('transform', `translate(${width-m.right},0)`)
       .call(d3.axisRight(this.y).ticks(this.priceBottom-m.top < 200 ? 3 : 6).tickSize(-(width-m.right-m.left)).tickFormat(''));
     const center = p => p.time + (this.intervalMs || 0)/2;
@@ -168,8 +171,8 @@ class LiveChart {
         .attr('y', d => volumeY(d.volume)).attr('height', d => bottom-volumeY(d.volume))
         .attr('fill', d => d.value >= d.open ? 'var(--success)' : 'var(--danger)').attr('fill-opacity', .5);
       this.volumeAxis.attr('transform', `translate(${width-m.right},0)`)
-        .call(d3.axisRight(volumeY).ticks(2).tickFormat(d3.format('.3~s')).tickSize(0).tickPadding(12));
-      this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-7).text(`Volume · ${this.volumeUnit || 'base asset'}`);
+        .call(d3.axisRight(volumeY).ticks(2).tickFormat(d3.format('.3~s')).tickSize(0).tickPadding(textSize));
+      this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-.6*textSize).text(`Volume · ${this.volumeUnit || 'base asset'}`);
       const bars = this.candleGroup.selectAll('g.candle').data(visible, d => d.time).join(enter => {
         const bar = enter.append('g').attr('class', 'candle');
         bar.append('line'); bar.append('rect');
@@ -193,8 +196,8 @@ class LiveChart {
     this.lastLine.attr('display', inView ? null : 'none').attr('stroke', latestColor)
       .attr('x1', m.left).attr('x2', width-m.right).attr('y1', latestY).attr('y2', latestY);
     this.lastBadge.attr('display', inView && this.intervalMs ? null : 'none')
-      .attr('x', width-m.right).attr('y', latestY-10).attr('width', m.right).attr('height', 20).attr('fill', latestColor);
-    this.lastLabel.attr('x', width-m.right+6).attr('y', inView && this.intervalMs ? latestY : m.top-10)
+      .attr('x', width-m.right).attr('y', latestY-textSize).attr('width', m.right).attr('height', 2*textSize).attr('fill', latestColor);
+    this.lastLabel.attr('x', width-m.right+6).attr('y', inView && this.intervalMs ? latestY : m.top-textSize)
       .attr('dy', inView && this.intervalMs ? '.35em' : 0)
       .style('fill', inView && this.intervalMs ? 'var(--on-accent)' : this.color)
       .text(inView ? d3.format(',.5~f')(latest.value) : 'HISTORY');
@@ -225,7 +228,7 @@ class LiveChart {
       `L ${format(point.low)}  C ${format(point.value)}`,
       `V ${format(point.volume)} · ${this.volumeUnit || 'base asset'}`,
     ] : [`${d3.timeFormat('%H:%M:%S')(new Date(point.time))}  ·  ${d3.format(',.8~f')(point.value)}`];
-    this.tip.selectAll('tspan').data(lines).join('tspan').attr('x', 6).attr('y', (_, i) => 14+i*14).text(d => d);
+    this.tip.selectAll('tspan').data(lines).join('tspan').attr('x', 6).attr('y', (_, i) => this.textSize*(1+i*1.5)).text(d => d);
   }
 }
 window.LiveChart = LiveChart;

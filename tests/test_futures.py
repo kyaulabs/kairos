@@ -13,14 +13,14 @@ from aiohttp.test_utils import TestClient, TestServer
 from kairos import programs
 from kairos.clients import Kraken
 from kairos.domain import Pair, SafetyError, dec
-from kairos.engine import Engine
 from kairos.futures import new_ledger
 from kairos.futures_client import FuturesTrading
 from kairos.retail import linear_perpetual
 from kairos.settings import DEFAULTS
 from kairos.store import Store
 from kairos.web import create_app
-from tests.helpers import book, fake_jev, fake_kraken
+from tests.helpers import RuleEngine as Engine
+from tests.helpers import book, fake_jev, fake_kraken, htf_baseline
 from tests.test_clients_web import Session
 
 CONTRACT = {
@@ -412,6 +412,7 @@ class FuturesTests(unittest.IsolatedAsyncioTestCase):
         self.spot.book.assert_not_awaited()
         self.spot.add.assert_not_awaited()
         await self.engine.stop()
+        await self.engine.reset_paper()
         await self.configure(strategy="maker")
         await self.engine.start()
         await self.engine.tick()
@@ -712,10 +713,12 @@ class FuturesTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.orders()[-1]["price"], "100")
         self.assertEqual(self.store.orders()[-1]["filled"], "1")
 
-    async def test_live_htf_uses_contract_execution_after_model_and_cost_filters(self):
+    async def test_live_htf_uses_contract_execution_after_deterministic_cost_filter(self):
         self.spot.allow_live = True
         await self.engine.set_mode("trading", "ENABLE LIVE FUTURES")
         await self.engine.start()
+        await htf_baseline(self.engine, self.client.completed_candles)
+        self.assertEqual(self.store.orders(), [])
         await self.engine.tick()
         self.assertIsNone(self.engine.last_error)
         self.assertGreater(self.engine.futures.position(PAIR), 0)

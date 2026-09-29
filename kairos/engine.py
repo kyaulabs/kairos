@@ -1,21 +1,53 @@
 import asyncio
 import contextlib
+import hashlib
+import json
 import time
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+from pathlib import Path
 
-from kairos import margin, programs, scalping
+from kairos import diagnostics, htf, margin, programs, scalping
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
-from kairos.fees import AccountFees
+from kairos.fees import AccountFees, FeeUnavailable
 from kairos.futures import FuturesDesk
 from kairos.futures import new_ledger as futures_ledger
+from kairos.htf_review import ExpiredReview, HTFReview, check_intent, intent_deadline
+from kairos.market_data import PendingCandle
 from kairos.settings import DEFAULTS, load_settings, validate_settings
-from kairos.strategies import limit_price, plan_cycle, plan_leg, trend_state, triangle
+from kairos.strategies import limit_price, plan_cycle, plan_leg, triangle
+
+# Fingerprint execution sources, not credentials or mutable deployment settings.
+EXECUTION_REVISION = hashlib.sha256(
+    b"".join(
+        Path(__file__).with_name(name + ".py").read_bytes()
+        for name in (
+            "engine",
+            "htf",
+            "htf_review",
+            "htf_policy",
+            "strategies",
+            "domain",
+            "settings",
+            "fees",
+            "diagnostics",
+            "store",
+            "futures",
+            "futures_client",
+            "margin",
+            "programs",
+            "scalping",
+            "clients",
+            "market_data",
+        )
+    )
+).hexdigest()[:16]
 
 
 class Engine:
-    def __init__(self, store, kraken, jev, publish, futures=None):
+    def __init__(self, store, kraken, jev, publish, futures=None, *, clock=None):
+        self.clock = clock or (lambda: time.time())
         self.store, self.kraken, self.jev, self.publish = store, kraken, jev, publish
         self.futures = FuturesDesk(self, futures)
         self.settings = load_settings(store.get("settings", DEFAULTS))
@@ -23,20 +55,150 @@ class Engine:
         self.fee_scope = []
         self.mode = "dry-run"  # Never auto-resume live trading after a restart.
         self.running = False
+        self.shutting_down = False
         self.stop_generation = 0
         self.ready = False
         self.lock = asyncio.Lock()
         self.last_error = None
         self.latest_decision = None
+        self.candle_retries = 0
+        self.fee_recovery = False
+        self.summary_cache = None
         self.equity = None
         self.exposure = None
         self.daily_pnl = None
         self.valuation_ts = None
         self.task = None
         self.recovery_required = store.get("cycle", None) is not None
+        self.htf_review = HTFReview(self)
+
+    def run_key(self, mode=None):
+        return f"execution-run:{mode or self.mode}:{self.settings['product']}"
+
+    def settings_id(self):
+        return hashlib.sha256(json.dumps(self.settings, sort_keys=True).encode()).hexdigest()[:16]
+
+    def active_run(self):
+        run = self.store.get(self.run_key())
+        if (
+            run
+            and run["settings_id"] == self.settings_id()
+            and run["execution_revision"] == EXECUTION_REVISION
+        ):
+            return run
+        return None
+
+    def ensure_run(self):
+        run = self.active_run()
+        if run is None:
+            previous = self.store.get(self.run_key())
+            run = {
+                "id": str(uuid.uuid4()),
+                "started_at": self.clock(),
+                "previous_run_id": previous["id"] if previous else None,
+                "mode": self.mode,
+                "product": self.settings["product"],
+                "strategy": self.settings["strategy"],
+                "pair": self.settings["pair"],
+                "settings_id": self.settings_id(),
+                "execution_revision": EXECUTION_REVISION,
+                "opening_equity": self.equity,
+                "opening_exposure": self.exposure,
+            }
+            self.store.put(self.run_key(), run)
+            self.summary_cache = None
+            self.event(
+                "system",
+                {
+                    "message": "Execution run started; existing holdings retained",
+                    "run": run,
+                    "settings": self.settings,
+                },
+            )
+        return run
+
+    def risk_snapshot(self):
+        cap, maximum = self.limits()
+        return {
+            "mode": self.mode,
+            "product": self.settings["product"],
+            "equity": self.equity,
+            "exposure": self.exposure,
+            "valuation_ts": self.valuation_ts,
+            "daily_pnl": self.daily_pnl,
+            "daily_loss_limit": self.settings["daily_loss"],
+            "order_cap": str(cap),
+            "exposure_cap": str(maximum),
+            "exposure_target": str(maximum * htf.EXPOSURE_TARGET)
+            if self.settings["strategy"] == "htf"
+            else None,
+            "slippage_bps": self.settings["slippage_bps"],
+        }
+
+    def tag_order(self, order):
+        run = self.ensure_run()
+        order.update(
+            run_id=run["id"],
+            settings_id=run["settings_id"],
+            execution_revision=run["execution_revision"],
+            risk_at_submission=self.risk_snapshot(),
+        )
+        if self.settings["strategy"] == "htf" and self.latest_decision:
+            order["reason"] = self.latest_decision["reason"]
+
+    def run_summary(self):
+        run = self.active_run()
+        if run is None:
+            return None
+        totals = self.store.get(
+            "execution-run-totals:" + run["id"], {"filled_orders": 0, "paid_fees": {}}
+        )
+        return {
+            **run,
+            **totals,
+            "equity_change": str(dec(self.equity) - dec(run["opening_equity"]))
+            if self.equity is not None and run["opening_equity"] is not None
+            else None,
+        }
 
     def event(self, kind, data):
-        self.publish("engine-error" if kind == "error" else kind, self.store.event(kind, data))
+        if kind == "decision":
+            self.summary_cache = None
+        run = self.active_run() or {}
+        source = run
+        if kind == "fill":
+            source = next((o for o in self.orders() if o["id"] == data["order_id"]), {})
+        context = {
+            "run_id": source.get("run_id") if kind == "fill" else run.get("id"),
+            "settings_id": source.get("settings_id"),
+            "execution_revision": source.get(
+                "execution_revision", EXECUTION_REVISION if kind != "fill" else None
+            ),
+            "mode": self.mode,
+            "strategy": self.settings["strategy"],
+            "pair": self.settings["pair"],
+            "product": self.settings["product"],
+            "risk": self.risk_snapshot(),
+        }
+        if kind == "fill":
+            context.update(
+                {
+                    k: source[k]
+                    for k in (
+                        "mode",
+                        "strategy",
+                        "pair",
+                        "product",
+                        "htf_id",
+                        "reason",
+                        "risk_at_submission",
+                    )
+                    if k in source
+                }
+            )
+        self.publish(
+            "engine-error" if kind == "error" else kind, self.store.event(kind, {**context, **data})
+        )
 
     def orders(self, mode=None, active=False):
         return [
@@ -67,6 +229,18 @@ class Engine:
                 scale = max(ZERO, dec(self.equity)) / initial
         return dec(self.settings["order_size"]) * scale, dec(self.settings["max_exposure"]) * scale
 
+    def decision_summary(self):
+        scope = (
+            self.settings["strategy"],
+            self.settings["pair"],
+            self.mode,
+            self.settings["product"],
+            (self.active_run() or {}).get("id", "not-started"),
+        )
+        if self.summary_cache is None or self.summary_cache[0] != scope:
+            self.summary_cache = (scope, self.store.decision_summary(*scope))
+        return self.summary_cache[1]
+
     def snapshot(self):
         return {
             "ready": self.ready,
@@ -86,6 +260,14 @@ class Engine:
             "effective_order_cap": str(self.limits()[0]),
             "effective_exposure_cap": str(self.limits()[1]),
             "decision": self.latest_decision,
+            "decision_summary": self.decision_summary(),
+            "execution_run": self.run_summary(),
+            "data_recovery": {"attempts": self.candle_retries, "limit": 3},
+            "fee_recovery": self.fee_recovery,
+            "htf": htf.snapshot(self) if self.settings["strategy"] == "htf" else None,
+            "htf_review": self.htf_review.snapshot()
+            if self.settings["strategy"] == "htf"
+            else None,
             "ledger": self.ledger(),
             "equity": self.equity,
             "exposure": self.exposure,
@@ -206,6 +388,15 @@ class Engine:
             if self.running or self.orders(active=True):
                 raise SafetyError("Stop and reconcile outstanding orders before changing settings")
             new = validate_settings(values)
+            if self.settings["strategy"] == "htf" and any(
+                new[k] != self.settings[k] for k in ("strategy", "product", "pair")
+            ):
+                for mode in ("dry-run", "trading"):
+                    plan = self.store.get(htf.key(self, mode)) or {}
+                    if htf.owned(self, plan.get("position"), mode):
+                        raise SafetyError(
+                            "Close or reset the HTF position before changing strategy or market"
+                        )
             if new["strategy"] == "scalp" and self.mode != "dry-run":
                 raise SafetyError("Bollinger scalping is paper-only")
             if (
@@ -343,6 +534,11 @@ class Engine:
         plan = self.store.get(f"scalp:dry-run:{product}:{order['pair']}") or {}
         if order.get("scalp_id") and (plan.get("position") or {}).get("id") == order["scalp_id"]:
             return "This order supports a saved scalp plan; archive or reset that paper portfolio first"
+        plan = self.store.get(f"htf:dry-run:{product}:{order['pair']}") or {}
+        if order.get("htf_id") and (plan.get("position") or {}).get("id") == order["htf_id"]:
+            return (
+                "This order supports a saved HTF plan; archive or reset that paper portfolio first"
+            )
         prefix = "futures:" if product == "futures" else ""
         program = self.store.get(f"program:{prefix}dry-run:{order['strategy']}") or {}
         if order.get("program_id") and program.get("id") == order["program_id"]:
@@ -401,6 +597,14 @@ class Engine:
         async with self.lock:
             if self.running or self.orders("dry-run", True):
                 raise SafetyError("Stop paper trading before resetting")
+            previous_run = self.store.get(self.run_key("dry-run"))
+            previous_ledger = (
+                self.futures.ledger("dry-run")
+                if self.settings["product"] == "futures"
+                else self.store.get("margin")
+                if self.settings["product"] == "margin"
+                else self.ledger("dry-run")
+            )
             if self.settings["product"] == "futures":
                 self.store.put("futures:dry-run", futures_ledger(self.settings["paper_balance"]))
                 self.store.put("day:futures:dry-run", None)
@@ -415,13 +619,25 @@ class Engine:
                 for strategy in programs.STRATEGIES:
                     self.store.put(f"program:dry-run:{strategy}", None)
             self.store.put("candle:dry-run", None)
+            self.store.put(htf.key(self, "dry-run"), None)
             self.store.put(
                 scalping.key(self), {"position": None, "last_candle": None, "cooldown_until": 0}
             )
             self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
             if self.mode == "dry-run":
                 self.latest_decision = None
-            self.event("system", {"message": "Paper ledger reset; historical events retained"})
+            self.store.put(self.run_key("dry-run"), None)
+            self.summary_cache = None
+            self.event(
+                "system",
+                {
+                    "message": "Paper ledger reset; historical events retained",
+                    "mode": "dry-run",
+                    "run_id": None,
+                    "previous_run_id": previous_run["id"] if previous_run else None,
+                    "previous_ledger": previous_ledger,
+                },
+            )
             self.emit_state()
 
     async def reset_program(self, confirmation):
@@ -433,10 +649,18 @@ class Engine:
                 or confirmation != "NEW STRATEGY RUN"
             ):
                 raise SafetyError("Explicit new strategy run confirmation is required")
+            previous_run = self.store.get(self.run_key())
             self.store.put(programs.key(self), None)
+            self.store.put(self.run_key(), None)
+            self.summary_cache = None
+            self.latest_decision = None
             self.event(
                 "program",
-                {"message": "New run armed for next Start; holdings unchanged", "mode": self.mode},
+                {
+                    "message": "New run armed for next Start; holdings unchanged",
+                    "mode": self.mode,
+                    "previous_run_id": previous_run["id"] if previous_run else None,
+                },
             )
             self.emit_state()
 
@@ -472,6 +696,8 @@ class Engine:
         if mode not in ("dry-run", "trading"):
             raise SafetyError("Unknown mode")
         async with self.lock:
+            if self.shutting_down:
+                raise SafetyError("Service shutting down; mode changes blocked")
             was_running = self.running
             self.running = False
             try:
@@ -493,13 +719,21 @@ class Engine:
                 if was_running and self.settings["product"] != "futures":
                     await self.valuation(enforce=True)
                     programs.prepare(self)
+                    if self.settings["strategy"] == "htf":
+                        htf.arm(self)
+                    self.ensure_run()
                     self.running = True
                 self.event("mode", {"mode": mode, "running": self.running})
             finally:
                 self.emit_state()
 
-    async def start(self):
+    async def start(self, *, restart=False, confirmation=None):
+        stop_generation = self.stop_generation
         async with self.lock:
+            if self.shutting_down:
+                raise SafetyError("Service shutting down; Start blocked")
+            if restart and (self.running or confirmation != "RESTART ENGINE"):
+                raise SafetyError("Pause and explicitly confirm engine restart")
             if not self.ready:
                 raise SafetyError("Market catalog is not ready")
             if self.orders(active=True) or self.recovery_required:
@@ -519,22 +753,52 @@ class Engine:
             scalp = self.settings["strategy"] == "scalp"
             if scalp:
                 scalping.prepare(self)
+            trend = self.settings["strategy"] == "htf"
+            if trend:
+                htf.prepare(self)
             if (
                 not scalp
                 and self.settings["strategy"] not in programs.STRATEGIES
                 and not self.jev.key
             ):
                 raise SafetyError("JEV_API_KEY is not configured")
-            await self.valuation(enforce=not (scalp and scalping.snapshot(self)["position"]))
+            await self.valuation(
+                enforce=not (
+                    scalp
+                    and scalping.snapshot(self)["position"]
+                    or trend
+                    and htf.snapshot(self)["position"]
+                )
+            )
             programs.prepare(self)
+            if restart:
+                feed = self.kraken.market_data
+                pairs, candle, age = list(feed.pairs.values()), feed.candle_spec, feed.book_age
+                await feed.close()
+                await feed.configure(pairs, candle, max_age=age)
+                if self.task is not None and self.task.done():
+                    self.task = asyncio.create_task(self.run())
+            if self.stop_generation != stop_generation:
+                raise SafetyError("Start canceled by Stop; engine remains paused")
+            if trend and not self.running:
+                htf.arm(self)
+            self.ensure_run()
+            self.candle_retries = 0
             self.running, self.last_error = True, None
-            self.event("system", {"message": "Started", "mode": self.mode})
+            self.event(
+                "system",
+                {"message": "Engine restarted" if restart else "Started", "mode": self.mode},
+            )
             self.emit_state()
 
     async def stop(self):
         # Latch the stop before waiting for an in-flight data/model request.
         self.stop_generation += 1
         self.running = False
+        if self.fee_recovery:
+            self.last_error = None
+        self.fee_recovery = False
+        self.htf_review.cancel()
         async with self.lock:
             try:
                 await self.cancel_active()
@@ -590,14 +854,15 @@ class Engine:
 
     def record_valuation(self, equity, exposure, day_key):
         """Shared display/UTC baseline bookkeeping; callers retain product-specific risk checks."""
-        date = datetime.now(UTC).date().isoformat()
+        now = self.clock()
+        date = datetime.fromtimestamp(now, UTC).date().isoformat()
         day = self.store.get(day_key)
         if not day or day["date"] != date:
             day = {"date": date, "equity": str(equity)}
             self.store.put(day_key, day)
         self.equity, self.exposure = str(equity), str(exposure)
         self.daily_pnl = str(equity - dec(day["equity"]))
-        self.valuation_ts = time.time()
+        self.valuation_ts = now
 
     async def valuation(self, enforce=False):
         if self.settings["product"] == "futures":
@@ -736,6 +1001,8 @@ class Engine:
                 await asyncio.sleep(1)
             if order["status"] not in TERMINAL:
                 raise SafetyError("Cancellation not confirmed; no further orders")
+        if self.settings["strategy"] == "htf":
+            htf.reconcile_entry(self)
 
     async def paper_makers(self):
         if self.futures.client:
@@ -750,7 +1017,7 @@ class Engine:
             volume = ZERO
             for price, qty, ts, side, *_ in trades:
                 # Crossing prints, not touches; assume only 10% participation. Queue unknown.
-                if not order["created"] < float(ts) <= order["expires"]:
+                if not order["created"] < float(ts) <= min(order["expires"], self.clock()):
                     continue
                 crosses = (
                     order["side"] == "buy" and side == "s" and dec(price) < dec(order["price"])
@@ -763,7 +1030,7 @@ class Engine:
             fee = cost * dec(order["fee_bps"]) / BPS
             order["cursor"] = cursor
             status = "closed" if filled == dec(order["volume"]) else "open"
-            if time.time() >= order["expires"] and status == "open":
+            if self.clock() >= order["expires"] and status == "open":
                 status = "expired"
             self.apply(order, filled, cost, fee, status)
 
@@ -819,7 +1086,7 @@ class Engine:
         return values, values["exposure"]
 
     def margin_order(self, pair, side, volume, price, maker):
-        now = time.time()
+        now = self.clock()
         return {
             "id": str(uuid.uuid4()),
             "txid": None,
@@ -843,13 +1110,17 @@ class Engine:
             "fee": "0",
         }
 
-    async def place_margin(self, pair, side, volume, price, book, maker):
+    async def place_margin(
+        self, pair, side, volume, price, book, maker, *, exit_only=False, review=None
+    ):
         if self.mode != "dry-run":
             raise SafetyError("Live margin execution is prohibited")
-        values, exposure = await self.margin_valuation(True)
+        values, exposure = await self.margin_valuation(not exit_only)
         ledger = self.store.get("margin")
         old = dec(ledger["positions"].get(pair.id, {}).get("quantity", 0))
         reducing = old * (1 if side == "buy" else -1) < 0
+        if exit_only and not reducing:
+            raise SafetyError("Exit-only margin order must reduce an existing position")
         if reducing and volume > abs(old):
             raise SafetyError("Margin order must close before reversing a position")
         order_cap, exposure_cap = self.limits()
@@ -872,7 +1143,12 @@ class Engine:
             raise SafetyError("Margin spread exceeds maximum")
         if not self.running:
             raise SafetyError("Engine stopped before paper margin submission")
+        check_intent(self, review)
         order = self.margin_order(pair, side, volume, price, maker)
+        if maker:
+            order["expires"] = intent_deadline(order["expires"], review)
+        htf.tag(self, order)
+        self.tag_order(order)
         self.store.save_order(order)
         if not maker:
             filled, cost = book.fill(side, volume, price)
@@ -887,16 +1163,46 @@ class Engine:
         return order
 
     async def place(
-        self, pair, side, volume, price, book, maker=False, *, program=None, exit_only=False
+        self,
+        pair,
+        side,
+        volume,
+        price,
+        book,
+        maker=False,
+        *,
+        program=None,
+        exit_only=False,
+        review=None,
     ):
         if self.settings["strategy"] == "scalp" and self.mode != "dry-run":
             raise SafetyError("Bollinger scalping is paper-only")
-        if exit_only and (
-            self.settings["strategy"] != "scalp"
-            or maker
-            or not scalping.valid_exit(self, pair, side, volume)
+        if (
+            maker
+            and review is not None
+            and self.settings["strategy"] == "htf"
+            and self.mode != "dry-run"
         ):
-            raise SafetyError("Only a tracked paper scalp position may use an exit-only order")
+            raise SafetyError("Passive HTF entry experiment is paper-only")
+        if (
+            maker
+            and review is not None
+            and (
+                (side == "buy" and price >= book.asks[0][0])
+                or (side == "sell" and price <= book.bids[0][0])
+            )
+        ):
+            raise SafetyError("Post-only price crosses the book")
+        if exit_only and (
+            maker
+            or not (
+                self.settings["strategy"] == "scalp"
+                and scalping.valid_exit(self, pair, side, volume)
+                or self.settings["strategy"] == "htf"
+                and htf.valid_exit(self, pair, side, volume)
+            )
+        ):
+            raise SafetyError("Only a tracked scalp or HTF position may use an exit-only order")
         if not self.running:
             raise SafetyError("Engine is stopped")
         if self.orders(self.mode, True):
@@ -906,10 +1212,20 @@ class Engine:
         self.fees.rate(pair, maker)
         if self.settings["product"] == "futures":
             return await self.futures.place(
-                pair, side, volume, price, book, maker, program=program, close=exit_only
+                pair,
+                side,
+                volume,
+                price,
+                book,
+                maker,
+                program=program,
+                close=exit_only,
+                review=review,
             )
         if self.settings["product"] == "margin":
-            return await self.place_margin(pair, side, volume, price, book, maker)
+            return await self.place_margin(
+                pair, side, volume, price, book, maker, exit_only=exit_only, review=review
+            )
         prices, exposure = await self.valuation(enforce=not exit_only)
         quote = self.settings["quote"]
         # Also price intermediate arbitrage currencies in the configured quote.
@@ -960,10 +1276,11 @@ class Engine:
             raise SafetyError("Spread exceeds configured maximum")
         if not self.running:
             raise SafetyError("Engine stopped before order submission")
-        now = time.time()
+        now = self.clock()
         if program and now + 1 >= program["deadline"]:
             raise SafetyError("Scheduled slot expired before submission; no late order sent")
         self.fees.rate(pair, maker)
+        check_intent(self, review)
         order = {
             "id": str(uuid.uuid4()),
             "txid": None,
@@ -986,9 +1303,13 @@ class Engine:
             "cost": "0",
             "fee": "0",
         }
+        if maker:
+            order["expires"] = intent_deadline(order["expires"], review)
         if program:
             order.update(program_id=program["id"], program_slot=program["slot"])
         scalping.tag(self, order)
+        htf.tag(self, order)
+        self.tag_order(order)
         self.store.save_order(order)  # Durable intent and run identity before the network write.
         if self.mode == "dry-run":
             if maker:
@@ -1013,9 +1334,9 @@ class Engine:
                 "cl_ord_id": order["id"],
                 "oflags": "post,fciq" if maker else "fciq",
                 "timeinforce": "GTD" if maker else "IOC",
-                "deadline": (datetime.now(UTC) + timedelta(seconds=5)).isoformat(
-                    timespec="milliseconds"
-                ),
+                "deadline": datetime.fromtimestamp(
+                    intent_deadline(time.time() + 5, review), UTC
+                ).isoformat(timespec="milliseconds"),
             }
             if program:
                 params["deadline"] = datetime.fromtimestamp(
@@ -1032,7 +1353,8 @@ class Engine:
                 order["status"] = "rejected"
                 self.store.save_order(order)
                 raise
-            except Exception:
+            except Exception as exc:
+                diagnostics.capture(exc, "spot-order-submission")
                 order["status"] = "uncertain"
                 self.store.save_order(order)
                 raise SafetyError(
@@ -1067,6 +1389,8 @@ class Engine:
         )
 
     async def directional(self, pair):
+        if self.settings["strategy"] == "htf":
+            return await htf.run(self)
         if self.settings["product"] == "futures":
             return await self.futures.directional(pair)
         maker = self.settings["strategy"] == "maker"
@@ -1087,13 +1411,6 @@ class Engine:
             if is_margin
             else "Unleveraged spot",
         }
-        if not maker:
-            rows = await self.kraken.candles(pair, self.settings["candle_minutes"])
-            state.update(trend_state(rows, self.settings, self.fees.reserve(pair)))
-            candle = f"{pair.id}:{self.settings['candle_minutes']}:{state['candle_close_time']}"
-            if self.store.get("candle:" + self.mode) == candle:
-                return
-            self.store.put("candle:" + self.mode, candle)
         book = await self.kraken.book(pair)
         bid_depth = sum(v for _, v in book.bids[:10])
         ask_depth = sum(v for _, v in book.asks[:10])
@@ -1106,9 +1423,6 @@ class Engine:
         )
         side = await self.decision(state)
         if not self.running or side == "hold":
-            return
-        if not maker and not state["entry_eligible" if side == "buy" else "exit_eligible"]:
-            self.event("skip", {"reason": "Deterministic trend/cost filter vetoed the Jev action"})
             return
         if not is_margin and side == "sell" and self.balance(pair.base) <= 0:
             self.event("skip", {"reason": "No bot-owned inventory to sell"})
@@ -1323,6 +1637,7 @@ class Engine:
                     try:
                         await self.valuation(False)
                     except Exception as exc:
+                        diagnostics.capture(exc, "paused-valuation")
                         self.last_error = (
                             str(exc)
                             if isinstance(exc, SafetyError)
@@ -1331,41 +1646,114 @@ class Engine:
                 self.emit_state()
                 return
             try:
-                await self.refresh_fees()
+                try:
+                    await self.refresh_fees()
+                except FeeUnavailable as exc:
+                    # Only this pre-execution read can auto-recover. Never retry writes,
+                    # live sessions, permanent credential failures or uncertain orders.
+                    if not (
+                        exc.retryable
+                        and self.mode == "dry-run"
+                        and not self.recovery_required
+                        and not self.orders("trading", True)
+                    ):
+                        raise
+                    await self.cancel_active()
+                    if not self.running or self.shutting_down:
+                        return  # Explicit Stop always wins, even during the failed read.
+                    self.htf_review.cancel()
+                    self.last_error = "Temporary Kraken fee-read failure; automatically retrying at 60-second intervals. Orders and protective exits are blocked until fees recover."
+                    if not self.fee_recovery:
+                        self.event(
+                            "fee-recovery", {"message": self.last_error, "error_id": exc.error_id}
+                        )
+                    self.fee_recovery = True
+                    return
+                if not self.running or self.shutting_down:
+                    return
+                if self.fee_recovery:
+                    self.fee_recovery = False
+                    self.last_error = None
+                    if self.settings["strategy"] == "htf":
+                        htf.arm(self)  # Fresh baseline; do not chase an outage-era entry.
+                    self.event(
+                        "fee-recovery",
+                        {
+                            "message": "Kraken fees recovered; paper execution resumed automatically; holdings and protection retained"
+                        },
+                    )
                 if self.mode == "dry-run":
                     await self.paper_makers()
                 await self.cancel_active()
                 scalp = self.settings["strategy"] == "scalp"
+                trend = self.settings["strategy"] == "htf"
                 if scalp:
                     await scalping.run(self)
+                elif trend:
+                    await htf.run(self)
                 else:
                     await self.valuation(enforce=True)
                 pair = self.resolve(self.settings["pair"])
                 recovered = False if scalp else await self.recover_capital()
-                if not recovered and not scalp:
+                if not recovered and not scalp and not trend:
                     if self.settings["strategy"] in programs.STRATEGIES:
                         await programs.run(self)
                     elif self.settings["strategy"] == "arbitrage":
                         await self.arbitrage(pair)
                     else:
                         await self.directional(pair)
-                await self.valuation(enforce=not scalp)
+                await self.valuation(enforce=not (scalp or trend))
+                if self.candle_retries:
+                    self.event(
+                        "system", {"message": "Execution candles recovered; normal checks resumed"}
+                    )
+                    self.candle_retries = 0
+                    self.last_error = None
+            except ExpiredReview as exc:
+                self.event("skip", {"reason": str(exc)})
+            except PendingCandle as exc:
+                # Only read-side missing-boundary errors qualify. Never retry order writes,
+                # malformed history, fee failures or uncertain submissions automatically.
+                self.candle_retries += 1
+                if self.candle_retries >= 3:
+                    self.running = False
+                    self.last_error = (
+                        f"{exc}; recovery exhausted. Use Restart engine after checking the feed."
+                    )
+                    self.event("error", {"message": self.last_error})
+                else:
+                    self.last_error = f"Waiting for confirmed execution candles ({self.candle_retries}/3); no stale-data entries"
+                    self.event("system", {"message": self.last_error})
             except Exception as exc:
+                error_id = diagnostics.capture(exc, "engine-cycle")
                 self.running = False
+                self.fee_recovery = False
                 self.last_error = (
                     str(exc) if isinstance(exc, SafetyError) else "Internal failure; engine stopped"
                 )
-                self.event("error", {"message": self.last_error})
+                self.event(
+                    "error",
+                    {
+                        "message": self.last_error,
+                        "exception_type": type(exc).__name__,
+                        "phase": "engine-cycle",
+                        "error_id": error_id,
+                    },
+                )
                 try:
                     await self.cancel_active()
-                except Exception:
+                except Exception as exc:
+                    error_id = diagnostics.capture(exc, "order-cleanup")
                     self.event(
                         "error",
                         {
-                            "message": "Cleanup could not confirm cancellation. Use Reconcile; inspect Kraken."
+                            "error_id": error_id,
+                            "message": "Cleanup could not confirm cancellation. Use Reconcile; inspect Kraken.",
                         },
                     )
             finally:
+                if not self.running:
+                    self.htf_review.cancel()
                 self.emit_state()
 
     async def run(self):
@@ -1378,6 +1766,8 @@ class Engine:
             self.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self.task
+        await self.htf_review.close()
         # Restart remains paused. GTD maker orders expire even if this cleanup fails.
-        with contextlib.suppress(Exception):
-            await self.stop()
+        if not self.shutting_down:
+            with contextlib.suppress(Exception):
+                await self.stop()

@@ -22,22 +22,44 @@ def limit_price(book, side, slippage_bps, *, maker_fee_bps=None, parent=None):
     return book.pair.price(raw, side)
 
 
-def trend_state(rows, settings, taker_fee_bps):
+def round_trip_cost_bps(taker_fee_bps, slippage_bps, spread_bps):
+    """Long break-even appreciation at equal entry/exit spread and fee rates.
+
+    Includes compounded fees, spread and adverse slippage on both fills.
+    Also used conservatively for short signals; this is not a profit forecast.
+    """
+    fee, slip, half_spread = (
+        dec(taker_fee_bps) / BPS,
+        dec(slippage_bps) / BPS,
+        dec(spread_bps) / (2 * BPS),
+    )
+    if any(not 0 <= rate < 1 for rate in (fee, slip, half_spread)):
+        raise SafetyError("Invalid round-trip cost assumptions")
+    factor = (1 + fee) / (1 - fee) * (1 + slip) / (1 - slip) * (1 + half_spread) / (1 - half_spread)
+    return (factor - 1) * BPS
+
+
+def trend_state(rows, settings, taker_fee_bps, spread_bps=0):
     if len(rows) < 30:
         raise SafetyError("Need at least 30 completed candles")
     closes = [dec(row[4]) for row in rows[-30:]]
     fast, slow = sum(closes[-8:]) / 8, sum(closes[-21:]) / 21
     move = (closes[-1] / closes[-9] - 1) * BPS
-    costs = taker_fee_bps * 2 + dec(settings["slippage_bps"]) * 2
+    costs = round_trip_cost_bps(taker_fee_bps, settings["slippage_bps"], spread_bps)
     return {
         "candle_close_time": int(rows[-1][0]) + settings["candle_minutes"] * 60,
         "candle_minutes": settings["candle_minutes"],
         "trend": "rising" if fast > slow else "falling",
         "eight_candle_return_bps": str(move),
         "round_trip_cost_bps": str(costs),
+        "cost_spread_bps": str(spread_bps),
+        "cost_assumption": "Same spread and taker fees at entry/exit; adverse slippage on both fills. Excludes funding and borrowing.",
         "historical_move_exceeds_round_trip_cost": abs(move) > costs,
         "entry_eligible": fast > slow and move > costs,
         "exit_eligible": fast < slow,
+        "short_entry_eligible": fast < slow and move < -costs,
+        "fast_average": str(fast),
+        "slow_average": str(slow),
         "note": "Historical momentum is not a forecast of future returns.",
     }
 

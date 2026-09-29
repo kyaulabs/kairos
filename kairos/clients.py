@@ -8,12 +8,17 @@ from urllib.parse import urlencode
 
 import aiohttp
 
+from kairos import diagnostics
 from kairos.domain import Book, Pair, SafetyError, dec
 from kairos.market_data import PublicMarketData, validate_levels
 
 
 class ExchangeRejected(SafetyError):
     pass
+
+
+class TransientFeeRead(SafetyError):
+    """An explicitly retryable read failure; never an order-write retry token."""
 
 
 def signature(path, payload, secret, post=None):
@@ -28,6 +33,7 @@ class Kraken:
     def __init__(self, session, store, key="", secret="", allow_live=False):
         self.session, self.store = session, store
         self.key, self.secret, self.allow_live = key, secret, allow_live
+        diagnostics.register_secrets(key, secret)
         self.lock = asyncio.Lock()
         self.last_request = 0
         self.pairs = {}
@@ -87,14 +93,24 @@ class Kraken:
                     timeout=aiohttp.ClientTimeout(total=12),
                 ) as response:
                     if response.status != 200:
-                        raise SafetyError(
-                            f"Kraken HTTP {response.status}; request outcome may be unknown"
+                        error = (
+                            TransientFeeRead
+                            if method == "TradeVolume"
+                            and (response.status in {408, 429} or 500 <= response.status < 600)
+                            else SafetyError
+                        )
+                        raise error(
+                            f"Kraken {method} HTTP {response.status}; request outcome may be unknown"
                         )
                     result = await response.json()
             except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-                raise SafetyError(
-                    "Kraken transport failure; request outcome may be unknown"
-                ) from exc
+                retryable = isinstance(
+                    exc, (TimeoutError, aiohttp.ClientConnectionError, aiohttp.ClientPayloadError)
+                ) and not isinstance(
+                    exc, (aiohttp.ClientSSLError, aiohttp.ServerFingerprintMismatch)
+                )
+                error = TransientFeeRead if method == "TradeVolume" and retryable else SafetyError
+                raise error("Kraken transport failure; request outcome may be unknown") from exc
             if result.get("error"):
                 # Never echo a remote response body or credentials to logs/browser.
                 known = [
@@ -115,9 +131,18 @@ class Kraken:
                         "EOrder:Post only order",
                     }
                 ]
-                raise ExchangeRejected(
-                    "Kraken rejected request: " + (", ".join(known) or "API error")
+                transient = {"EAPI:Rate limit exceeded", "EService:Unavailable", "EService:Busy"}
+                error = (
+                    TransientFeeRead
+                    if method == "TradeVolume" and all(e in transient for e in result["error"])
+                    else ExchangeRejected
                 )
+                failure = error("Kraken rejected request: " + (", ".join(known) or "API error"))
+                failure.diagnostic_details = {
+                    "endpoint": method,
+                    "exchange_errors": result["error"],
+                }
+                raise failure
             return result["result"]
 
     async def catalog(self):
@@ -230,8 +255,9 @@ class Kraken:
                             if symbol not in pending:
                                 return changes
                             pending.remove(symbol)  # Some REST pairs have no WS v2 ticker.
-        except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError):
-            pass  # Keep valid partial snapshots; quote prices use an independent REST call.
+        except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError) as exc:
+            diagnostics.capture(exc, "market-change-snapshots")
+            # Keep valid partial snapshots; quote prices use an independent REST call.
         return changes
 
     async def marks(self, pairs):
@@ -303,6 +329,7 @@ class Jev:
 
     def __init__(self, session, key, model=DEFAULT_MODEL):
         self.session, self.key, self.model = session, key, model
+        diagnostics.register_secrets(key)
 
     async def decide(self, state):
         if not self.key:
@@ -399,8 +426,8 @@ async def ticker_feed(session, symbols, callback):
                                 )
                     elif message.type in (aiohttp.WSMsgType.ERROR, aiohttp.WSMsgType.CLOSED):
                         break
-        except (aiohttp.ClientError, TimeoutError, SafetyError, ValueError, KeyError):
-            pass
+        except (aiohttp.ClientError, TimeoutError, SafetyError, ValueError, KeyError) as exc:
+            diagnostics.capture(exc, "display-ticker-stream")
         callback("feed", {"status": "disconnected", "retry_seconds": backoff})
         await asyncio.sleep(backoff)
         backoff = min(backoff * 2, 30)

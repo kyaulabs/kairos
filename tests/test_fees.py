@@ -2,11 +2,11 @@ import unittest
 from unittest.mock import patch
 
 from kairos.domain import SafetyError, dec
-from kairos.engine import Engine
 from kairos.fees import AccountFees
 from kairos.settings import DEFAULTS, load_settings, validate_settings
 from kairos.store import Store
 from tests.helpers import BTC, ETH, book, fake_jev, fake_kraken
+from tests.helpers import RuleEngine as Engine
 from tests.test_futures import PAIR, fake_futures
 
 
@@ -139,12 +139,18 @@ class FeeEngineTests(unittest.IsolatedAsyncioTestCase):
     async def test_paper_charges_account_fees_and_htf_uses_them_in_cost_filter(self):
         self.spot.fees.return_value = ({BTC.id: dec(40)}, {BTC.id: dec(80)})
         await self.engine.initialize()
+        for row in self.spot.candles.return_value:
+            row[4] = "10000"
         await self.engine.start()
+        await self.engine.directional(BTC)
+        costs = dec(self.engine.latest_decision["state"]["round_trip_cost_bps"])
+        self.assertGreater(
+            costs, dec(190)
+        )  # Includes the fixture's ~10 bps spread and compounding.
+        self.assertLess(costs, dec(192))
         order = await self.engine.place(BTC, "buy", dec(".002"), dec(10000), book())
         self.assertEqual(dec(order["fee"]), dec(".16"))
         self.assertEqual(self.engine.balance("ZUSD"), dec("979.84"))
-        await self.engine.directional(BTC)
-        self.assertEqual(self.engine.latest_decision["state"]["round_trip_cost_bps"], "180")
         self.spot.add.assert_not_awaited()
 
     async def test_rebalance_uses_traded_market_rate_not_anchor_rate(self):

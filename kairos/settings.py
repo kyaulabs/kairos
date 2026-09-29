@@ -69,13 +69,15 @@ FIELDS = {
     "arb_min_profit_bps": setting("10", ("0", "1000"), strategies=("arbitrage",)),
     "interval_seconds": setting(15, (10, 3600)),
     "candle_minutes": setting(
-        15,
+        60,
         choices={
             n: f"{n // 1440}d" if n >= 1440 else f"{n // 60}h" if n >= 60 else f"{n}m"
             for n in CANDLE_INTERVALS
         },
         strategies=("htf",),
     ),
+    "htf_stop_bps": setting("300", ("10", "5000"), strategies=("htf",), migrate=True),
+    "htf_max_hold_seconds": setting(604800, (3600, 2592000), strategies=("htf",), migrate=True),
     "scalp_window": setting(30, (20, 120), strategies=("scalp",), migrate=True),
     "scalp_sigma": setting("2", ("1", "3"), strategies=("scalp",), migrate=True),
     "scalp_max_efficiency": setting("0.35", ("0.05", "0.8"), strategies=("scalp",), migrate=True),

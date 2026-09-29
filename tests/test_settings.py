@@ -58,6 +58,7 @@ class SettingsTests(unittest.TestCase):
         saved = {
             **DEFAULTS,
             "daily_loss": "17.25",
+            "candle_minutes": 1,
             "leverage": 4,
             "futures_leverage": 3,
             "live_budget": "19",
@@ -67,9 +68,12 @@ class SettingsTests(unittest.TestCase):
         legacy = {
             k: v
             for k, v in saved.items()
-            if not k.startswith(("dca_", "twap_", "rebalance_", "futures_"))
+            if not k.startswith(("dca_", "twap_", "rebalance_", "futures_", "htf_"))
         }
         self.assertEqual(load_settings(legacy)["daily_loss"], "17.25")
+        self.assertEqual(load_settings(legacy)["candle_minutes"], 1)
+        self.assertEqual(load_settings(legacy)["htf_stop_bps"], "300")
+        self.assertEqual(load_settings(legacy)["htf_max_hold_seconds"], 604800)
         for name in ("daily_loss", "order_size", "slippage_bps", "recover_initial", "leverage"):
             with self.subTest(name=name), self.assertRaises(SafetyError):
                 load_settings({k: v for k, v in legacy.items() if k != name})
