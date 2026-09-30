@@ -27,6 +27,25 @@ function fixture(saved = null) {
   return {picker, values, storage, warning, timers, browser, status, document};
 }
 
+test('exchange favorites stay isolated without replacing the existing Kraken watchlist', () => {
+  const {picker, values} = fixture('["XBTUSD"]');
+  picker.setExchange('alpaca');
+  assert.deepEqual(Array.from(picker.favorites), []);
+  picker.toggleFavorite('alpaca:AAPL');
+  assert.equal(values.get('kairos:favorites'), '["XBTUSD"]');
+  assert.equal(values.get('kairos:alpaca:favorites'), '["alpaca:AAPL"]');
+  picker.setExchange('kraken');
+  assert.deepEqual(Array.from(picker.favorites), ['XBTUSD']);
+});
+
+test('Alpaca stocks are scheduled-only rather than tokenized xStocks or HTF markets', () => {
+  const {browser} = fixture();
+  const pair = {id: 'alpaca:AAPL', symbol: 'AAPL/USD', quote: 'USD', kind: 'equity', supported_strategies: ['dca', 'twap', 'rebalance']};
+  assert.match(browser.MarketPicker.kindLabel(pair), /US stock.*IEX/);
+  assert.match(browser.StrategyMarketPicker.limitation(pair, {product: 'spot', quote: 'USD', strategy: 'htf'}), /DCA, TWAP/);
+  assert.equal(browser.StrategyMarketPicker.limitation(pair, {product: 'spot', quote: 'USD', strategy: 'twap'}), '');
+});
+
 test('product filters distinguish margin eligibility from new product execution', () => {
   const {browser} = fixture();
   const {matchesKind, matches, iconSymbol} = browser.MarketPicker;

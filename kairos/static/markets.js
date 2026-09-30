@@ -53,10 +53,14 @@ class MarketPicker {
       });
     }
     window.addEventListener('storage', event => {
-      if (event.key !== 'kairos:favorites' && event.key !== null) return;
+      if (event.key !== this.favoritesKey && event.key !== null) return;
       this.cancelReorder(); this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows(); this.poller.refresh();
     });
     this.renderFooter();
+  }
+  get favoritesKey() { return this.exchange === 'alpaca' ? 'kairos:alpaca:favorites' : 'kairos:favorites'; }
+  setExchange(exchange) {
+    this.exchange = exchange; this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows();
   }
   sortBy(key) {
     if (this.favoritesOnly || !['symbol', 'last', 'volume', 'change_pct'].includes(key)) return;
@@ -83,7 +87,7 @@ class MarketPicker {
     });
   }
   static kindLabel(market) {
-    return {spot: 'Crypto spot', fx: 'FX spot', xstocks: 'xStocks · tokenized', futures: 'Futures'}[market.kind] || 'Spot';
+    return {spot: 'Crypto spot', equity: 'US stock / ETF · IEX', fx: 'FX spot', xstocks: 'xStocks · tokenized', futures: 'Futures'}[market.kind] || 'Spot';
   }
   static matchesKind(market, kind) {
     return !kind || kind === 'all' || (kind === 'margin' ? market.margin === true && market.kind === 'spot' : market.kind === kind);
@@ -91,7 +95,7 @@ class MarketPicker {
   static iconSymbol(market) { return market.kind === 'futures' && market.underlying ? market.underlying.replace(':', '/') : market.symbol; }
   static matches(market, query) {
     const normalize = value => value.toUpperCase().replace(/[^A-Z0-9]/g, '').replaceAll('XBT', 'BTC').replaceAll('XDG', 'DOGE');
-    return [market.symbol, market.id, market.underlying || ''].some(value => normalize(value).includes(normalize(query)));
+    return [market.symbol, market.id, market.name || '', market.underlying || ''].some(value => normalize(value).includes(normalize(query)));
   }
   static percentage(value) {
     return value == null || value === '' || !Number.isFinite(Number(value)) ? '—'
@@ -119,7 +123,7 @@ class MarketPicker {
   }
   loadFavorites() {
     try {
-      const saved = JSON.parse(localStorage.getItem('kairos:favorites') || '[]');
+      const saved = JSON.parse(localStorage.getItem(this.favoritesKey) || '[]');
       return Array.isArray(saved) ? [...new Set(saved.filter(id => typeof id === 'string' && id.length > 0 && id.length <= 64))] : [];
     } catch { return []; }
   }
@@ -131,7 +135,7 @@ class MarketPicker {
   saveFavorites() {
     const warning = document.getElementById('market-storage-status');
     try {
-      localStorage.setItem('kairos:favorites', JSON.stringify(this.favorites));
+      localStorage.setItem(this.favoritesKey, JSON.stringify(this.favorites));
       warning.hidden = true;
     } catch {
       warning.textContent = 'Browser storage is unavailable. Favorites will last only for this page session.';
@@ -284,7 +288,11 @@ class MarketPicker {
     document.getElementById('markets-all').setAttribute('aria-pressed', String(!this.favoritesOnly));
     document.getElementById('markets-favorites').setAttribute('aria-pressed', String(this.favoritesOnly));
     const fragment = document.createDocumentFragment();
-    for (const market of matches) {
+    const shown = this.exchange === 'alpaca' && !this.favoritesOnly ? matches.slice(0, 100) : matches;
+    const count = document.getElementById('market-count');
+    count.hidden = shown.length === matches.length;
+    count.textContent = `Showing ${shown.length} of ${matches.length} markets. Search by ticker or company to narrow the list.`;
+    for (const market of shown) {
       const row = document.createElement('tr');
       row.classList.toggle('selected-market', market.id === this.selected);
       row.dataset.marketRow = market.id;
@@ -349,7 +357,7 @@ class MarketPicker {
     const age = this.received ? Math.max(0, Date.now()/1000-this.received) : null;
     const stale = age === null || age > 30;
     const byId = new Map(this.markets.map(market => [market.id, market]));
-    document.getElementById('market-change-status').textContent = '24h: venue snapshots · hover for age';
+    document.getElementById('market-change-status').textContent = this.exchange === 'alpaca' ? '24h change: unavailable' : '24h: venue snapshots · hover for age';
     for (const row of this.rows.querySelectorAll('[data-market-row]')) {
       const market = byId.get(row.dataset.marketRow);
       const quoteAge = market?.received ? Math.max(0, Date.now()/1000-market.received) : Infinity;
@@ -384,7 +392,7 @@ class MarketPicker {
       this.changeReceived = Number.isFinite(data.change_received) ? data.change_received : 0;
       this.error = data.errors?.length ? 'Some feeds unavailable' : '';
       const status = document.getElementById('market-source-status');
-      status.textContent = (data.errors || []).join(' · '); status.hidden = !this.error;
+      status.textContent = [data.note, ...(data.errors || [])].filter(Boolean).join(' · '); status.hidden = !status.textContent;
       this.catalogChanged(this.markets);
       this.renderRows(); this.renderFooter();
     } catch (error) {

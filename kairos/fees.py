@@ -22,6 +22,8 @@ class AccountFees:
         self.spot, self.futures = spot, futures
         self.rates, self.errors, self.attempts = {}, {}, {}
         self.failures = {}
+        self.hosted_paper = getattr(spot, "hosted_paper", False) is True
+        self.name = "Alpaca planning" if self.hosted_paper else "Kraken account"
 
     async def refresh(self, pairs, *, force=False):
         pairs = list({pair.id: pair for pair in pairs}.values())
@@ -71,7 +73,7 @@ class AccountFees:
                 retryable = isinstance(exc, TransientFeeRead)
                 for pair in due:
                     self.errors[pair.id] = (
-                        "Kraken account fees unavailable; new orders blocked. Check read credentials and fee-query permissions."
+                        f"{self.name} fees unavailable; new orders blocked. Check read credentials and fee-query permissions."
                     )
                     self.failures[pair.id] = (retryable, error_id)
                 raise FeeUnavailable(
@@ -85,7 +87,7 @@ class AccountFees:
         if pair.id in self.errors or not row or not 0 <= time.time() - row["received"] < MAX_AGE:
             retryable, error_id = self.failures.get(pair.id, (False, None))
             raise FeeUnavailable(
-                "Kraken account fees missing or stale; refresh before trading",
+                f"{self.name} fees missing or stale; refresh before trading",
                 retryable=retryable,
                 error_id=error_id,
             )
@@ -126,7 +128,11 @@ class AccountFees:
                 }
             )
         return {
-            "source": "Kraken authenticated TradeVolume",
+            "source": self.spot.fee_source
+            if self.hosted_paper
+            else "Kraken authenticated TradeVolume",
+            "note": self.spot.fee_note if self.hosted_paper else None,
+            "estimated": self.hosted_paper,
             "max_age_seconds": MAX_AGE,
             "markets": rows,
         }

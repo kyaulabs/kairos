@@ -23,11 +23,22 @@
   <script defer src="/static/settings.js"></script>
   <script defer src="/static/settings-help.js"></script>
   <script defer src="/static/assessment.js"></script>
+  <script defer src="/static/sidebar.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
+<aside id="settings-sidebar" class="settings-sidebar" aria-label="Kairos settings navigation">
+  <div class="sidebar-heading"><button id="sidebar-toggle" class="brand" type="button" aria-label="Open Kairos settings" aria-expanded="false" aria-controls="settings-panel" title="Open Kairos settings"><img id="brand-wordmark" src="/static/brand/kairos-wordmark-on-dark.svg" alt="" width="120" height="31"><img id="brand-icon" src="/static/brand/kai-icon-on-dark.svg" alt="" width="48" height="25"><span class="icon icon-menu" aria-hidden="true">☰</span></button></div>
+  <div id="sidebar-body" class="sidebar-body">
+    <nav class="sidebar-rail" aria-label="Settings shortcuts">
+      <button type="button" data-settings-tab="strategy-tab" aria-label="Open Strategy settings" title="Strategy" aria-controls="settings-panel" aria-expanded="false"><span class="icon icon-strategy" aria-hidden="true">♞</span></button>
+      <button type="button" data-settings-tab="capital-tab" aria-label="Open Capital settings" title="Capital" aria-controls="settings-panel" aria-expanded="false"><span class="icon icon-coins" aria-hidden="true"></span></button>
+      <button type="button" data-settings-tab="execution-tab" aria-label="Open Execution settings" title="Execution" aria-controls="settings-panel" aria-expanded="false"><span class="icon icon-execution" aria-hidden="true">↯</span></button>
+    </nav>
+  </div>
+</aside>
+<button id="settings-backdrop" type="button" tabindex="-1" aria-label="Close settings sidebar" hidden></button>
 <header class="desk-header">
-  <a class="brand" href="/" aria-label="Kairos trading desk" title="Kairos · Intelligence, with intention."><img id="brand-wordmark" src="/static/brand/kairos-wordmark-on-dark.svg" alt="" width="120" height="31"><img id="brand-icon" src="/static/brand/kai-icon-on-dark.svg" alt="" width="48" height="25"></a>
   <h1 class="sr-only">Trading desk</h1>
   <button id="market-open" class="market-heading" type="button" aria-haspopup="dialog" aria-controls="market-dialog" title="Choose chart market; does not change the bot"><span class="market-symbol"><span id="market-icons" aria-hidden="true"></span><strong id="market-title">BTC/USD</strong></span><span class="eyebrow">CHART MARKET <span class="icon icon-chevron" aria-hidden="true">▾</span></span></button>
   <div class="metric market-price"><span>Mid price</span><strong id="price" title="Live bid/ask midpoint">—</strong></div>
@@ -38,7 +49,9 @@
   </div>
   <div class="header-controls">
     <span id="connection" class="connection" role="status">Connecting</span>
+    <span class="header-separator" aria-hidden="true">·</span>
     <span id="mode-badge" class="pill">DRY-RUN</span>
+    <button id="quick-stop" class="small danger" type="button" hidden title="Stop the selected exchange and cancel tracked orders">Stop</button>
     <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" aria-haspopup="dialog" aria-controls="appearance-menu" popovertarget="appearance-menu" popovertargetaction="show" aria-expanded="false" aria-describedby="appearance-help" title="Switch to light theme · Right-click for color schemes"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀︎</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
     <span id="appearance-help" class="sr-only">Right-click, press Arrow Down or Shift+F10, or touch and hold for color schemes.</span>
     <div id="appearance-menu" class="appearance-menu" popover="auto" role="dialog" aria-label="Color scheme">
@@ -56,7 +69,6 @@
     <button type="button" data-view="chart" aria-controls="market-panel" aria-pressed="true">Chart</button>
     <button type="button" data-view="assessment" aria-controls="assessment-panel" aria-pressed="false">Assessment</button>
     <button type="button" data-view="orders" aria-controls="records-panel" aria-pressed="false">Orders &amp; more</button>
-    <button type="button" data-view="settings" aria-controls="settings-panel" aria-pressed="false">Settings</button>
   </nav>
   <div class="workspace" data-view="chart">
     <section id="market-panel" class="panel chart-panel" aria-labelledby="chart-title">
@@ -120,9 +132,10 @@
       <div id="equity-view" class="dock-view" role="tabpanel" aria-labelledby="equity-tab" hidden><div class="chart-stage"><svg id="equity-chart" role="img" tabindex="0" aria-label="Bot equity over time"></svg></div><p class="panel-note">Session equity · USD · Includes trading fees · Marks updated each cycle</p></div>
     </section>
 
-    <section id="settings-panel" class="panel settings-panel" aria-labelledby="settings-title">
+    <section id="settings-panel" class="panel settings-panel" aria-labelledby="settings-title" hidden>
       <div class="panel-head"><h2 id="settings-title"><span class="icon icon-settings" aria-hidden="true">☷</span> Kairos settings</h2><strong id="engine-status" class="engine-status">Paused</strong></div>
       <div class="execution-controls" aria-label="Trading controls">
+        <label class="execution-mode exchange-choice">Exchange<select id="exchange" aria-label="Trading exchange" disabled><option value="kraken">Kraken</option><option value="alpaca">Alpaca · hosted paper</option></select></label>
         <label class="execution-mode">Execution<select id="mode"><option value="dry-run">Dry-run</option><option value="trading">Trading — real funds</option></select></label>
         <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="restart" hidden disabled>Restart engine</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
         <span id="engine-strategy" class="muted">—</span>
@@ -236,9 +249,10 @@
 </footer>
 <dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title" aria-describedby="market-dialog-note">
   <div class="market-dialog-head"><div><h2 id="market-dialog-title">Choose a chart market</h2><p id="market-dialog-note">Browse without changing the bot’s trading market.</p></div><button id="market-close" type="button" aria-label="Close market picker"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
-  <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search Kraken markets</span><input id="market-search" type="search" placeholder="Search BTC, AAPLx or PF_XBTUSD" autocomplete="off" spellcheck="false"></label>
+  <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search exchange markets</span><input id="market-search" type="search" placeholder="Search BTC, AAPLx or PF_XBTUSD" autocomplete="off" spellcheck="false"></label>
   <div class="market-filters" aria-label="Market filters"><button id="markets-all" type="button" aria-pressed="true">All markets</button><button id="markets-favorites" type="button" aria-pressed="false"><span class="icon icon-star" aria-hidden="true">☆</span> Favorites</button><label class="market-kind">Product<select id="market-kind"><option value="all">All products</option><option value="spot">Crypto spot</option><option value="margin">Margin-eligible crypto</option><option value="fx">FX spot</option><option value="xstocks">xStocks · tokenized</option><option value="futures">Futures</option></select></label><div class="market-feed-times"><span id="market-feed-status" role="status">Loading prices…</span><span id="market-change-status">Loading 24h change…</span></div></div>
   <div class="market-results" tabindex="0" role="region" aria-label="Search results"><table><thead><tr><th scope="col" aria-sort="ascending"><button class="market-sort" type="button" data-sort="symbol">Market <span class="sort-direction" aria-hidden="true">↑</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="last">Last price <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="change_pct">24h change <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col" aria-sort="none"><button class="market-sort" type="button" data-sort="volume">24h volume · native <span class="sort-direction" aria-hidden="true">↕</span></button></th><th scope="col"><span class="sr-only">Favorite</span></th></tr></thead><tbody id="market-rows"></tbody></table><p id="market-empty" class="empty-state" hidden>No matching markets.</p></div>
+  <p id="market-count" class="panel-note" hidden></p>
   <p id="market-source-status" class="warning" role="status" hidden></p>
   <p id="market-storage-status" class="warning" role="status" hidden></p>
   <p id="favorite-order-help" class="panel-note" hidden>Drag a handle to reorder the footer. Or click a handle, then another to move before it. Focus a handle and use ↑ ↓ to move; Esc cancels.</p>

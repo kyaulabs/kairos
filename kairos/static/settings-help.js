@@ -67,10 +67,10 @@ class SettingsHelp {
     data: 'Read-only execution feed status at the last engine check. Spot-family execution prefers fresh checksum-validated public WebSocket books and confirmed completed candles, with REST bootstrap/recovery. Invalid/stale data fails closed. Futures uses its separate REST adapter. This is not private order/fill streaming, does not change engine cadence, and does not run protection while paused. Chart navigation never changes execution subscriptions.',
   };
   static paragraphs(key, values, schema) {
-    const text = SettingsHelp.fields[key] || SettingsHelp.topics[key];
+    const text = schema.fields[key]?.help || schema.help?.[key] || SettingsHelp.fields[key] || SettingsHelp.topics[key];
     if (!text) throw new Error(`Missing settings help: ${key}`);
     const paragraphs = [text];
-    if (key === 'strategy' && SettingsHelp.strategies[values.strategy]) paragraphs.push(SettingsHelp.strategies[values.strategy]);
+    if (key === 'strategy' && SettingsHelp.strategies[values.strategy]) paragraphs.push(schema.strategies[values.strategy]?.help || SettingsHelp.strategies[values.strategy]);
     if (key === 'pair' && values.strategy === 'rebalance') paragraphs.push('For rebalancing this is an anchor market only. Basket weights below determine which assets can trade.');
     const field = schema.fields[key];
     if (field) {
@@ -98,15 +98,18 @@ class SettingsHelp {
       const control = key === 'pair' ? document.getElementById('pair-search') : form.elements.namedItem(key);
       const label = key === 'pair' ? document.getElementById('bot-market-label') : control.closest('label');
       const heading = document.createElement('div'); heading.className = 'setting-heading';
-      if (key === 'pair') { label.before(heading); heading.append(label); }
-      else {
+      if (key === 'pair') {
+        label.parentElement.classList.add('setting-field');
+        label.before(heading); heading.append(label);
+      } else {
         const wrapper = document.createElement('div'); wrapper.className = `setting-field ${label.className}`;
         label.before(wrapper); control.remove(); label.className = '';
         control.id ||= `setting-${key}`; label.htmlFor = control.id;
-        heading.append(label); wrapper.append(heading);
-        if (field.type === 'boolean') wrapper.prepend(control); else wrapper.append(control);
+        heading.append(label); wrapper.append(heading, control);
       }
-      this.attach(key, heading, label, control);
+      const container = document.createElement('div'); container.className = 'setting-control';
+      control.before(container); container.append(control);
+      this.attach(key, container, label, control);
     }
     for (const id of ['new-program', 'close-futures']) {
       const control = document.getElementById(id);

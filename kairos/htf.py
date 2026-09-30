@@ -48,7 +48,7 @@ def owned(engine, position, mode=None):
             and o.get("htf_id") == position["id"]
             and o["pair"] == engine.settings["pair"]
         ),
-        ZERO,
+        dec((position or {}).get("inventory_adjustment", 0)),
     )
 
 
@@ -129,7 +129,10 @@ def entry_context(engine, pair, view, book):
     exit_price = limit_price(book, exit_side, engine.settings["slippage_bps"])
     residual = bool(held and below_minimum(pair, floor(abs(held), pair.lot), exit_price))
     blockers = []
-    if view.get("entry_execution") == "post-only" and engine.mode != "dry-run":
+    if view.get("entry_execution") in {"post-only", "passive-limit"} and engine.mode not in {
+        "dry-run",
+        "paper",
+    }:
         blockers.append("passive entry experiment is paper-only")
     if previous is None:
         blockers.append("startup baseline")
@@ -441,7 +444,7 @@ async def run(engine):
             pair,
             "hold",
             "HTF waiting: trend, pullback recovery or net target room not satisfied"
-            if view.get("entry_execution") == "post-only"
+            if view.get("entry_execution") in {"post-only", "passive-limit"}
             else "HTF waiting: trend and historical momentum/cost screen not satisfied",
             data,
         )
@@ -473,7 +476,7 @@ async def run(engine):
             data,
         )
         return
-    maker = view.get("entry_execution") == "post-only"
+    maker = view.get("entry_execution") in {"post-only", "passive-limit"}
     price = (
         dec(view["entry_prices"][side])
         if maker
@@ -537,6 +540,8 @@ async def run(engine):
         "deadline": now + settings["htf_max_hold_seconds"],
         "exit_reason": None,
     }
+    if residual and "inventory_adjustment" in previous:
+        position["inventory_adjustment"] = previous["inventory_adjustment"]
     if maker:
         position["target"] = view["entry_targets"][side]
         position["entry_policy"] = view["entry_policy"]
@@ -562,8 +567,12 @@ async def run(engine):
     try:
         await engine.place(pair, side, volume, price, book, maker=maker, review=assessment)
     except ExpiredReview as exc:
+        if maker:
+            # Hosted-paper preflight may have reconciled a fee debit on the retained plan.
+            state = snapshot(engine)
+        else:
+            state["position"] = previous
         state.pop("entry_attempt", None)
-        state["position"] = previous
         state["pending_signal"] = side
         engine.store.put(key(engine), state)
         report(engine, pair, "hold", str(exc), data)

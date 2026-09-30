@@ -29,6 +29,13 @@ FIELDS = {
 }
 
 
+def fill_cost(order):
+    """Count conservative hosted-paper fee reserves until actual fees are attributable."""
+    cost = dec(order["cost"])
+    reserve = cost * dec(order.get("planning_fee_bps", 0)) / BPS
+    return cost + max(dec(order["fee"]), reserve)
+
+
 def key(engine):
     product = "futures:" if engine.settings["product"] == "futures" else ""
     return f"program:{product}{engine.mode}:{engine.settings['strategy']}"
@@ -117,9 +124,7 @@ def snapshot(engine):
             )
             for pair in {order["pair"] for order in children}
         },
-        "spent_including_fees": str(
-            sum((dec(order["cost"]) + dec(order["fee"]) for order in children), ZERO)
-        ),
+        "spent_including_fees": str(sum((fill_cost(order) for order in children), ZERO)),
         "orders": len(children),
     }
 
@@ -260,7 +265,7 @@ async def scheduled_order(engine, program, slot):
     fee = engine.fees.reserve(pair) / BPS
     children = orders(engine, program)
     if settings["strategy"] == "dca":
-        spent = sum((dec(order["cost"]) + dec(order["fee"]) for order in children), ZERO)
+        spent = sum((fill_cost(order) for order in children), ZERO)
         budget = min(
             dec(settings["dca_amount"]), dec(settings["dca_amount"]) * settings["dca_count"] - spent
         )
@@ -360,7 +365,7 @@ async def rebalance(engine, program):
     # Across run IDs: rearming or editing a basket cannot erase today's turnover.
     turnover = sum(
         (
-            dec(order["cost"]) + dec(order["fee"])
+            fill_cost(order)
             for order in engine.orders(engine.mode)
             if order["strategy"] == "rebalance" and order["created"] >= day_start
         ),
