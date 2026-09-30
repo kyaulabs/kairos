@@ -95,7 +95,9 @@ def collect(registry, plan, get=public_get, clock=time.time):
         params["end"] = datetime.fromtimestamp(end - 1, UTC).isoformat()
         rows = {s: [] for s in plan["universe"]}
         pages, tokens = [], set()
-        for _ in range(24):
+        # Aggregated historical pages can contain far fewer than the requested 10,000
+        # rows. Bound requests as well as the two-symbol/four-year time range.
+        for _ in range(512):
             data = get(params)
             received = clock()
             pages.append(
