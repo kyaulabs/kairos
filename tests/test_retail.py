@@ -12,9 +12,9 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from kairos.accounts import SOURCES, account_snapshot
 from kairos.clients import Kraken
-from kairos.domain import SafetyError
+from kairos.domain import SafetyError, dec
 from kairos.engine import Engine
-from kairos.retail import Futures, RetailMarkets, futures_signature
+from kairos.retail import Futures, RetailMarkets, futures_signature, usd_volume
 from kairos.store import Store
 from kairos.web import create_app
 from tests.helpers import BTC, fake_jev, fake_kraken
@@ -56,7 +56,13 @@ def retail_clients():
             }
         if method == "Ticker":
             return {
-                "AAPLxUSD": {"a": ["341"], "b": ["339"], "c": ["340"], "v": ["1", "500"]},
+                "AAPLxUSD": {
+                    "a": ["341"],
+                    "b": ["339"],
+                    "c": ["340"],
+                    "v": ["1", "500"],
+                    "p": ["330", "300"],
+                },
                 "AAPLSPVUSD": {"a": ["555"], "b": ["553"], "c": ["554"], "v": ["1", "900"]},
             }
         if method == "OHLC":
@@ -162,6 +168,7 @@ def retail_clients():
                         "ask": 201,
                         "last": 200,
                         "vol24h": 12,
+                        "volumeQuote": "2345.6",
                         "change24h": -2,
                         "markPrice": 200.5,
                         "fundingRate": 0.01,
@@ -236,6 +243,70 @@ def retail_clients():
 
 
 class RetailTests(unittest.IsolatedAsyncioTestCase):
+    async def test_usd_turnover_uses_matching_vwap_not_last_price_and_keeps_native_data(self):
+        market = {"kind": "spot", "symbol": "BTC/USD"}
+        quote = {"volume": "2", "vwap": "100.25", "last": "900", "received": 1000}
+        original = dict(quote)
+        result = usd_volume(market, quote, {}, None)
+        self.assertEqual(result["volume"], "200.50")
+        self.assertEqual(result["volume_unit"], "USD")
+        self.assertFalse(result["volume_estimated"])
+        self.assertEqual(quote, original)
+        for vwap in (None, "NaN", "-1", "0"):
+            self.assertIsNone(usd_volume(market, {**quote, "vwap": vwap}, {}, None)["volume"])
+        self.assertEqual(
+            usd_volume(market, {**quote, "volume": "0", "vwap": None}, {}, None)["volume"], "0"
+        )
+
+    async def test_non_usd_pairs_use_existing_fx_quotes_without_assuming_a_stablecoin_peg(self):
+        spot, _ = retail_clients()
+        usdt = replace(BTC, id="USDTUSD", symbol="USDT/USD", base="USDT")
+        inverse = replace(BTC, id="USDGBP", symbol="USD/GBP", base="ZUSD", quote="ZGBP")
+        spot.pairs.update({usdt.id: usdt, inverse.id: inverse})
+        retail = RetailMarkets(spot)
+        rates = retail.usd_rates(
+            {
+                "ZEURZUSD": {"bid": "1.09", "ask": "1.11"},
+                usdt.id: {"bid": ".97", "ask": ".99"},
+                inverse.id: {"bid": ".79", "ask": ".81"},
+            }
+        )
+        self.assertEqual(
+            rates, {"USD": dec(1), "EUR": dec("1.10"), "USDT": dec(".98"), "GBP": dec("1.25")}
+        )
+        quote = {"volume": "10", "vwap": "200", "received": 1000}
+        for currency, expected in (("EUR", "2200.00"), ("USDT", "1960.00"), ("GBP", "2500.00")):
+            result = usd_volume({"kind": "spot", "symbol": f"ETH/{currency}"}, quote, rates, 990)
+            self.assertEqual(result["volume"], expected)
+            self.assertTrue(result["volume_estimated"])
+            self.assertEqual(result["volume_received"], 990)
+        market = {"kind": "spot", "symbol": "ETH/EUR"}
+        self.assertIsNone(usd_volume(market, quote, {}, 1000)["volume"])
+        self.assertIsNone(usd_volume(market, quote, rates, 960)["volume"])
+        spot.request.assert_not_awaited()
+
+    async def test_futures_uses_reported_quote_turnover_not_contract_count_or_mark_price(self):
+        for kind in ("flexible_futures", "futures_inverse"):
+            market = {
+                "kind": "futures",
+                "quote": "USD",
+                "contract_type": kind,
+                "contract_size": "10",
+            }
+            quote = {
+                "volume": "20000",
+                "last": "100000",
+                "volume_quote": "12345.67",
+                "received": 1000,
+            }
+            self.assertEqual(usd_volume(market, quote, {}, None)["volume"], "12345.67")
+            self.assertIsNone(
+                usd_volume(market, {**quote, "volume_quote": None}, {}, None)["volume"]
+            )
+            self.assertEqual(
+                usd_volume(market, {**quote, "volume_quote": "0"}, {}, None)["volume"], "0"
+            )
+
     async def test_catalog_deduplicates_rebased_aliases_and_keeps_execution_separate(self):
         spot, futures = retail_clients()
         before = dict(spot.pairs)
@@ -441,6 +512,9 @@ class RetailWebTests(unittest.IsolatedAsyncioTestCase):
         quotes = {row["id"]: row for row in data["markets"]}
         self.assertEqual(quotes["futures:PF_XBTUSD"]["last"], "200")
         self.assertEqual(quotes["xstocks:AAPLxUSD"]["last"], "340")
+        self.assertEqual(quotes["xstocks:AAPLxUSD"]["volume"], "150000")
+        self.assertEqual(quotes["futures:PF_XBTUSD"]["volume"], "2345.6")
+        self.assertTrue(all(row["volume_unit"] == "USD" for row in quotes.values()))
         self.assertTrue(any("Spot quotes unavailable" in error for error in data["errors"]))
         self.assertEqual(self.engine.settings, settings)
         self.assertEqual(self.engine.ledger(), ledger)

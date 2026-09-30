@@ -22,7 +22,7 @@ from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
 from kairos.exchanges import ExchangeDesk
 from kairos.futures_client import FuturesTrading
-from kairos.retail import RetailMarkets
+from kairos.retail import RetailMarkets, usd_volume
 from kairos.settings import schema
 from kairos.store import Store, encode
 
@@ -221,6 +221,7 @@ async def markets(request):
                     received=time.time() if values else None,
                     expires=time.monotonic() + 60,
                 )
+            rates = retail.usd_rates(spot.get("values", {}))
             rows = []
             for identifier, instrument in instruments.items():
                 quote = (
@@ -236,6 +237,7 @@ async def markets(request):
                     {
                         **instrument,
                         **quote,
+                        **usd_volume(instrument, quote, rates, spot.get("received")),
                         "change_pct": quote.get("change_pct")
                         if derivative
                         else changes["values"].get(identifier),

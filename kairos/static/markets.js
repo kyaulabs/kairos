@@ -261,6 +261,9 @@ class MarketPicker {
   static number(value) {
     return value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   }
+  static usd(value) {
+    return value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString(undefined, {style: 'currency', currency: 'USD', maximumFractionDigits: 2});
+  }
   ticker(id) {
     const market = this.markets.find(row => row.id === id);
     if (!market || !(Number(market.bid) > 0) || !(Number(market.ask) > 0)) return null;
@@ -284,7 +287,7 @@ class MarketPicker {
       button.closest('th').setAttribute('aria-sort', active ? this.sortDirection : 'none');
       button.querySelector('.sort-direction').textContent = this.favoritesOnly ? '' : active ? (this.sortDirection === 'ascending' ? '↑' : '↓') : '↕';
     }
-    document.getElementById('market-volume-label').textContent = this.exchange === 'alpaca' ? 'Volume · native' : '24h volume · native';
+    document.getElementById('market-volume-label').textContent = this.exchange === 'alpaca' ? 'Volume · USD' : '24h volume · USD';
     document.getElementById('favorite-order-help').hidden = !this.favoritesOnly;
     document.getElementById('markets-all').setAttribute('aria-pressed', String(!this.favoritesOnly));
     document.getElementById('markets-favorites').setAttribute('aria-pressed', String(this.favoritesOnly));
@@ -315,9 +318,10 @@ class MarketPicker {
       marketName.append(button); name.append(marketName);
       price.textContent = MarketPicker.number(market.last);
       volume.className = 'market-volume';
-      volume.textContent = MarketPicker.number(market.volume);
+      volume.textContent = `${market.volume_estimated ? '≈ ' : ''}${MarketPicker.usd(market.volume)}`;
       const unit = document.createElement('small');
-      unit.textContent = this.exchange === 'alpaca' ? `${market.kind === 'equity' ? 'IEX daily' : '24h'} · ${market.volume_unit || ''}${market.volume != null && Date.now()/1000 - market.volume_received > 600 ? ' · cached' : ''}` : market.volume_unit || '';
+      unit.textContent = this.exchange === 'alpaca' ? `${market.kind === 'equity' ? 'IEX daily' : '24h'} · USD${market.volume != null && Date.now()/1000 - market.volume_received > 600 ? ' · cached' : ''}` : 'USD';
+      volume.title = MarketPicker.volumeTitle(market);
       volume.append(unit);
       const star = document.createElement('button');
       const saved = this.favorites.includes(market.id);
@@ -340,12 +344,13 @@ class MarketPicker {
   static volumeText(market) {
     const age = market?.volume_received ? Date.now()/1000 - market.volume_received : Infinity;
     const label = market?.kind === 'equity' ? 'IEX daily' : '24h';
-    return `${label} vol ${MarketPicker.number(market?.volume)} ${market?.volume_unit || ''}${market?.volume != null && age > 600 ? ' · cached' : ''}`.trim();
+    return `${label} vol ${MarketPicker.usd(market?.volume)} USD${market?.volume != null && age > 600 ? ' · cached' : ''}`.trim();
   }
   static volumeTitle(market) {
-    if (market?.volume == null) return 'Volume unavailable; only favorites and the watched chart refresh volume.';
+    if (market?.volume_note) return market.volume_note;
+    if (market?.volume == null) return 'USD volume unavailable; only favorites and the watched chart refresh Alpaca volume.';
     const age = Math.max(0, Date.now()/1000 - market.volume_received);
-    const period = market.kind === 'equity' ? `IEX-only shares · session ${market.volume_session} · not consolidated US volume` : `Alpaca US only · 24h of completed five-minute bars ending ${new Date(market.volume_asof * 1000).toLocaleString()}`;
+    const period = market.kind === 'equity' ? `IEX-only USD turnover (shares × daily VWAP) · session ${market.volume_session} · not consolidated US volume` : `Alpaca US USD turnover (sum of volume × bar VWAP) · 24h of completed five-minute bars ending ${new Date(market.volume_asof * 1000).toLocaleString()}`;
     return `${period} · ${age > 600 ? 'STALE CACHE · ' : ''}fetched ${Math.floor(age/60)}m ago`;
   }
   renderFooter() {
@@ -358,10 +363,6 @@ class MarketPicker {
       button.setAttribute('aria-pressed', String(id === this.selected));
       name.textContent = market?.symbol || id; price.textContent = MarketPicker.number(market?.last);
       button.append(MarketPicker.pairIcon(market ? MarketPicker.iconSymbol(market) : id), name, price);
-      if (this.exchange === 'alpaca') {
-        const volume = document.createElement('small'); volume.className = 'watch-volume';
-        volume.textContent = MarketPicker.volumeText(market); button.append(volume);
-      }
       button.addEventListener('click', () => this.choose(market));
       fragment.append(button);
     }
@@ -390,14 +391,14 @@ class MarketPicker {
       const cell = row.querySelector('.market-change');
       cell.classList.toggle('stale', changeAge > 90);
       cell.title = market?.change_pct == null ? 'Rolling 24h change unavailable' : `${changeAge > 90 ? 'STALE · ' : ''}24h change snapshot ${changeAge.toFixed(0)}s ago`;
-      if (this.exchange === 'alpaca') row.querySelector('.market-volume').title = MarketPicker.volumeTitle(market);
+      row.querySelector('.market-volume').title = MarketPicker.volumeTitle(market);
     }
     document.getElementById('market-feed-status').textContent = this.error || (age === null ? 'Loading prices…' : `${stale ? 'STALE · ' : ''}Updated ${age.toFixed(0)}s ago`);
     for (const button of this.watchlist.querySelectorAll('.watch-market')) {
       const market = this.markets.find(row => row.id === button.dataset.watch);
       const quoteAge = market?.received ? Math.max(0, Date.now()/1000-market.received) : Infinity;
       button.classList.toggle('stale', quoteAge > 30);
-      button.title = `${market?.symbol || button.dataset.watch} · ${market ? MarketPicker.kindLabel(market) : 'Unavailable'} · ${market?.last == null ? 'Price unavailable' : `${quoteAge > 30 ? 'STALE · ' : ''}Quote ${quoteAge.toFixed(0)}s ago`} · Chart only${this.exchange === 'alpaca' ? ` · ${MarketPicker.volumeTitle(market)}` : ''}`;
+      button.title = `${market?.symbol || button.dataset.watch} · ${market ? MarketPicker.kindLabel(market) : 'Unavailable'} · ${market?.last == null ? 'Price unavailable' : `${quoteAge > 30 ? 'STALE · ' : ''}Quote ${quoteAge.toFixed(0)}s ago`} · Chart only`;
     }
   }
   async refresh(signal) {

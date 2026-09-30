@@ -102,13 +102,13 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_market_tickers_are_public_and_use_24_hour_volume(self):
         store = Store(":memory:")
-        row = {"a": ["101"], "b": ["99"], "c": ["100"], "v": ["2", "12.5"]}
+        row = {"a": ["101"], "b": ["99"], "c": ["100"], "v": ["2", "12.5"], "p": ["95", "90"]}
         session = Session({"error": [], "result": {BTC.id: row, "UNKNOWN": row}})
         client = Kraken(session, store)
         client.pairs = {BTC.id: BTC}
         self.assertEqual(
             await client.market_tickers(),
-            {BTC.id: {"bid": "99", "ask": "101", "last": "100", "volume": "12.5"}},
+            {BTC.id: {"bid": "99", "ask": "101", "last": "100", "volume": "12.5", "vwap": "90"}},
         )
         args, kwargs = session.calls[0]
         self.assertEqual(args, ("GET", "https://api.kraken.com/0/public/Ticker"))
