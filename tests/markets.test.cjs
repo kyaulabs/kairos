@@ -370,3 +370,82 @@ test('reorder remains usable with a visible warning when browser storage fails',
   assert.equal(warning.hidden, false);
   assert.match(warning.textContent, /page session/);
 });
+
+test('Alpaca chooser volume subscriptions contain only watched chart and favorites', async () => {
+  const {picker} = fixture();
+  picker.exchange = 'alpaca';
+  picker.markets = ['watched', 'favorite', 'browse-only', 'bot-not-watched'].map(id => ({id, symbol: id}));
+  picker.selected = 'watched'; picker.favorites = ['favorite', 'delisted'];
+  picker.dialog.open = true;
+  const queries = [];
+  picker.request = async path => {
+    queries.push(new URLSearchParams(path.split('?')[1]));
+    return {received: 123, markets: picker.markets};
+  };
+  await picker.refresh();
+  assert.equal(queries[0].has('ids'), false); // Full chooser catalog remains available.
+  assert.equal(queries[0].has('volume_ids'), false);
+  assert.equal(queries[1].get('ids'), 'watched,favorite');
+  assert.equal(queries[1].get('volume_ids'), 'watched,favorite');
+  picker.sortBy('volume');
+  await picker.refresh();
+  assert.equal(queries[2].has('volume_ids'), false);
+  assert.equal(queries[3].get('volume_ids'), 'watched,favorite');
+  picker.favorites = []; picker.selected = 'browse-only';
+  await picker.refresh();
+  assert.equal(queries[4].has('volume_ids'), false);
+  assert.equal(queries[5].get('volume_ids'), 'browse-only');
+});
+
+test('all Alpaca favorites are fetched in bounded batches, never the remaining catalog', async () => {
+  const {picker} = fixture();
+  picker.exchange = 'alpaca';
+  picker.markets = Array.from({length: 260}, (_, i) => ({id: `m${i}`, symbol: `m${i}`}));
+  picker.favorites = picker.markets.slice(0, 205).map(row => row.id);
+  picker.selected = 'm250'; picker.dialog.open = true;
+  const fetched = [];
+  picker.request = async path => {
+    const params = new URLSearchParams(path.split('?')[1]);
+    if (!params.has('ids')) {
+      assert.equal(params.has('volume_ids'), false);
+      return {received: 123, markets: picker.markets};
+    }
+    const ids = params.get('volume_ids').split(',');
+    assert.ok(ids.length <= 100);
+    fetched.push(...ids);
+    return {received: 123, partial: params.has('ids'), markets: params.has('ids') ? picker.markets.filter(row => ids.includes(row.id)) : picker.markets};
+  };
+  await picker.refresh();
+  assert.deepEqual(fetched, [...picker.favorites, 'm250']);
+  assert.equal(new Set(fetched).size, 206);
+  assert.equal(picker.markets.length, 260);
+});
+
+test('initial discovery does not warm the entire Alpaca catalog and Kraken never subscribes', async () => {
+  const {picker} = fixture();
+  picker.exchange = 'alpaca'; picker.selected = 'watched'; picker.favorites = ['favorite', 'removed'];
+  const queries = [];
+  picker.request = async path => {
+    queries.push(path);
+    return {received: 123, markets: ['watched', 'favorite', 'other'].map(id => ({id, symbol: id}))};
+  };
+  await picker.refresh();
+  assert.equal(queries[0], 'markets');
+  assert.equal(new URLSearchParams(queries[1].split('?')[1]).get('volume_ids'), 'watched,favorite');
+  picker.exchange = 'kraken';
+  await picker.refresh();
+  assert.equal(new URLSearchParams(queries[2].split('?')[1]).has('volume_ids'), false);
+});
+
+test('volume labels distinguish IEX daily, crypto 24h, zero and stale cached values', () => {
+  const {browser} = fixture(), Picker = browser.MarketPicker;
+  const stock = {kind: 'equity', volume: '0', volume_unit: 'shares', volume_received: Date.now()/1000, volume_session: '2026-09-29'};
+  assert.equal(Picker.volumeText(stock), 'IEX daily vol 0 shares');
+  assert.match(Picker.volumeTitle(stock), /IEX-only shares · session 2026-09-29 · not consolidated/);
+  const crypto = {kind: 'spot', volume: '10', volume_unit: 'BTC', volume_received: Date.now()/1000 - 601, volume_asof: Date.now()/1000 - 700};
+  assert.equal(Picker.volumeText(crypto), '24h vol 10 BTC · cached');
+  assert.match(Picker.volumeTitle(crypto), /24h of completed five-minute bars/);
+  assert.match(Picker.volumeTitle(crypto), /STALE CACHE/);
+  assert.match(Picker.volumeText({kind: 'equity'}), /IEX daily vol —/);
+  assert.match(Picker.volumeTitle({}), /Volume unavailable/);
+});
