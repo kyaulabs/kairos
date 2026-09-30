@@ -439,13 +439,35 @@ test('initial discovery does not warm the entire Alpaca catalog and Kraken never
 
 test('volume labels distinguish IEX daily, crypto 24h, zero and stale cached values', () => {
   const {browser} = fixture(), Picker = browser.MarketPicker;
-  const stock = {kind: 'equity', volume: '0', volume_unit: 'shares', volume_received: Date.now()/1000, volume_session: '2026-09-29'};
-  assert.equal(Picker.volumeText(stock), 'IEX daily vol 0 shares');
-  assert.match(Picker.volumeTitle(stock), /IEX-only shares · session 2026-09-29 · not consolidated/);
-  const crypto = {kind: 'spot', volume: '10', volume_unit: 'BTC', volume_received: Date.now()/1000 - 601, volume_asof: Date.now()/1000 - 700};
-  assert.equal(Picker.volumeText(crypto), '24h vol 10 BTC · cached');
+  const stock = {kind: 'equity', volume: '0', volume_unit: 'USD', volume_received: Date.now()/1000, volume_session: '2026-09-29'};
+  assert.equal(Picker.volumeText(stock), 'IEX daily vol $0.00 USD');
+  assert.match(Picker.volumeTitle(stock), /IEX-only USD turnover .*session 2026-09-29 · not consolidated/);
+  const crypto = {kind: 'spot', volume: '10', volume_unit: 'USD', volume_received: Date.now()/1000 - 601, volume_asof: Date.now()/1000 - 700};
+  assert.equal(Picker.volumeText(crypto), '24h vol $10.00 USD · cached');
   assert.match(Picker.volumeTitle(crypto), /24h of completed five-minute bars/);
   assert.match(Picker.volumeTitle(crypto), /STALE CACHE/);
   assert.match(Picker.volumeText({kind: 'equity'}), /IEX daily vol —/);
-  assert.match(Picker.volumeTitle({}), /Volume unavailable/);
+  assert.match(Picker.volumeTitle({}), /USD volume unavailable/);
+});
+
+test('favorites footer stays price-only even when USD volume is cached', () => {
+  const {picker, browser, document} = fixture();
+  const node = tag => ({tag, dataset: {}, children: [], classList: {toggle() {}},
+    append(...children) { this.children.push(...children); }, setAttribute() {}, addEventListener() {}});
+  document.activeElement = {dataset: {}};
+  document.createDocumentFragment = () => node('fragment');
+  document.createElement = node;
+  browser.MarketPicker.pairIcon = () => node('icon');
+  picker.exchange = 'alpaca'; picker.selected = 'BTC'; picker.favorites = ['BTC'];
+  picker.markets = [{id: 'BTC', symbol: 'BTC/USD', kind: 'spot', last: '100', received: Date.now()/1000,
+    volume: '12345', volume_unit: 'USD', volume_received: Date.now()/1000, volume_asof: Date.now()/1000}];
+  picker.rows = {querySelectorAll: () => []};
+  picker.watchlist = {replaceChildren(fragment) { this.children = fragment.children; }, querySelectorAll() { return this.children; }};
+  browser.MarketPicker.prototype.renderFooter.call(picker);
+  const button = picker.watchlist.children[0];
+  assert.deepEqual(button.children.map(child => child.tag), ['icon', 'span', 'strong']);
+  assert.equal(button.children[2].textContent, '100');
+  browser.MarketPicker.prototype.updateFreshness.call(picker);
+  assert.doesNotMatch(button.title, /volume|turnover|vol /i);
+  assert.deepEqual(Array.from(picker.favorites), ['BTC']);
 });

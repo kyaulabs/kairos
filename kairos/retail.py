@@ -109,6 +109,51 @@ class Futures:
         ]
 
 
+def quote_turnover(volume, vwap):
+    """Reported native volume times its matching-period VWAP, never the latest price."""
+    volume = dec(volume)
+    if volume < 0:
+        raise SafetyError("Invalid market volume")
+    if not volume:
+        return dec(0)
+    vwap = dec(vwap)
+    if vwap <= 0:
+        raise SafetyError("Missing or invalid volume VWAP")
+    return volume * vwap
+
+
+def usd_volume(market, quote, rates, rate_received):
+    """Display turnover only; no execution prices or native candle units are changed."""
+    result = {"volume": None, "volume_unit": "USD", "volume_received": quote.get("received")}
+    try:
+        derivative = market["kind"] == "futures"
+        currency = market["quote"] if derivative else market["symbol"].split("/")[1]
+        value = (
+            dec(quote["volume_quote"])
+            if derivative
+            else quote_turnover(quote.get("volume"), quote.get("vwap"))
+        )
+        if value < 0:
+            raise SafetyError("Invalid quote turnover")
+        note = (
+            "24h USD turnover reported by Kraken Futures"
+            if derivative
+            else "24h USD turnover: volume × 24h VWAP"
+        )
+        if currency != "USD":
+            # Reuse the existing spot snapshot. Never assume stablecoins equal USD,
+            # fetch additional conversions, or silently label native units as USD.
+            if rate_received is None or rate_received < (quote.get("received") or 0) - 30:
+                raise SafetyError("USD conversion snapshot unavailable")
+            value *= rates[currency]
+            result["volume_received"] = min(quote["received"], rate_received)
+            note = f"Estimated 24h USD turnover: quote turnover × {currency}/USD snapshot midpoint"
+        result.update(volume=str(value), volume_note=note, volume_estimated=currency != "USD")
+    except (SafetyError, KeyError, TypeError, IndexError):
+        result["volume_note"] = "USD volume unavailable: missing turnover or USD conversion data"
+    return result
+
+
 def spot_instrument(pair):
     base, quote_currency = pair.symbol.split("/")
     return {
@@ -116,7 +161,7 @@ def spot_instrument(pair):
         "kind": "fx" if base in FIAT and quote_currency in FIAT else "spot",
         "venue": "spot",
         "margin": bool(pair.leverage_buy and pair.leverage_sell),
-        "volume_unit": base,
+        "volume_unit": "USD",
         "chart_volume_unit": "base asset",
         "execution_reason": "",
     }
@@ -170,7 +215,7 @@ class RetailMarkets:
                                 "margin": bool(
                                     row.get("leverage_buy") and row.get("leverage_sell")
                                 ),
-                                "volume_unit": row["base"],
+                                "volume_unit": "USD",
                                 "chart_volume_unit": "token units",
                                 "execution_reason": "xStocks are browse-only; tokenized-asset execution is not integrated.",
                             }
@@ -196,7 +241,7 @@ class RetailMarkets:
                                 "margin": False,
                                 "contract_type": row["type"],
                                 "contract_size": str(dec(row["contractSize"])),
-                                "volume_unit": "contracts",
+                                "volume_unit": "USD",
                                 "chart_volume_unit": "contract units",
                                 "linear_perpetual": linear_perpetual(row),
                                 "execution_reason": ""
@@ -215,6 +260,26 @@ class RetailMarkets:
             self.expires = time.monotonic() + (30 if self.catalog_errors else 300)
             return self.instruments()
 
+    def usd_rates(self, tickers):
+        rates = {"USD": dec(1)}
+        for key, pair in self.spot.pairs.items():
+            base, quote_currency = pair.symbol.split("/")
+            if "USD" not in {base, quote_currency}:
+                continue
+            try:
+                row = tickers[key]
+                bid, ask = dec(row["bid"]), dec(row["ask"])
+                if not 0 < bid <= ask:
+                    continue
+                mid = (bid + ask) / 2
+                if quote_currency == "USD":
+                    rates[base] = mid
+                else:
+                    rates.setdefault(quote_currency, 1 / mid)
+            except (KeyError, SafetyError):
+                continue
+        return rates
+
     async def extra_quotes(self):
         errors = {}
 
@@ -229,13 +294,16 @@ class RetailMarkets:
                         row = data.get(market["raw_id"])
                         if row:
                             values[identifier] = {
-                                target: str(dec(row[source][index]))
-                                for target, source, index in (
-                                    ("bid", "b", 0),
-                                    ("ask", "a", 0),
-                                    ("last", "c", 0),
-                                    ("volume", "v", 1),
-                                )
+                                "vwap": str(dec(row["p"][1])) if row.get("p") else None,
+                                **{
+                                    target: str(dec(row[source][index]))
+                                    for target, source, index in (
+                                        ("bid", "b", 0),
+                                        ("ask", "a", 0),
+                                        ("last", "c", 0),
+                                        ("volume", "v", 1),
+                                    )
+                                },
                             }
                 else:
                     data = await self.futures.get("tickers")
@@ -250,6 +318,7 @@ class RetailMarkets:
                                 ("ask", "ask"),
                                 ("last", "last"),
                                 ("volume", "vol24h"),
+                                ("volume_quote", "volumeQuote"),
                                 ("change_pct", "change24h"),
                                 ("mark", "markPrice"),
                                 ("funding_rate", "fundingRate"),

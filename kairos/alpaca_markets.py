@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from kairos.alpaca import iso, timestamp
 from kairos.domain import SafetyError, dec
 from kairos.programs import STRATEGIES
+from kairos.retail import quote_turnover
 
 ACCOUNT_SOURCES = {
     "alpaca-account": "Alpaca paper account",
@@ -56,7 +57,7 @@ class AlpacaMarkets:
                         bar = snapshot.get("dailyBar")
                         if not bar:
                             continue
-                        value, stamp = dec(bar["v"]), timestamp(bar["t"])
+                        value, stamp = quote_turnover(bar["v"], bar.get("vw")), timestamp(bar["t"])
                         if value < 0 or stamp > now:
                             raise SafetyError("Invalid Alpaca daily volume")
                         updates[symbols[symbol]] = {
@@ -97,7 +98,9 @@ class AlpacaMarkets:
                                 ):
                                     raise SafetyError("Invalid or duplicate Alpaca volume bar")
                                 seen.add((symbol, stamp))
-                                totals[symbol] = totals.get(symbol, dec(0)) + value
+                                totals[symbol] = totals.get(symbol, dec(0)) + quote_turnover(
+                                    value, bar.get("vw")
+                                )
                         token = data.get("next_page_token")
                         if not token:
                             break
@@ -127,7 +130,7 @@ class AlpacaMarkets:
                 "kind": "equity" if self.spot.is_equity(pair) else "spot",
                 "venue": "alpaca",
                 "margin": False,
-                "volume_unit": "shares" if self.spot.is_equity(pair) else pair.base,
+                "volume_unit": "USD",
                 "chart_volume_unit": "shares" if self.spot.is_equity(pair) else "base asset",
                 "execution_reason": "",
                 "price_label": "IEX mid quote" if self.spot.is_equity(pair) else "mid quote",
