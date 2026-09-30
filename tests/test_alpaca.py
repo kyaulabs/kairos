@@ -490,6 +490,33 @@ class AlpacaEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([o["side"] for o in self.engine.orders()], ["buy", "sell"])
         self.assertEqual(self.engine.ledger()["initial"], "500")
 
+    async def test_initial_exchange_is_saved_and_environment_changes_cannot_abandon_it(self):
+        root = Store(":memory:")
+        try:
+            self.engine.run = AsyncMock()
+            factories = {"kraken": lambda _: None, "alpaca": lambda _: self.engine}
+            desk = ExchangeDesk({}, root, factories, default="alpaca")
+            self.assertEqual(desk.active, "alpaca")
+            await desk.initialize()
+            self.assertEqual(root.get("active-exchange"), "alpaca")
+            self.assertEqual(ExchangeDesk({}, root, factories, default="kraken").active, "alpaca")
+            self.assertFalse(self.engine.running)
+            self.assertFalse(self.engine.paper_armed)
+        finally:
+            root.close()
+
+    async def test_legacy_kraken_state_cannot_be_bypassed_by_an_environment_default(self):
+        root = Store(":memory:")
+        try:
+            root.put("ledger:dry-run", {"balances": {"ZUSD": "500", "LINK": "1"}})
+            before = root.get("ledger:dry-run")
+            desk = ExchangeDesk({}, root, {"kraken": None, "alpaca": None}, default="alpaca")
+            self.assertEqual(desk.active, "kraken")
+            self.assertEqual(root.get("ledger:dry-run"), before)
+            self.assertIsNone(root.get("active-exchange"))
+        finally:
+            root.close()
+
     async def test_switch_preserves_isolated_state_and_remains_paused(self):
         peer_store = Store(":memory:")
         peer_broker = PaperBroker()
