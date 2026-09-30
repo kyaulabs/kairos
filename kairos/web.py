@@ -14,9 +14,13 @@ from dotenv import load_dotenv
 
 from kairos import diagnostics
 from kairos.accounts import SOURCES, account_snapshot
+from kairos.alpaca import Alpaca
+from kairos.alpaca_engine import AlpacaEngine
+from kairos.alpaca_markets import ACCOUNT_SOURCES, AlpacaMarkets
 from kairos.clients import Jev, Kraken, ticker_feed
 from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
+from kairos.exchanges import ExchangeDesk
 from kairos.futures_client import FuturesTrading
 from kairos.retail import RetailMarkets
 from kairos.settings import schema
@@ -128,17 +132,68 @@ async def state(request):
 
 
 async def settings_schema(request):
-    return web.json_response(schema())
+    contract = schema()
+    contract["exchange"] = request.app["engine"].exchange
+    if isinstance(request.app["engine"], AlpacaEngine):
+        contract["exchange"] = "alpaca"
+        for name, field in contract["fields"].items():
+            field["default"] = AlpacaEngine.defaults[name]
+        contract["strategies"] = {
+            k: dict(v) for k, v in contract["strategies"].items() if k != "arbitrage"
+        }
+        contract["fields"]["strategy"]["choices"] = {
+            k: v["label"] for k, v in contract["strategies"].items()
+        }
+        contract["fields"]["product"]["choices"] = {"spot": "Spot · crypto / US stocks / ETFs"}
+        for key in ("live_budget", "recover_initial", "recovery_check_seconds"):
+            contract["fields"][key]["products"] = ["unavailable"]
+        contract["field_labels"] = {
+            "paper_balance": "Hosted paper allocation · USD",
+        }
+        contract["fields"]["paper_balance"]["help"] = (
+            "Local USD allocation within a dedicated unused Alpaca paper account. Start validates available broker cash. This does not reset or fund Alpaca. Once connected, the allocation cannot be silently resized. Order/exposure/daily-loss caps remain independently configurable."
+        )
+        contract["help"] = {
+            "fees": request.app["engine"].kraken.fee_note,
+            "data": "Free Alpaca crypto data and IEX-only equity quotes. IEX is not consolidated NBBO. Equity execution uses whole-share limit orders during regular sessions only. Hosted paper fills do not model actual queue position, market impact or regulatory fees.",
+        }
+        contract["account_sources"] = ACCOUNT_SOURCES
+        contract["fields"]["pair"]["help"] = (
+            "The saved Alpaca execution market, independent of the chart. Crypto supports passive limit strategies and scheduled programs. Stocks/ETFs support long-only whole-share DCA, TWAP and rebalancing; no equity HTF, scalp, margin or short sales. Slice budgets must afford at least one share."
+        )
+        for name, strategy in contract["strategies"].items():
+            strategy["help"] = (
+                "Alpaca hosted paper uses broker-side fills, not Kairos local simulation. "
+                "Crypto passive entries use non-crossing GTC limits with local cancellation, "
+                "no post-only guarantee and no taker fallback. Queues, price impact and "
+                "actual liquidity are not faithfully simulated by hosted paper."
+                if name in {"htf", "maker", "scalp"}
+                else "Alpaca hosted-paper scheduled limit orders. Equity quantities are whole shares, "
+                "long-only and regular-session only, using free IEX quotes. Schedules use wall "
+                "time: closed-session/missed slots are skipped, not caught up. Mixed rebalance "
+                "baskets wait for the equity session. No broker account resets or funding."
+            )
+    return web.json_response(contract)
 
 
 async def catalog(request):
     # Discovery is separate from Engine.kraken.pairs, the unchanged execution catalog.
-    return web.json_response(list((await request.app["retail"].catalog()).values()))
+    retail, exchange = request.app["retail"], request.app["engine"].exchange
+    return web.json_response(
+        [{**row, "exchange": exchange} for row in (await retail.catalog()).values()]
+    )
 
 
 async def markets(request):
     # Share a bounded-rate public ticker snapshot across all dashboard tabs.
     async with request.app["market_lock"]:
+        if isinstance(request.app["retail"], AlpacaMarkets):
+            wanted = set(request.query["ids"].split(",")) - {""} if "ids" in request.query else None
+            return web.json_response(
+                await request.app["retail"].market_snapshot(
+                    wanted, request.app["engine"].settings["pair"]
+                )
+            )
         cached = request.app["market_cache"]
         if not cached or time.monotonic() >= cached["expires"]:
             engine = request.app["engine"]
@@ -240,14 +295,19 @@ async def history(request):
 
 async def accounts(request):
     source = request.match_info["source"]
-    if source not in SOURCES:
+    alpaca = isinstance(request.app["retail"], AlpacaMarkets)
+    if source not in (ACCOUNT_SOURCES if alpaca else SOURCES):
         raise web.HTTPNotFound()
     async with request.app["account_lock"]:
         cache = request.app["account_cache"]
         if source not in cache or time.monotonic() >= cache[source][0]:
             retail = request.app["retail"]
             try:
-                data = await account_snapshot(retail.spot, retail.futures, source)
+                data = (
+                    await retail.account_snapshot(source)
+                    if alpaca
+                    else await account_snapshot(retail.spot, retail.futures, source)
+                )
             except (KeyError, ValueError, TypeError, AttributeError):
                 raise SafetyError("Account response could not be interpreted safely") from None
             data["received"] = time.time()
@@ -256,16 +316,24 @@ async def accounts(request):
 
 
 async def command(request):
-    engine = request.app["engine"]
     data = await request.json()
     action = request.match_info["action"]
+    desk = request.app.get("exchanges")
+    if action == "exchange":
+        if desk is None:
+            raise SafetyError("Exchange switching is unavailable in this test instance")
+        engine = await desk.switch(data["exchange"], data.get("confirmation"))
+        return web.json_response(engine.snapshot())
+    if desk and desk.lock.locked() and action != "stop":
+        raise SafetyError("Exchange switch in progress; retry after it completes")
+    engine = request.app["engine"]
     if action == "settings":
         await engine.configure(data)
         request.app["feed_restart"].set()
     elif action == "mode":
         await engine.set_mode(data["mode"], data.get("confirmation"))
     elif action == "start":
-        await engine.start()
+        await engine.start(confirmation=data.get("confirmation"))
     elif action == "restart":
         await engine.start(restart=True, confirmation=data.get("confirmation"))
         request.app["feed_restart"].set()
@@ -339,14 +407,24 @@ async def feeds(app):
             symbols = list(
                 dict.fromkeys([engine.resolve(engine.settings["pair"]).symbol, *symbols])
             )
-        task = asyncio.create_task(ticker_feed(app["session"], symbols, app["hub"].publish))
+
+        def publish(kind, data, source=engine):
+            if app["engine"] is source:
+                app["hub"].publish(kind, data)
+
+        task = (
+            None
+            if isinstance(engine, AlpacaEngine)
+            else asyncio.create_task(ticker_feed(app["session"], symbols, publish))
+        )
         try:
             await app["feed_restart"].wait()
             app["feed_restart"].clear()
         finally:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+            if task:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
 
 async def shutdown(app):
@@ -399,14 +477,27 @@ async def lifecycle(app):
             kraken.allow_live
             and os.environ.get("ALLOW_FUTURES_TRADING", "false").lower() == "true",
         )
-        engine = Engine(store, kraken, jev, app["hub"].publish, futures=futures)
-        app["engine"], app["session"] = engine, session
-        app["retail"] = RetailMarkets(kraken, futures)
+        alpaca_store = Store(str(data_dir / "alpaca-paper.sqlite3"))
+        alpaca = Alpaca(
+            session,
+            os.environ.get("ALPACA_PAPER_API_KEY", ""),
+            os.environ.get("ALPACA_PAPER_SECRET_KEY", ""),
+            allow_paper=os.environ.get("ALLOW_ALPACA_PAPER_TRADING", "false").lower() == "true",
+        )
+        desk = ExchangeDesk(
+            app,
+            store,
+            {
+                "kraken": lambda publish: Engine(store, kraken, jev, publish, futures=futures),
+                "alpaca": lambda publish: AlpacaEngine(alpaca_store, alpaca, jev, publish),
+            },
+            default=os.environ.get("KAIROS_EXCHANGE", "kraken"),
+        )
+        app["exchanges"], app["session"] = desk, session
         app["feed_restart"] = asyncio.Event()
         feed_task = None
         try:
-            await engine.initialize()
-            engine.task = asyncio.create_task(engine.run())
+            await desk.initialize()
             feed_task = asyncio.create_task(feeds(app))
             yield
         except Exception as exc:
@@ -417,8 +508,9 @@ async def lifecycle(app):
                 feed_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await feed_task
-            await engine.close()
+            await desk.close()
             await kraken.market_data.close()
+            alpaca_store.close()
             store.close()
             lock.close()
             diagnostics.logger.removeHandler(diagnostic_handler)
@@ -449,7 +541,11 @@ def create_app(engine=None, origin=None, futures=None):
         app.cleanup_ctx.append(lifecycle)
     else:
         app["engine"] = engine
-        app["retail"] = RetailMarkets(engine.kraken, futures)
+        app["retail"] = (
+            AlpacaMarkets(engine.kraken)
+            if isinstance(engine, AlpacaEngine)
+            else RetailMarkets(engine.kraken, futures)
+        )
         app["feed_restart"] = asyncio.Event()
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/settings-schema", settings_schema)

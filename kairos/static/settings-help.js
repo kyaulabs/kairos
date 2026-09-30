@@ -67,10 +67,10 @@ class SettingsHelp {
     data: 'Read-only execution feed status at the last engine check. Spot-family execution prefers fresh checksum-validated public WebSocket books and confirmed completed candles, with REST bootstrap/recovery. Invalid/stale data fails closed. Futures uses its separate REST adapter. This is not private order/fill streaming, does not change engine cadence, and does not run protection while paused. Chart navigation never changes execution subscriptions.',
   };
   static paragraphs(key, values, schema) {
-    const text = SettingsHelp.fields[key] || SettingsHelp.topics[key];
+    const text = schema.fields[key]?.help || schema.help?.[key] || SettingsHelp.fields[key] || SettingsHelp.topics[key];
     if (!text) throw new Error(`Missing settings help: ${key}`);
     const paragraphs = [text];
-    if (key === 'strategy' && SettingsHelp.strategies[values.strategy]) paragraphs.push(SettingsHelp.strategies[values.strategy]);
+    if (key === 'strategy' && SettingsHelp.strategies[values.strategy]) paragraphs.push(schema.strategies[values.strategy]?.help || SettingsHelp.strategies[values.strategy]);
     if (key === 'pair' && values.strategy === 'rebalance') paragraphs.push('For rebalancing this is an anchor market only. Basket weights below determine which assets can trade.');
     const field = schema.fields[key];
     if (field) {

@@ -1,0 +1,32 @@
+# Alpaca hosted paper
+
+Kairos 0.2.0 adds an optional Alpaca adapter for USD crypto and listed US stocks/ETFs. Orders go to Alpaca's paper service, not Kairos's local simulator. The trading host is fixed to `https://paper-api.alpaca.markets`; live Alpaca execution, funding and account resets are unavailable.
+
+1. Create a dedicated, unused Alpaca paper account and paper API credentials. Do not reuse an account with positions, order history or another order manager.
+2. Add `ALPACA_PAPER_API_KEY` and `ALPACA_PAPER_SECRET_KEY` to your private environment configuration using `.env.example` as a reference. Do not overwrite an existing environment file or commit credentials.
+3. Set `ALLOW_ALPACA_PAPER_TRADING=true` to permit simulated broker orders and cancellations. Kraken live-trading flags do not enable Alpaca. Paper credentials and account eligibility are still required.
+4. Safely restart the service after changing its environment. Back up the data directory first. On a new installation, `KAIROS_EXCHANGE=alpaca` selects Alpaca at startup; otherwise the dashboard's saved exchange takes precedence.
+5. Open the KAI sidebar. Stop the current engine, reconcile its orders and close its holdings before changing **Exchange**. Switching never sells positions, transfers balances, resets either portfolio or starts the destination engine.
+6. Choose a supported market and strategy. Set the local USD allocation, caps and daily-loss limit, then save. The initial Alpaca profile allocates $500 locally, with $100 order/exposure caps and a $12.50 daily-loss limit. This does not fund the broker account. The allocation can be changed before the first successful account binding, but cannot be silently resized afterward.
+7. Press **Start** and confirm hosted paper. Kairos checks the broker account identity, available cash, positions and history. Every service restart remains paused and requires confirmation before resuming.
+
+| Market | Supported execution | Data |
+| --- | --- | --- |
+| USD crypto | HTF pullback, market making, Bollinger scalping, DCA, TWAP, rebalancing | Free crypto REST books and bars |
+| Listed US stocks/ETFs | Long-only, whole-share DCA, TWAP and rebalancing | Free IEX quotes/bars; not consolidated NBBO |
+
+Equity orders are regular-session limit orders only. Slice sizes must afford whole shares; TWAP also needs at least one whole share per slice. Schedules use elapsed wall time. Closed-session and missed slots are skipped rather than queued or caught up. Mixed equity/crypto rebalance baskets wait for the equity session. Equity HTF/scalping, fractional shares, shorts, margin, options and arbitrage are not supported.
+
+Crypto passive entries use a freshly checked, non-crossing GTC limit. Alpaca does not provide the Kraken post-only guarantee used by Kairos. There is no taker fallback after a passive miss. Cancellation is local: **GTC orders can remain working if Kairos stops unexpectedly or loses connectivity.** On restart, reconcile outstanding orders before Start. Stop cancels tracked orders but retains holdings; local protection does not operate while stopped or disconnected.
+
+Crypto planning uses 25 bps on both sides, the published entry-tier taker rate, rather than promising the maker discount. Equity planning uses zero commission; Alpaca paper omits regulatory fees. These are labeled estimates, not authenticated fee-tier reads. The order API does not report per-order fees. Kairos books posted `FEE`/`CFEE` account activities exactly once and adjusts crypto ownership for base-asset fees. Portfolio totals include those posted fees; order and run fee attribution is unavailable. Scheduled budgets include conservative planning fee reserves. Pending or inconsistent balances stop execution instead of being guessed.
+
+Only the selected exchange runs. Kraken keeps `kairos.sqlite3`; Alpaca uses `alpaca-paper.sqlite3` under the same `DATA_DIR` lock. Settings, ledgers, protection, schedules, daily baselines and order history remain separate. Back up both databases and preserve the directory lock. Browser favorites are also separate. Alpaca order history cannot be deleted or archived through Kairos because reconciliation depends on it.
+
+Reconciliation rejects external orders/fills, unexplained cash or positions, account identity changes, corrected activities and unsupported corporate actions such as splits or dividends. These need operator investigation; Reconcile is not permission to adopt unrelated holdings or discard records. Ambiguous submissions are looked up by their durable client ID and are never blindly resubmitted. A missing lookup remains unresolved. Activity reconciliation scans from account binding and is bounded at 10,000 records; reaching that bound halts rather than silently truncating history. This initial adapter is not intended for high-volume order workloads.
+
+Chart bars exclude the forming interval. HTF still requires 30 contiguous rolling windows of confirmed minutes; missing minutes are not fabricated. Browser quotes are a bounded subset of the catalog, refreshed when a market is selected. The stock picker shows up to 100 search matches. Missing 24-hour changes/volumes stay unavailable. Account views are read-only; order/activity views show at most the latest 100 records, not a complete export.
+
+Hosted paper does not establish execution quality or profitability. Alpaca's simulation does not faithfully model queue position, market impact or available liquidity. Verification covers API-shaped fixtures, risk/reconciliation failures and browser behavior, plus unauthenticated public crypto data reads. Authenticated Alpaca account access and broker-hosted orders have not been exercised with real paper credentials.
+
+References: [Alpaca API reference](https://docs.alpaca.markets/us/reference), [paper trading](https://docs.alpaca.markets/docs/paper-trading), [crypto trading](https://docs.alpaca.markets/docs/crypto-trading), [market data](https://docs.alpaca.markets/docs/about-market-data-api).

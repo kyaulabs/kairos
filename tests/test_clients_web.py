@@ -371,7 +371,7 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get("/api/settings-schema")
         self.assertEqual(response.status, 200)
         data = await response.json()
-        self.assertEqual(data, json.loads(json.dumps(schema())))
+        self.assertEqual(data, {**json.loads(json.dumps(schema())), "exchange": "kraken"})
         self.assertNotIn("test-placeholder", json.dumps(data))
         self.assertNotIn("live_enabled", data)
         self.assertEqual(self.engine.snapshot(), before)
