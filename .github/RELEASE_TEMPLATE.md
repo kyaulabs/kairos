@@ -23,13 +23,13 @@ uv sync --locked --no-dev
 test -e .env || install -m 600 .env.example .env
 ```
 
-Configure your private `.env` using `.env.example`. Paper trading needs Kraken authenticated fee-query access, not order permissions. Model-assisted strategies also need a Jev key and may incur API charges. Leave both live-trading flags disabled.
+Configure your private `.env` using `.env.example`. Kraken local Dry-run needs authenticated fee-query access, not order permissions. Optional [Alpaca hosted paper](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/ALPACA.md) needs separate paper credentials, explicit paper-order permission and Start confirmation; live Alpaca is unavailable. Model-assisted strategies also need a Jev key and may incur API charges. Leave both Kraken live-trading flags disabled.
 
 ```sh
 uv run --no-sync kairos
 ```
 
-Open <http://127.0.0.1:8000>. The engine starts paused in Dry-run. Review limits before pressing Start. Do not expose the unauthenticated loopback server to the network.
+Open <http://127.0.0.1:8000>. The selected engine starts paused: Kraken in Dry-run or Alpaca in hosted paper. Review limits before pressing Start. Do not expose the unauthenticated loopback server to the network.
 
 ### 🌐 nginx and systemd
 
@@ -41,15 +41,21 @@ Optional locally licensed Font Awesome Pro fonts are not distributed in the rele
 
 ## 🔄 Update
 
-Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md) before updating. Preserve `.env`, the configured `DATA_DIR`, database and optional font assets. Never reset a portfolio as an update step.
+Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md) before updating. Preserve `.env`, the configured `DATA_DIR`, both exchange databases and optional font assets. Never reset a portfolio as an update step.
 
 ### 💻 Local Python server
 
 1. Stop the engine in the dashboard, then stop the foreground server. Holdings remain; local protection is suspended during the update.
-2. Back up the SQLite database using the standard library. Adjust `data` if you configured a different `DATA_DIR`:
+2. Back up each existing exchange database using the standard library. Adjust `data` if you configured a different `DATA_DIR`. Existing backup names cause this step to stop rather than overwrite a prior backup:
 
    ```sh
-   python3 -c "import sqlite3; src=sqlite3.connect('data/kairos.sqlite3'); dst=sqlite3.connect('data/kairos-before-{{VERSION}}.sqlite3'); src.backup(dst); dst.close(); src.close()"
+   umask 077
+   for database in data/kairos.sqlite3 data/alpaca-paper.sqlite3; do
+     test -f "$database" || continue
+     backup="${database%.sqlite3}-before-{{VERSION}}.sqlite3"
+     test ! -e "$backup" || { echo "Backup already exists: $backup"; exit 1; }
+     python3 -c 'import sqlite3,sys; src=sqlite3.connect(sys.argv[1]); dst=sqlite3.connect(sys.argv[2]); src.backup(dst); dst.close(); src.close()' "$database" "$backup"
+   done
    ```
 
 3. With a clean tracked working tree, fetch and check out the release without overwriting local configuration:
