@@ -36,7 +36,12 @@ class ExchangeDesk:
     def __init__(self, app, store, factories, *, default="kraken"):
         self.app, self.store, self.factories = app, store, factories
         self.engines = {}
-        self.active = store.get("active-exchange", default)
+        self.active = store.get("active-exchange")
+        if self.active is None:
+            # Upgrades retain the existing Kraken portfolio. The environment default
+            # is only for a new installation, never a way around the flat-switch guard.
+            existing = store.db.execute("SELECT 1 FROM state LIMIT 1").fetchone() or store.orders()
+            self.active = "kraken" if existing else default
         if self.active not in factories:
             raise SafetyError("Unknown saved exchange")
         self.lock = asyncio.Lock()
@@ -62,6 +67,7 @@ class ExchangeDesk:
         engine = self.engine(self.active)
         self.app["engine"], self.app["retail"] = engine, self.retail(engine)
         await engine.initialize()
+        self.store.put("active-exchange", self.active)
         engine.task = asyncio.create_task(engine.run())
 
     async def switch(self, name, confirmation):
