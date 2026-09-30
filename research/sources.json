@@ -1,0 +1,142 @@
+[
+  {
+    "id": "pbo",
+    "requested": "https://escholarship.org/uc/item/4w1110bb",
+    "retrieved_at": 1790811078.9923544,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "id": "dsr",
+    "requested": "https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf",
+    "retrieved_at": 1790811078.993041,
+    "url": "https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf",
+    "status": 200,
+    "sha256": "ca4a1e834a2954b84eb560776e903329cd9cef318d458aadf6d67bc8166d10b5"
+  },
+  {
+    "id": "crypto",
+    "requested": "https://www.nber.org/papers/w24877",
+    "retrieved_at": 1790811078.9936113,
+    "url": "https://www.nber.org/papers/w24877",
+    "status": 200,
+    "sha256": "ecbd6d7134d61d4f74defebe0189148505f18a487197d3fbdb7b9cf935c1464a"
+  },
+  {
+    "id": "convex",
+    "requested": "https://arxiv.org/abs/1705.00109",
+    "retrieved_at": 1790811078.9939601,
+    "url": "https://arxiv.org/abs/1705.00109",
+    "status": 200,
+    "sha256": "f38ab8e63623d347be28cf3585d0de898c3258728343216c1cd8c3bb142adb4f"
+  },
+  {
+    "id": "volatility",
+    "requested": "https://doi.org/10.1111/jofi.12513",
+    "retrieved_at": 1790811078.9944527,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "id": "bocpd",
+    "requested": "https://arxiv.org/abs/0710.3742",
+    "retrieved_at": 1790811078.994942,
+    "url": "https://arxiv.org/abs/0710.3742",
+    "status": 200,
+    "sha256": "70588b04e5f474e8b21258ae6109d94a76006002aaffef172cabfdd462006a16"
+  },
+  {
+    "id": "dnn",
+    "requested": "https://arxiv.org/abs/1904.04912",
+    "retrieved_at": 1790811078.995455,
+    "url": "https://arxiv.org/abs/1904.04912",
+    "status": 200,
+    "sha256": "d04793806f5358a0560898b9cfa99100c40259b2add52eee1636e0ad0f7d39c3"
+  },
+  {
+    "id": "calibration",
+    "requested": "https://proceedings.mlr.press/v70/guo17a.html",
+    "retrieved_at": 1790811078.9959466,
+    "url": "https://proceedings.mlr.press/v70/guo17a.html",
+    "status": 200,
+    "sha256": "fcd644b81c1d06d034060e3ff8079ccc6acc2213dbf846043b92059ce10d26f8"
+  },
+  {
+    "id": "honest",
+    "requested": "https://arxiv.org/abs/2608.27734",
+    "retrieved_at": 1790811078.9974113,
+    "url": "https://arxiv.org/abs/2608.27734",
+    "status": 200,
+    "sha256": "c3fa638d2ed64428b0f8a005d7a3f321c2ad2fc905bae705e459c16e47eca991"
+  },
+  {
+    "id": "pbo-author",
+    "requested": "https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf",
+    "retrieved_at": 1790811207.011257,
+    "url": "https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf",
+    "status": 200,
+    "sha256": "d8bfbadaaedb430d9dec929646d92f3580fdf18238f34121ae7738fa1c69a63d"
+  },
+  {
+    "id": "crypto-full",
+    "requested": "https://www.nber.org/system/files/working_papers/w24877/w24877.pdf",
+    "retrieved_at": 1790811207.0123684,
+    "url": "https://www.nber.org/system/files/working_papers/w24877/w24877.pdf",
+    "status": 200,
+    "sha256": "c59ede546d32c6c2d5215cf7600c6f8642406083fc37952b27d6ee5fa9f364f2"
+  },
+  {
+    "id": "volatility-working",
+    "requested": "https://www.nber.org/system/files/working_papers/w22208/w22208.pdf",
+    "retrieved_at": 1790811207.012733,
+    "url": "https://www.nber.org/system/files/working_papers/w22208/w22208.pdf",
+    "status": 200,
+    "sha256": "be1ea92102e1394e9ddec9545489902f45e5a07b42bd4c42faf8ee372e99fa7a"
+  },
+  {
+    "id": "calibration-full",
+    "requested": "https://proceedings.mlr.press/v70/guo17a/guo17a.pdf",
+    "retrieved_at": 1790811207.0131474,
+    "url": "https://proceedings.mlr.press/v70/guo17a/guo17a.pdf",
+    "status": 200,
+    "sha256": "df7c93f97204f8a3c2b10f6d5bf5265baac25f00c1ae3b473a3e1dbc102dacb2"
+  },
+  {
+    "id": "calibration-supp",
+    "requested": "https://proceedings.mlr.press/v70/guo17a/guo17a-supp.pdf",
+    "retrieved_at": 1790811207.0135934,
+    "url": "https://proceedings.mlr.press/v70/guo17a/guo17a-supp.pdf",
+    "status": 200,
+    "sha256": "db84c136589971e541211670d576f756c3e05e31ee91dd885a5a78269b798625"
+  },
+  {
+    "id": "convex-full",
+    "requested": "https://arxiv.org/pdf/1705.00109v1",
+    "retrieved_at": 1790811207.0140326,
+    "url": "https://arxiv.org/pdf/1705.00109v1",
+    "status": 200,
+    "sha256": "8f75955bec1df8fb23db5da7e0d831c6c4b8313c8904e398e5c5da90e12148f4"
+  },
+  {
+    "id": "bocpd-full",
+    "requested": "https://arxiv.org/pdf/0710.3742v1",
+    "retrieved_at": 1790811207.0145319,
+    "url": "https://arxiv.org/pdf/0710.3742v1",
+    "status": 200,
+    "sha256": "b88ebb53033d361fe4b1feeca819a1b39a17dfb29f694d6ac2b71ed6a9fcde6f"
+  },
+  {
+    "id": "dnn-full",
+    "requested": "https://arxiv.org/pdf/1904.04912v3",
+    "retrieved_at": 1790811207.0150132,
+    "url": "https://arxiv.org/pdf/1904.04912v3",
+    "status": 200,
+    "sha256": "116ee831386fd64f2205f4a10909ba981977f333154727b9ab3d05cf067021e3"
+  },
+  {
+    "id": "honest-full",
+    "requested": "https://arxiv.org/pdf/2608.27734v1",
+    "retrieved_at": 1790811207.015573,
+    "url": "https://arxiv.org/pdf/2608.27734v1",
+    "status": 200,
+    "sha256": "6185ded9e2ce54402f31605f618bffedbe0a5abab03f1c639f042a126eceb218"
+  }
+]
