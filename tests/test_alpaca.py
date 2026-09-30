@@ -607,6 +607,23 @@ class AlpacaWebTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("paper-test-secret", text)
         self.assertTrue((await state_response.json())["fees"]["estimated"])
 
+    async def test_market_volume_refresh_requires_explicit_watchlist_ids(self):
+        refresh = AsyncMock(return_value=[])
+        self.app["retail"].refresh_volumes = refresh
+        response = await self.client.get("/api/markets")
+        self.assertEqual(response.status, 200)
+        refresh.assert_awaited_once_with(set())
+        refresh.reset_mock()
+        response = await self.client.get("/api/markets?volume_ids=alpaca:AAPL")
+        self.assertEqual(response.status, 409)
+        refresh.assert_not_awaited()
+        response = await self.client.get("/api/markets?ids=alpaca:AAPL&volume_ids=alpaca:AAPL")
+        self.assertEqual(response.status, 200)
+        refresh.assert_awaited_once_with({"alpaca:AAPL"})
+        self.assertEqual(len((await response.json())["markets"]), 1)
+        self.assertFalse(self.broker.orders)
+        self.assertFalse(self.engine.running)
+
     async def test_switch_requires_csrf_stopped_flat_account_and_never_resumes(self):
         before = self.engine.ledger()
         payload = {"exchange": "kraken", "confirmation": "SWITCH EXCHANGE"}

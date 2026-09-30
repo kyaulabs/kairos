@@ -191,7 +191,9 @@ async def markets(request):
             wanted = set(request.query["ids"].split(",")) - {""} if "ids" in request.query else None
             return web.json_response(
                 await request.app["retail"].market_snapshot(
-                    wanted, request.app["engine"].settings["pair"]
+                    wanted,
+                    request.app["engine"].settings["pair"],
+                    volume_ids=set(request.query.get("volume_ids", "").split(",")) - {""},
                 )
             )
         cached = request.app["market_cache"]
