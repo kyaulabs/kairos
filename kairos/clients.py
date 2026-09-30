@@ -197,6 +197,7 @@ class Kraken:
                 "ask": str(dec(row["a"][0])),
                 "last": str(dec(row["c"][0])),
                 "volume": str(dec(row["v"][1])),
+                "vwap": str(dec(row["p"][1])) if row.get("p") else None,
             }
             for key, row in result.items()
             if key in self.pairs

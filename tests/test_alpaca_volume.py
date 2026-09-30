@@ -24,11 +24,13 @@ class AlpacaVolumeTests(unittest.IsolatedAsyncioTestCase):
         self.calls = []
         self.pages = [
             {
-                "bars": {"BTC/USD": [{"t": iso(self.cutoff - 300), "v": "1.25"}]},
+                "bars": {"BTC/USD": [{"t": iso(self.cutoff - 300), "v": "1.25", "vw": "125000"}]},
                 "next_page_token": None,
             }
         ]
-        self.stocks = {"AAPL": {"dailyBar": {"t": "2026-09-30T04:00:00Z", "v": 1200}}}
+        self.stocks = {
+            "AAPL": {"dailyBar": {"t": "2026-09-30T04:00:00Z", "v": 1200, "vw": "50.25"}}
+        }
         self.broker.client.request.side_effect = self.request
 
     async def request(self, method, path, *, params, **kwargs):
@@ -60,25 +62,26 @@ class AlpacaVolumeTests(unittest.IsolatedAsyncioTestCase):
         result = await self.markets.market_snapshot(None, self.crypto)
         rows = {row["id"]: row for row in result["markets"]}
         self.assertNotIn("volume", rows[self.crypto])
-        self.assertEqual(rows[self.stock]["volume"], "1200")
-        self.assertEqual(rows[self.stock]["volume_unit"], "shares")
+        self.assertEqual(rows[self.stock]["volume"], "60300.00")
+        self.assertEqual(rows[self.stock]["volume_unit"], "USD")
         self.assertEqual(rows[self.stock]["volume_session"], "2026-09-30")
         self.assertEqual(len(self.calls), 1)
 
     async def test_crypto_exact_window_pagination_and_decimal_sum(self):
         self.pages = [
             {
-                "bars": {"BTC/USD": [{"t": iso(self.cutoff - 86400), "v": ".1"}]},
+                "bars": {"BTC/USD": [{"t": iso(self.cutoff - 86400), "v": ".1", "vw": "100.1"}]},
                 "next_page_token": "next",
             },
             {
-                "bars": {"BTC/USD": [{"t": iso(self.cutoff - 300), "v": ".2"}]},
+                "bars": {"BTC/USD": [{"t": iso(self.cutoff - 300), "v": ".2", "vw": "200.2"}]},
                 "next_page_token": None,
             },
         ]
         result = await self.markets.market_snapshot({self.crypto}, self.crypto, {self.crypto})
         row = result["markets"][0]
-        self.assertEqual(row["volume"], "0.3")
+        self.assertEqual(row["volume"], "50.05")
+        self.assertEqual(row["volume_unit"], "USD")
         self.assertEqual(row["volume_asof"], self.cutoff)
         self.assertEqual(row["volume_received"], self.now)
         first = self.calls[0][1]
@@ -130,7 +133,7 @@ class AlpacaVolumeTests(unittest.IsolatedAsyncioTestCase):
             [{"bars": {}, "next_page_token": str(i)} for i in range(20)],
             [
                 {
-                    "bars": {"BTC/USD": [{"t": iso(self.cutoff - 300), "v": 1}]},
+                    "bars": {"BTC/USD": [{"t": iso(self.cutoff - 300), "v": 1, "vw": 100}]},
                     "next_page_token": "next",
                 }
             ]
@@ -155,6 +158,18 @@ class AlpacaVolumeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.markets.volumes[self.crypto]["volume"], "0")
         self.assertEqual(self.markets.volumes[self.stock]["volume"], "0")
         self.assertEqual(self.markets.volumes[self.stock]["volume_session"], "2026-09-29")
+
+    async def test_missing_or_invalid_vwap_does_not_fall_back_to_latest_price(self):
+        await self.markets.refresh_volumes({self.crypto, self.stock})
+        original = copy.deepcopy(self.markets.volumes)
+        for vwap in (None, 0, -1, "NaN"):
+            self.monotonic.return_value += 300
+            self.pages = [
+                {"bars": {"BTC/USD": [{"t": iso(self.cutoff - 300), "v": 2, "vw": vwap}]}}
+            ]
+            self.stocks["AAPL"]["dailyBar"]["vw"] = vwap
+            self.assertEqual(len(await self.markets.refresh_volumes({self.crypto, self.stock})), 2)
+            self.assertEqual(self.markets.volumes, original)
 
     async def test_unknown_and_oversized_subscriptions_rejected_before_io(self):
         oversized = {f"alpaca:FAKE{i}" for i in range(101)}
