@@ -1,8 +1,10 @@
 """Bounded free-feed discovery and read-only Alpaca hosted account views."""
 
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from kairos.alpaca import timestamp
+from kairos.alpaca import iso, timestamp
 from kairos.domain import SafetyError, dec
 from kairos.programs import STRATEGIES
 
@@ -18,6 +20,104 @@ class AlpacaMarkets:
     def __init__(self, client):
         self.spot = client
         self.quotes, self.attempts = {}, {}
+        self.volumes, self.volume_attempts = {}, {}
+
+    async def refresh_volumes(self, wanted):
+        # Only an explicit browser watchlist may warm this cache. Catalog browsing
+        # and generic quote requests must never infer a volume subscription.
+        if not wanted <= self.spot.pairs.keys() or len(wanted) > 100:
+            raise SafetyError("Select at most 100 known Alpaca volume markets per request")
+        now = time.time()
+        due = [
+            key
+            for key in sorted(wanted)
+            if time.monotonic() - self.volume_attempts.get(key, -300) >= 300
+        ]
+        errors = []
+        for equity in (False, True):
+            keys = [key for key in due if self.spot.is_equity(self.spot.pairs[key]) == equity]
+            if not keys:
+                continue
+            symbols = {self.spot.symbol(self.spot.pairs[key]): key for key in keys}
+            for key in keys:
+                self.volume_attempts[key] = time.monotonic()
+            try:
+                updates = {}
+                if equity:
+                    data = await self.spot.request(
+                        "GET",
+                        "/v2/stocks/snapshots",
+                        params={"symbols": ",".join(symbols), "feed": "iex"},
+                        data=True,
+                    )
+                    for symbol, snapshot in data.items():
+                        if symbol not in symbols:
+                            raise SafetyError("Unexpected symbol in Alpaca volume snapshot")
+                        bar = snapshot.get("dailyBar")
+                        if not bar:
+                            continue
+                        value, stamp = dec(bar["v"]), timestamp(bar["t"])
+                        if value < 0 or stamp > now:
+                            raise SafetyError("Invalid Alpaca daily volume")
+                        updates[symbols[symbol]] = {
+                            "volume": str(value),
+                            "volume_asof": stamp,
+                            "volume_session": str(
+                                datetime.fromtimestamp(stamp, ZoneInfo("America/New_York")).date()
+                            ),
+                        }
+                else:
+                    # 288 completed five-minute bars cover exactly 24h, excluding
+                    # the forming interval. Sparse bars are valid; an empty result
+                    # is unavailable, not a fabricated zero-volume observation.
+                    cutoff = int(now) // 300 * 300
+                    params = {
+                        "symbols": ",".join(symbols),
+                        "timeframe": "5Min",
+                        "start": iso(cutoff - 86400),
+                        "end": iso(cutoff - 1),
+                        "limit": 10000,
+                        "sort": "asc",
+                    }
+                    totals, seen, tokens = {}, set(), set()
+                    for _ in range(20):
+                        data = await self.spot.request(
+                            "GET", "/v1beta3/crypto/us/bars", params=params, data=True
+                        )
+                        for symbol, bars in data["bars"].items():
+                            if symbol not in symbols:
+                                raise SafetyError("Unexpected symbol in Alpaca volume bars")
+                            for bar in bars:
+                                stamp, value = timestamp(bar["t"]), dec(bar["v"])
+                                if (
+                                    not cutoff - 86400 <= stamp < cutoff
+                                    or stamp % 300
+                                    or value < 0
+                                    or (symbol, stamp) in seen
+                                ):
+                                    raise SafetyError("Invalid or duplicate Alpaca volume bar")
+                                seen.add((symbol, stamp))
+                                totals[symbol] = totals.get(symbol, dec(0)) + value
+                        token = data.get("next_page_token")
+                        if not token:
+                            break
+                        if token in tokens:
+                            raise SafetyError("Alpaca volume pagination repeated a token")
+                        tokens.add(token)
+                        params["page_token"] = token
+                    else:
+                        raise SafetyError("Alpaca volume history incomplete")
+                    updates = {
+                        symbols[symbol]: {"volume": str(value), "volume_asof": cutoff}
+                        for symbol, value in totals.items()
+                    }
+                for key, value in updates.items():
+                    self.volumes[key] = {**value, "volume_received": now}
+                if set(updates) != set(keys):
+                    errors.append("Some Alpaca volumes unavailable; cached timestamps retained")
+            except (SafetyError, KeyError, TypeError, ValueError):
+                errors.append("Alpaca volume unavailable; cached timestamps retained")
+        return errors
 
     async def catalog(self):
         return {
@@ -27,7 +127,7 @@ class AlpacaMarkets:
                 "kind": "equity" if self.spot.is_equity(pair) else "spot",
                 "venue": "alpaca",
                 "margin": False,
-                "volume_unit": pair.base,
+                "volume_unit": "shares" if self.spot.is_equity(pair) else pair.base,
                 "chart_volume_unit": "shares" if self.spot.is_equity(pair) else "base asset",
                 "execution_reason": "",
                 "price_label": "IEX mid quote" if self.spot.is_equity(pair) else "mid quote",
@@ -38,7 +138,9 @@ class AlpacaMarkets:
             for key, pair in self.spot.pairs.items()
         }
 
-    async def market_snapshot(self, wanted, selected):
+    async def market_snapshot(self, wanted, selected, volume_ids=frozenset()):
+        if volume_ids and (wanted is None or not volume_ids <= wanted):
+            raise SafetyError("Volume refresh requires an explicit targeted quote selection")
         instruments = await self.catalog()
         if wanted is not None and not wanted <= instruments.keys():
             raise SafetyError("Unknown Alpaca market in quote selection")
@@ -51,7 +153,7 @@ class AlpacaMarkets:
         if len(requested) > 100:
             raise SafetyError("Select at most 100 Alpaca quotes per request")
         due = [key for key in requested if time.monotonic() - self.attempts.get(key, 0) >= 10]
-        errors = []
+        errors = await self.refresh_volumes(volume_ids)
         for equity in (False, True):
             keys = [key for key in due if self.spot.is_equity(self.spot.pairs[key]) == equity]
             if not keys:
@@ -80,7 +182,13 @@ class AlpacaMarkets:
             except SafetyError:
                 errors.append("Alpaca quotes unavailable; previous timestamps retained")
         rows = [
-            {**row, **self.quotes.get(key, {}), "change_pct": None, "change_received": None}
+            {
+                **row,
+                **self.quotes.get(key, {}),
+                **self.volumes.get(key, {}),
+                "change_pct": None,
+                "change_received": None,
+            }
             for key, row in instruments.items()
             if wanted is None or key in wanted
         ]
@@ -90,7 +198,7 @@ class AlpacaMarkets:
             "change_received": None,
             "errors": errors,
             "partial": wanted is not None,
-            "note": "Free feeds; equity prices are IEX-only mid quotes. Browse quotes are a bounded subset; selecting a market refreshes its quote. No 24h change is fabricated.",
+            "note": "Free quotes: bounded subset, stocks IEX-only. Volume: favorites/chart refresh every 5m; other rows use cache only. Hover volume for feed, window and age. 24h change unavailable.",
         }
 
     async def candles(self, market, minutes):

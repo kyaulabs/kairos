@@ -335,9 +335,10 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .watch-market { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 3px 6px; border-color: transparent; background: transparent; font-size: .875rem; }
 .watch-market[aria-pressed="true"] { border-color: var(--accent); }
 .watch-market strong { color: var(--green); font: 700 .875rem var(--font-mono); }
+.watch-volume { color: var(--muted); font: .75rem var(--font-mono); }
 .watch-market.stale strong { color: var(--muted); }
 .watch-market.stale strong::after { content: ' · stale'; color: var(--gold); font: .75rem var(--font-ui); }
-.market-dialog { width: min(58rem, calc(100vw - 24px)); height: min(52rem, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); max-width: none; padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-card); background: var(--panel); color: var(--text); overflow: hidden; box-shadow: 0 20px 80px #0008; }
+.market-dialog { width: min(58rem, calc(100vw - 24px)); height: min(52rem, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); max-width: none; padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-card); background: var(--panel); color: var(--text); overflow: hidden auto; box-shadow: 0 20px 80px #0008; }
 .market-dialog[open] { display: flex; flex-direction: column; }
 .market-dialog::backdrop { background: #161022b8; backdrop-filter: blur(3px); }
 .market-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; flex-shrink: 0; }
@@ -359,7 +360,7 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .market-filters button { font-size: .875rem; padding: 5px 10px; color: var(--muted); }
 .market-filters button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .market-feed-times { margin-left: auto; display: grid; text-align: right; color: var(--muted); font-size: .75rem; }
-.market-results { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.market-results { flex: 1; min-height: 12rem; overflow: auto; overscroll-behavior: contain; }
 .market-results td, .market-results th { padding: 6px 16px; }
 .market-results td:not(:first-child), .market-results th:not(:first-child) { text-align: right; }
 .market-results .selected-market { background: var(--accent-soft); }
