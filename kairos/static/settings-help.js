@@ -98,15 +98,18 @@ class SettingsHelp {
       const control = key === 'pair' ? document.getElementById('pair-search') : form.elements.namedItem(key);
       const label = key === 'pair' ? document.getElementById('bot-market-label') : control.closest('label');
       const heading = document.createElement('div'); heading.className = 'setting-heading';
-      if (key === 'pair') { label.before(heading); heading.append(label); }
-      else {
+      if (key === 'pair') {
+        label.parentElement.classList.add('setting-field');
+        label.before(heading); heading.append(label);
+      } else {
         const wrapper = document.createElement('div'); wrapper.className = `setting-field ${label.className}`;
         label.before(wrapper); control.remove(); label.className = '';
         control.id ||= `setting-${key}`; label.htmlFor = control.id;
-        heading.append(label); wrapper.append(heading);
-        if (field.type === 'boolean') wrapper.prepend(control); else wrapper.append(control);
+        heading.append(label); wrapper.append(heading, control);
       }
-      this.attach(key, heading, label, control);
+      const container = document.createElement('div'); container.className = 'setting-control';
+      control.before(container); container.append(control);
+      this.attach(key, container, label, control);
     }
     for (const id of ['new-program', 'close-futures']) {
       const control = document.getElementById(id);
