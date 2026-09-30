@@ -38,6 +38,7 @@ class StrategyMarketPicker {
   }
   static limitation(pair, context) {
     if (pair.execution_reason) return pair.execution_reason;
+    if (pair.supported_strategies && context.strategy && !pair.supported_strategies.includes(context.strategy)) return 'This market supports DCA, TWAP and rebalancing only.';
     if (pair.kind === 'futures') return context.product !== 'futures' ? 'Choose the Futures product to configure a linear perpetual.' : !pair.linear_perpetual ? 'This Futures contract is browse-only.' : '';
     if (context.product === 'futures') return 'Choose a qualified USD linear perpetual for the Futures product.';
     if (pair.quote !== context.quote) return `Quoted in ${pair.symbol.split('/')[1]}; this portfolio uses ${context.quoteLabel || context.quote}.`;

@@ -101,13 +101,17 @@ class HTFReview:
         self.range_observation = None
 
     def entry_view(self, rows, pair, book):
-        return signal(
+        view = signal(
             rows,
             self.engine.settings,
             book,
             self.engine.fees.reserve(pair, True),
             self.engine.fees.reserve(pair),
         )
+        if getattr(self.engine.kraken, "hosted_paper", False) is True:
+            view["entry_execution"] = "passive-limit"
+            view["execution_note"] = "Alpaca has no post-only guarantee; taker-rate cost screen"
+        return view
 
     def signature(self):
         from kairos import htf
@@ -186,6 +190,11 @@ class HTFReview:
                 if engine.settings["product"] == "futures":
                     rows = await client.completed_candles(pair, 1)
                     rows = [r for r in rows if r[0] < cutoff]
+                elif getattr(client, "hosted_paper", False) is True:
+                    rows = await client.completed_minutes(
+                        pair, engine.settings["candle_minutes"] * 30
+                    )
+                    rows = [r for r in rows if r[0] < cutoff]
                 else:
                     raw = await client.ohlc(pair, 1)
                     rows = list(CandleHistory(pair, 1, 1).rest_rows(raw, started).values())
@@ -253,6 +262,7 @@ class HTFReview:
                 "window_end": cutoff,
                 **permissions,
                 "strategy": "htf",
+                "exchange": engine.exchange,
                 "product": engine.settings["product"],
                 "mode": engine.mode,
                 "symbol": pair.symbol,

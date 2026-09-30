@@ -7,7 +7,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md) &nbsp; [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/kairos?logo=creativecommons)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)  
 [![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/kairos?include_prereleases&logo=semver&sort=semver)](https://semver.org) &nbsp; [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 
-Kairos is an experimental Kraken trading bot with Jev-assisted strategies and deterministic spot programs. A browser dashboard shows live prices, model assessments, orders, fills, and portfolio equity. Code enforces sizing and execution limits; Jev does not control those safeguards.
+Kairos is an experimental trading bot for Kraken and Alpaca hosted paper, with Jev-assisted strategies and deterministic programs. A browser dashboard shows live prices, model assessments, orders, fills, and portfolio equity. Code enforces sizing and execution limits; Jev does not control those safeguards.
 
 **Start with dry-run.** Live spot execution is implemented but has not been verified with real orders. Neither model confidence nor simulated returns establish profitability, and full-allocation trading can lose the entire allocation.
 
@@ -27,9 +27,10 @@ Kairos is an experimental Kraken trading bot with Jev-assisted strategies and de
 - Change the bot's market and strategy in Settings after stopping and reconciling orders; browse charts independently through the market picker.
 - Use real Kraken data in dry-run without exchange orders; model-assisted strategies use Jev, while Bollinger scalping, DCA, TWAP, and rebalancing need no model calls.
 - Choose the supplied Kairos dark/light brand palettes and violet, green, or red accents without changing the workspace layout or fonts.
-- Use a single-screen workspace with a chart, Jev assessment, settings sidebar, and bottom tabs for orders, activity, portfolio, read-only exchange accounts, and equity.
+- Open the expandable left settings sidebar from the KAI logo or its Strategy, Capital and Execution icons. The chart, assessments and bottom record tabs remain independent.
+- Use optional [Alpaca hosted paper](ALPACA.md) for USD crypto and long-only, whole-share US stocks/ETFs, with separate state and free market data. Alpaca live trading is unavailable.
 - Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
-- Configure starting capital, order and exposure caps, daily loss limits, and reinvestment; trading fees come automatically from your Kraken account.
+- Configure starting capital, order and exposure caps, daily loss limits, and reinvestment; Kraken uses authenticated account fees, while Alpaca clearly labels conservative planning estimates.
 - Persist settings, order intents, fills, and portfolio accounting in SQLite.
 - Protect network access with nginx Basic Auth over TLS.
 
@@ -37,12 +38,12 @@ Kairos is an experimental Kraken trading bot with Jev-assisted strategies and de
 | --- | --- | --- |
 | USD-quoted crypto spot | Simulated fills using real market data | Guarded Kraken limit orders |
 | Crypto margin | Separate long/short simulation | Disabled |
-| Direct US stocks and ETFs | Not yet supported | No brokerage integration verified |
+| Direct US stocks and ETFs on Kraken | Not yet supported | No brokerage integration verified |
 | xStocks | Market data only; no simulator | Read-only accounts; execution disabled |
 | USD linear crypto perpetuals | Separate funding-aware long/short simulation | Gated IOC/post-only orders; dedicated USD collateral |
 | Inverse, dated and other Futures | Browse-only | Execution disabled |
 
-Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) and the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for verified coverage and integration limitations.
+The table above describes Kraken. Alpaca separately supports broker-hosted paper crypto and direct US stocks/ETFs; see [setup and limitations](ALPACA.md). Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) and the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for verified coverage and integration limitations.
 
 HTF, market making, DCA and TWAP support qualified linear perpetuals. [Bollinger range scalping](SCALPING.md) supports paper spot and paper linear Futures only. Futures need separate collateral accounting, live credentials and arming; see [Futures operation and limitations](FUTURES.md). Neither live spot nor Futures execution has been verified with real orders.
 
@@ -52,7 +53,7 @@ The header shows the chart market's bid/ask midpoint, using the newest available
 
 ## 🚀 Quick start
 
-Requires Linux, Python 3.12 or later, and [uv](https://docs.astral.sh/uv/). Model-assisted strategies also require a Jev API key. A Kraken Spot key with fee-query access is required even for paper trading; read-only permissions are enough. Futures fee queries use that same account's Spot key. There is no frontend build step; Node.js is needed only for development checks.
+Requires Linux, Python 3.12 or later, and [uv](https://docs.astral.sh/uv/). Model-assisted strategies also require a Jev API key. For Kraken, a Spot key with fee-query access is required even for local paper trading; read-only permissions are enough. Futures fee queries use that same account's Spot key. There is no frontend build step; Node.js is needed only for development checks.
 
 Active development is on `develop`:
 
@@ -73,6 +74,9 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 | --- | --- |
 | `JEV_API_KEY` | TypeSafe API access; assessments can incur charges |
 | `KRAKEN_API_KEY`, `KRAKEN_PRIVATE_KEY` | Kraken API key and signing secret |
+| `ALPACA_PAPER_API_KEY`, `ALPACA_PAPER_SECRET_KEY` | Dedicated Alpaca paper credentials; never live credentials |
+| `ALLOW_ALPACA_PAPER_TRADING` | Defaults to `false`; hosted orders also require Start confirmation |
+| `KAIROS_EXCHANGE` | Initial exchange, `kraken` or `alpaca`; saved dashboard selection takes precedence |
 | `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Separate Derivatives credentials; read-only for browsing/accounts, order permission only for gated live Futures |
 | `JEV_MODEL` | Defaults to `jev-latest` |
 | `ALLOW_LIVE_TRADING` | Defaults to `false`; leave disabled for dry-run |
@@ -85,11 +89,11 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 uv run kairos
 ```
 
-Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused in Dry-run**. Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
+Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused**: Kraken in Dry-run, or Alpaca in hosted paper. Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
 
 ## 🧪 Your first dry-run
 
-1. In **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks and unsupported Futures remain visible with explanations. Select the Futures product separately for a qualified linear perpetual. The header picker changes only the chart.
+1. Open the KAI sidebar, select **Kraken**, then in **Kairos settings > Strategy**, search the full market catalog and choose a supported bot market, strategy, and **Spot** product. Unsupported quote currencies, margin combinations, xStocks and unsupported Futures remain visible with explanations. Select the Futures product separately for a qualified linear perpetual. The header picker changes only the chart.
 2. In **Capital**, set **Paper starting balance** to the amount you want to simulate, such as `100` USD.
 3. Set **Order cap**, **Exposure cap**, the daily loss limit, and reinvestment explicitly in Capital. Review the read-only Kraken account rates in Execution. To size against the full starting allocation, set both caps to that allocation; changing the balance does not change the caps.
 4. Save settings and click **Reset selected paper portfolio** to apply the new starting balance.
@@ -203,6 +207,7 @@ OPERATIONS.md            Detailed setup, execution, recovery, and deployment gui
 - [Brand integration](BRANDING.md) and [TradingAgents review](TRADINGAGENTS-REVIEW.md)
 - [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
 - [Kraken Exchange API](https://docs.kraken.com/exchange/api-reference/overview)
+- [Alpaca hosted paper setup](ALPACA.md) and [API reference](https://docs.alpaca.markets/us/reference)
 - [TypeSafe Jev documentation](https://docs.typesafe.ai/introduction)
 - [Jev Trader](https://github.com/jarrodwatts/jev-trader), the reference project that inspired this bot
 - [Project license](LICENSE), [bundled D3 license](kairos/static/vendor/D3-LICENSE), and [currency icon source/license](kairos/static/vendor/crypto-icons/NOTICE.md)

@@ -40,12 +40,17 @@ EXECUTION_REVISION = hashlib.sha256(
             "scalping",
             "clients",
             "market_data",
+            "alpaca",
+            "alpaca_engine",
+            "exchanges",
         )
     )
 ).hexdigest()[:16]
 
 
 class Engine:
+    exchange = "kraken"
+
     def __init__(self, store, kraken, jev, publish, futures=None, *, clock=None):
         self.clock = clock or (lambda: time.time())
         self.store, self.kraken, self.jev, self.publish = store, kraken, jev, publish
@@ -94,6 +99,7 @@ class Engine:
             previous = self.store.get(self.run_key())
             run = {
                 "id": str(uuid.uuid4()),
+                "exchange": self.exchange,
                 "started_at": self.clock(),
                 "previous_run_id": previous["id"] if previous else None,
                 "mode": self.mode,
@@ -120,6 +126,7 @@ class Engine:
     def risk_snapshot(self):
         cap, maximum = self.limits()
         return {
+            "exchange": self.exchange,
             "mode": self.mode,
             "product": self.settings["product"],
             "equity": self.equity,
@@ -138,6 +145,7 @@ class Engine:
     def tag_order(self, order):
         run = self.ensure_run()
         order.update(
+            exchange=self.exchange,
             run_id=run["id"],
             settings_id=run["settings_id"],
             execution_revision=run["execution_revision"],
@@ -169,6 +177,7 @@ class Engine:
         if kind == "fill":
             source = next((o for o in self.orders() if o["id"] == data["order_id"]), {})
         context = {
+            "exchange": self.exchange,
             "run_id": source.get("run_id") if kind == "fill" else run.get("id"),
             "settings_id": source.get("settings_id"),
             "execution_revision": source.get(
@@ -244,6 +253,7 @@ class Engine:
     def snapshot(self):
         return {
             "ready": self.ready,
+            "exchange": self.exchange,
             "running": self.running,
             "mode": self.mode,
             "live_enabled": self.kraken.allow_live,
@@ -311,7 +321,7 @@ class Engine:
             (p for p in self.kraken.pairs.values() if p.symbol.replace("/", "") == compact), None
         )
         if not pair:
-            raise SafetyError("Pair is not an online Kraken crypto spot market")
+            raise SafetyError("Market is not supported by the selected exchange")
         return pair
 
     def fee_pairs(self):
@@ -383,21 +393,25 @@ class Engine:
         )
         self.store.put("day:" + mode, None)
 
+    def validate_capabilities(self, values):
+        """Additional restrictions for the selected venue, inside the settings lock."""
+
     async def configure(self, values):
         async with self.lock:
             if self.running or self.orders(active=True):
                 raise SafetyError("Stop and reconcile outstanding orders before changing settings")
             new = validate_settings(values)
+            self.validate_capabilities(new)
             if self.settings["strategy"] == "htf" and any(
                 new[k] != self.settings[k] for k in ("strategy", "product", "pair")
             ):
-                for mode in ("dry-run", "trading"):
+                for mode in ("dry-run", "trading", "paper"):
                     plan = self.store.get(htf.key(self, mode)) or {}
                     if htf.owned(self, plan.get("position"), mode):
                         raise SafetyError(
                             "Close or reset the HTF position before changing strategy or market"
                         )
-            if new["strategy"] == "scalp" and self.mode != "dry-run":
+            if new["strategy"] == "scalp" and self.mode not in {"dry-run", "paper"}:
                 raise SafetyError("Bollinger scalping is paper-only")
             if (
                 self.settings["strategy"] == "scalp"
@@ -411,7 +425,9 @@ class Engine:
             if new["strategy"] == "scalp" and self.settings["strategy"] != "scalp":
                 if new["product"] == "spot" and any(
                     dec(v)
-                    for a, v in self.ledger("dry-run")["balances"].items()
+                    for a, v in self.ledger(self.mode if self.mode == "paper" else "dry-run")[
+                        "balances"
+                    ].items()
                     if a != new["quote"]
                 ):
                     raise SafetyError("Scalping requires a flat paper portfolio")
@@ -493,13 +509,16 @@ class Engine:
                         self.store._put("day:trading", day)
                     self.store._put("settings", new)
             else:
-                self.store.put("settings", new)
+                self.save_settings(new)
             self.settings = new
             self.latest_decision = None
             await self.refresh_fees(required=False)
             self.equity = self.exposure = self.daily_pnl = self.valuation_ts = None
             self.event("settings", {"message": "Settings saved", "settings": new})
             self.emit_state()
+
+    def save_settings(self, settings):
+        self.store.put("settings", settings)
 
     def paper_history_restriction(self, order, operation, *, active_paper=None):
         if order.get("mode") != "dry-run":
@@ -845,12 +864,15 @@ class Engine:
                         "Interrupted cycle left inventory. Review balances, then acknowledge recovery"
                     )
                 self.store.put("cycle", None)
-            if self.settings["product"] == "futures" and self.futures.ledger("trading"):
-                await self.futures.live_sync()
+            await self.reconcile_portfolio()
             self.recovery_required = False
             self.last_error = None
             self.event("system", {"message": "Reconciliation completed; holdings retained"})
             self.emit_state()
+
+    async def reconcile_portfolio(self):
+        if self.settings["product"] == "futures" and self.futures.ledger("trading"):
+            await self.futures.live_sync()
 
     def record_valuation(self, equity, exposure, day_key):
         """Shared display/UTC baseline bookkeeping; callers retain product-specific risk checks."""
@@ -959,8 +981,9 @@ class Engine:
                     "cost": str(cost),
                     "fee": str(fee),
                     "fee_currency": quote,
+                    "fee_reported": order.get("fee_reported", True),
                     "order_id": order["id"],
-                    "simulated": order["mode"] == "dry-run",
+                    "simulated": order["mode"] != "trading",
                 },
             )
 
@@ -1175,13 +1198,13 @@ class Engine:
         exit_only=False,
         review=None,
     ):
-        if self.settings["strategy"] == "scalp" and self.mode != "dry-run":
+        if self.settings["strategy"] == "scalp" and self.mode not in {"dry-run", "paper"}:
             raise SafetyError("Bollinger scalping is paper-only")
         if (
             maker
             and review is not None
             and self.settings["strategy"] == "htf"
-            and self.mode != "dry-run"
+            and self.mode not in {"dry-run", "paper"}
         ):
             raise SafetyError("Passive HTF entry experiment is paper-only")
         if (

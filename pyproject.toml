@@ -1,7 +1,7 @@
 [project]
 name = "kairos-trader"
-version = "0.1.0"
-description = "Jev-assisted Kraken spot trading with paper execution and a live dashboard"
+version = "0.2.0"
+description = "Experimental trading for Kraken and Alpaca hosted paper with a live dashboard"
 requires-python = ">=3.12"
 dependencies = ["aiohttp>=3.12,<4", "python-dotenv>=1.1,<2"]
 

@@ -8,7 +8,7 @@ from kairos.strategies import limit_price
 
 
 def key(engine):
-    return f"scalp:dry-run:{engine.settings['product']}:{engine.settings['pair']}"
+    return f"scalp:{engine.mode}:{engine.settings['product']}:{engine.settings['pair']}"
 
 
 def snapshot(engine):
@@ -26,7 +26,10 @@ def quantity(engine, pair):
 
 
 def prepare(engine):
-    if engine.mode != "dry-run" or engine.settings["product"] not in {"spot", "futures"}:
+    if engine.mode not in {"dry-run", "paper"} or engine.settings["product"] not in {
+        "spot",
+        "futures",
+    }:
         raise SafetyError("Bollinger scalping is paper-only for spot and linear Futures")
     pair = engine.resolve(engine.settings["pair"])
     state = snapshot(engine)
@@ -48,10 +51,10 @@ def prepare(engine):
     owned = sum(
         (
             dec(order["filled"]) * (1 if order["side"] == "buy" else -1)
-            for order in engine.orders("dry-run")
+            for order in engine.orders(engine.mode)
             if position and order.get("scalp_id") == position["id"]
         ),
-        ZERO,
+        dec((position or {}).get("inventory_adjustment", 0)),
     )
     if quantity(engine, pair) != owned:
         raise SafetyError(

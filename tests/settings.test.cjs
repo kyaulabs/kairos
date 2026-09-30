@@ -47,6 +47,19 @@ test('scalping exposes paper rules without editing the saved HTF interval or req
   assert.match(inputs.recover_initial.error, /capital recovery/);
 });
 
+test('market capabilities prevent equity HTF drafts but permit whole-share scheduled strategies', () => {
+  const {inputs, view} = fixture();
+  inputs.pair.value = 'alpaca:AAPL';
+  view.markets.set('alpaca:AAPL', {supported_strategies: ['dca', 'twap', 'rebalance']});
+  view.update();
+  assert.equal(inputs.strategy.options.find(o => o.value === 'htf').disabled, true);
+  assert.match(inputs.strategy.error, /market/);
+  inputs.strategy.value = 'twap'; view.update();
+  assert.equal(inputs.strategy.error, '');
+  inputs.pair.value = 'alpaca:BTC/USD'; view.update();
+  assert.equal(inputs.strategy.options.find(o => o.value === 'htf').disabled, false);
+});
+
 test('server bounds, choices and types drive the form and saved payload', () => {
   const {inputs, values} = fixture();
   assert.deepEqual(values(), defaults);

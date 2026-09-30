@@ -20,6 +20,10 @@ concurrency:
 
 env:
   ALLOW_LIVE_TRADING: "false"
+  ALLOW_ALPACA_PAPER_TRADING: "false"
+  ALPACA_PAPER_API_KEY: ""
+  ALPACA_PAPER_SECRET_KEY: ""
+  KAIROS_EXCHANGE: "kraken"
   KRAKEN_API_KEY: ""
   KRAKEN_PRIVATE_KEY: ""
   KRAKEN_FUTURES_API_KEY: ""
@@ -72,6 +76,7 @@ jobs:
           node --check kairos/static/assessment.js
           node --check kairos/static/settings.js
           node --check kairos/static/settings-help.js
+          node --check kairos/static/sidebar.js
           node --check kairos/static/chart.js
           node --check kairos/static/polling.js
           node --check kairos/static/markets.js

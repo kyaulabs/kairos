@@ -1,6 +1,7 @@
 /* Bot settings have one server-defined contract. This class never saves or starts trading. */
 class SettingsForm {
-  constructor(form, schema) {
+  constructor(form, schema, markets = []) {
+    this.markets = new Map(markets.map(market => [market.id, market]));
     this.form = form;
     this.schema = schema;
     for (const [name, field] of Object.entries(schema.fields)) {
@@ -53,12 +54,13 @@ class SettingsForm {
       group.hidden = [...group.querySelectorAll('input, select')].every(input => input.disabled);
     }
     const strategy = this.form.elements.namedItem('strategy');
+    const supported = this.markets.get(this.form.elements.namedItem('pair')?.value)?.supported_strategies;
     for (const option of strategy.options) {
       const definition = this.schema.strategies[option.value];
-      option.disabled = !definition.products.includes(values.product);
-      option.textContent = definition.label + (option.disabled ? ' · unavailable for this product' : '');
+      option.disabled = !definition.products.includes(values.product) || !!supported && !supported.includes(option.value);
+      option.textContent = definition.label + (option.disabled ? ' · unavailable for this market/product' : '');
     }
-    strategy.setCustomValidity(this.schema.strategies[values.strategy]?.products.includes(values.product) ? '' : 'Choose a strategy supported by this product.');
+    strategy.setCustomValidity(this.schema.strategies[values.strategy]?.products.includes(values.product) && (!supported || supported.includes(values.strategy)) ? '' : 'Choose a strategy supported by this product and market.');
   }
   values(saved) {
     const values = {...saved};

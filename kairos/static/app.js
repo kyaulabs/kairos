@@ -2,6 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const form = $('settings');
+  const sidebar = new SettingsSidebar(selectTab);
   const priceChart = new LiveChart('#chart', 'var(--success)', 'price', Number($('candle-interval').value));
   const equityChart = new LiveChart('#equity-chart', 'var(--accent)', 'equity');
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
@@ -25,6 +26,7 @@
     .catch(() => { /* Licensed Pro files are optional; keep the text icon fallbacks. */ });
 
   function selectTab(tab) {
+    if (tab.closest('#settings-panel')) sidebar.reveal(tab.id);
     for (const sibling of tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')) {
       const selected = sibling === tab;
       sibling.setAttribute('aria-selected', String(selected));
@@ -121,6 +123,7 @@
       quote: state.settings.quote,
       quoteLabel: pairs.find(pair => pair.id === state.settings.pair)?.symbol.split('/')[1] || state.settings.quote,
       product: form.elements.namedItem('product').value,
+      strategy: form.elements.namedItem('strategy').value,
       leverage: Number(form.elements.namedItem('leverage').value), mode: state.mode,
     });
   }
@@ -153,11 +156,12 @@
     const stale = !rows.length || rows.some(row => row.stale || !row.received || Date.now()/1000 < row.received || Date.now()/1000-row.received >= fees.max_age_seconds);
     const received = rows.filter(row => row.received).map(row => row.received);
     const observed = received.length ? `Oldest snapshot ${time(Math.min(...received))} · ` : '';
-    const text = observed + (stale ? 'Fees unavailable or stale; new orders blocked. Check selected markets and Kraken fee-query access.' : `valid for ${fees.max_age_seconds}s. Spread, slippage, funding and borrowing are separate.`);
+    const text = fees?.estimated ? `${stale ? 'Planning fees unavailable; new orders blocked. ' : ''}${fees.note}` : observed + (stale ? 'Fees unavailable or stale; new orders blocked. Check selected markets and Kraken fee-query access.' : `valid for ${fees.max_age_seconds}s. Spread, slippage, funding and borrowing are separate.`);
     if ($('fees-status').textContent !== text) $('fees-status').textContent = text;
     $('fees-status').classList.toggle('warning', stale);
   }
   function render(next) {
+    if ((state && next.exchange !== state.exchange) || settingsSchema.exchange !== next.exchange || pairs.some(pair => pair.exchange !== next.exchange)) { location.reload(); return; }
     if (historyRevision !== undefined && next.order_history_revision < historyRevision) return;
     const historyChanged = historyRevision !== undefined && next.order_history_revision !== historyRevision;
     historyRevision = next.order_history_revision;
@@ -192,7 +196,13 @@
     $('market-title').textContent = selected || state.settings.pair;
     $('market-open').title = `${selected} · ${MarketPicker.kindLabel(chartPair)} · Chart only`;
     $('mode').value = state.mode;
-    $('mode-badge').textContent = state.mode === 'trading' ? 'LIVE TRADING' : `DRY-RUN · ${state.settings.product.toUpperCase()}`;
+    const hosted = state.exchange === 'alpaca';
+    $('mode-badge').textContent = hosted ? 'ALPACA · PAPER' : state.mode === 'trading' ? 'KRAKEN · LIVE' : `KRAKEN · DRY-RUN · ${state.settings.product.toUpperCase()}`;
+    $('exchange').value = state.exchange || 'kraken';
+    $('exchange').disabled = busy || state.running || state.recovery_required;
+    $('quick-stop').hidden = !state.running;
+    $('quick-stop').disabled = busy || !connected;
+    $('reset').hidden = hosted;
     $('mode-badge').classList.toggle('live', state.mode === 'trading');
     $('equity').textContent = money(state.equity);
     $('pnl').textContent = `${Number(state.daily_pnl) > 0 ? '+' : ''}${money(state.daily_pnl)}`;
@@ -213,22 +223,23 @@
     $('restart').disabled = busy || !connected || state.running || !state.ready || state.recovery_required;
     $('settings-fields').disabled = busy || state.running;
     updateStrategyMarket(); updateProgramFields();
-    $('mode').disabled = busy || !connected;
+    $('mode').disabled = busy || !connected || hosted;
     $('trading-fees').replaceChildren();
     for (const row of state.fees?.markets || []) {
       const percent = value => value == null ? '—' : `${number(Number(value)/100)}%`;
-      textRow($('trading-fees'), row.symbol, `${percent(row.maker_bps)} maker · ${percent(row.taker_bps)} taker`);
+      textRow($('trading-fees'), row.symbol, hosted ? `${percent(row.maker_bps)} passive / ${percent(row.taker_bps)} taker estimates` : `${percent(row.maker_bps)} maker · ${percent(row.taker_bps)} taker`);
     }
     updateFeeStatus();
     const data = state.market_data;
-    $('market-data-status').textContent = state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
+    $('market-data-status').textContent = hosted ? `Alpaca free REST data · equities: IEX only (not consolidated NBBO), regular sessions and whole shares. ${state.market_session && !state.market_session.is_open ? 'Session closed; no equity orders. Elapsed schedule slots are skipped, not queued.' : ''} Passive crypto limits have no post-only guarantee; GTC cancellation requires Kairos online.` : state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
     $('market-data-status').classList.toggle('warning', state.settings.product !== 'futures' && !!data?.books_total && (data.books_ready < data.books_total || !!data.error));
     const decision = AssessmentView.matches(state.decision, state) ? state.decision : null;
     const definition = settingsSchema.strategies[state.settings.strategy];
     $('assessment-panel').dataset.strategy = state.settings.strategy;
     const scheduled = scheduledStrategy(state.settings.strategy);
     const rules = scheduled || definition.deterministic;
-    $('mode').querySelector('option[value="trading"]').disabled = !!definition.paper_only;
+    const liveOption = $('mode').querySelector('option[value="trading"]');
+    if (liveOption) liveOption.disabled = !!definition.paper_only;
     $('assessment-label').textContent = rules ? 'Strategy signals' : 'Jev assessment';
     $('assessment-kind').textContent = rules ? 'RULES' : 'MODEL';
     $('assessment-disclaimer').textContent = scheduled ? 'Scheduled orders and rebalancing do not guarantee profit. Missed or unfilled slices are not caught up automatically.' : rules ? 'Rule-based signals are not evidence of profitability. Price bounds, liquidity and data failures can prevent exits; Stop pauses protection checks.' : 'Model weights and directional bias are not calibrated probabilities of profit. Historical moves are not forecasts.';
@@ -239,7 +250,7 @@
       $('confidence').textContent = 'Deterministic rules · no model calls';
       $('decision-context').textContent = program?.message || 'No run started. Save settings, then Start with a pre-funded allocation.';
       $('decision-market').textContent = state.settings.strategy === 'rebalance' ? `Basket: ${state.settings.rebalance_targets}` : `Program market: ${botPair.symbol}`;
-      $('model-info').textContent = program ? `${program.orders} orders · ${number(program.spent_including_fees)} USD turnover incl. fees · ${program.skipped_slots} missed slots${program.next_at ? ` · Next ${new Date(program.next_at*1000).toLocaleString()}` : ''}` : 'Schedules persist across restarts. A completed run never rearms automatically.';
+      $('model-info').textContent = program ? `${program.orders} orders · ${number(program.spent_including_fees)} USD turnover ${hosted ? 'incl. planning fee reserves' : 'incl. fees'} · ${program.skipped_slots} missed slots${program.next_at ? ` · Next ${new Date(program.next_at*1000).toLocaleString()}` : ''}` : 'Schedules persist across restarts. A completed run never rearms automatically.';
       $('decision-inputs').textContent = JSON.stringify(program || {}, null, 2);
     } else if (decision) {
       $('decision').textContent = decisionLabel(decision);
@@ -260,7 +271,7 @@
     $('htf-review-status').textContent = state.htf_review ? `${state.htf_review.status} · Jev cadence ≥${state.htf_review.interval_seconds}s${state.htf_review.window_end ? ` · window ends ${new Date(state.htf_review.window_end * 1000).toLocaleTimeString()}` : ''}` : '';
     const summary = state.decision_summary;
     const run = state.execution_run;
-    $('signal-counts').textContent = run && summary ? `Run ${run.id.slice(0, 8)} · revision ${run.execution_revision} · ${summary.assessments} assessments: ${summary.actions.buy} buy / ${summary.actions.sell} sell / ${summary.actions.hold} hold. ${run.filled_orders} filled orders · trading fees ${Object.entries(run.paid_fees).map(([currency, value]) => `${money(value)} ${currency}`).join(', ') || '0'} · marked equity change $${money(run.equity_change)}. Carried holdings affect equity; this is not realized strategy profit.` : 'A new run begins on Start. Earlier runs remain in Activity; assessments are not fills.';
+    $('signal-counts').textContent = run && summary ? `Run ${run.id.slice(0, 8)} · revision ${run.execution_revision} · ${summary.assessments} assessments: ${summary.actions.buy} buy / ${summary.actions.sell} sell / ${summary.actions.hold} hold. ${run.filled_orders} filled orders · trading fees ${Object.entries(run.paid_fees).map(([currency, value]) => `${money(value)} ${currency}`).join(', ') || '0'} · marked equity change $${money(run.equity_change)}. Carried holdings affect equity; this is not realized strategy profit.${hosted ? ' Alpaca order/run fee attribution is unavailable; posted fees are account-wide in Portfolio.' : ''}` : 'A new run begins on Start. Earlier runs remain in Activity; assessments are not fills.';
     $('hold-reasons').replaceChildren();
     for (const row of summary?.hold_reasons || []) {
       const li = document.createElement('li'); li.textContent = `${row.count} × ${row.reason}`; $('hold-reasons').append(li);
@@ -286,7 +297,7 @@
         $('margin-info').textContent = `Trading/opening fees ${money(ledger.fees)} USD · funding ${money(ledger.funding)} USD`;
       }
     } else {
-      $('portfolio-label').textContent = `${state.mode === 'trading' ? 'Live' : 'Paper'} bot allocation only; not your full Kraken account.`;
+      $('portfolio-label').textContent = hosted ? `Alpaca hosted-paper bot allocation only, not full broker cash. ${state.broker_account ? '' : 'Awaiting Start validation; this does not fund or reset Alpaca.'}` : `${state.mode === 'trading' ? 'Live' : 'Paper'} bot allocation only; not your full Kraken account.`;
       for (const [asset, amount] of Object.entries(state.ledger?.balances || {})) if (Number(amount) !== 0) textRow($('holdings'), asset, number(amount));
       const recovery = state.ledger?.recovery;
       if (recovery) textRow($('holdings'), `Protected reserve · ${state.settings.quote}`, money(recovery.reserved));
@@ -311,7 +322,7 @@
     for (const order of orders) {
       const row = document.createElement('tr');
       const values = [time(order.created), `${order.mode} / ${order.product || 'spot'}`, order.pair, order.side,
-        number(order.price), number(order.volume), number(order.filled), `${number(order.fee)} ${order.quote}`, `${order.status}${order.archived ? ' · archived' : ''}`];
+        number(order.price), number(order.volume), number(order.filled), order.fee_reported === false ? 'Account activities' : `${number(order.fee)} ${order.quote}`, `${order.status}${order.archived ? ' · archived' : ''}`];
       for (const value of values) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
       row.title = `Client ID: ${order.id}${order.txid ? ` · Kraken: ${order.txid}` : ''}`;
       const actions = document.createElement('td'); actions.className = 'order-actions';
@@ -362,7 +373,7 @@
     const li = document.createElement('li'), when = document.createElement('time'), kind = document.createElement('b'), detail = document.createElement('p');
     when.textContent = time(event.ts); kind.textContent = event.kind;
     const d = event.data;
-    detail.textContent = d.message || d.reason || (event.kind === 'decision' ? `${d.mode} · ${decisionLabel(d).toUpperCase()} · ${d.deterministic ? 'rules' : `${(d.confidence*100).toFixed(1)}% confidence${d.action === 'hold' ? ' in no trade' : ''}`}${decisionContext(d) ? ` · ${decisionContext(d)}` : ''}` : event.kind === 'fill' ? `${d.mode} · ${d.side} ${number(d.volume)} · ${d.pair} · fee ${number(d.fee)}` : event.kind === 'order' ? `${d.mode} · ${d.side} ${d.pair} · ${d.status}` : event.kind === 'mode' ? `${d.mode} · ${d.running ? 'running' : 'paused'}` : JSON.stringify(d));
+    detail.textContent = d.message || d.reason || (event.kind === 'decision' ? `${d.mode} · ${decisionLabel(d).toUpperCase()} · ${d.deterministic ? 'rules' : `${(d.confidence*100).toFixed(1)}% confidence${d.action === 'hold' ? ' in no trade' : ''}`}${decisionContext(d) ? ` · ${decisionContext(d)}` : ''}` : event.kind === 'fill' ? `${d.mode} · ${d.side} ${number(d.volume)} · ${d.pair} · fee ${d.fee_reported === false ? 'see account activities' : number(d.fee)}` : event.kind === 'order' ? `${d.mode} · ${d.side} ${d.pair} · ${d.status}` : event.kind === 'mode' ? `${d.mode} · ${d.running ? 'running' : 'paused'}` : JSON.stringify(d));
     li.append(when, kind, detail); $('activity').prepend(li);
     while ($('activity').children.length > 120) $('activity').lastChild.remove();
   }
@@ -399,12 +410,22 @@
   $('close-futures').addEventListener('click', () => {
     if (confirm('Submit one bounded reduce-only order for the saved Futures market? The order cap and available liquidity may leave a residual position. Live mode sends a REAL order.')) action('close-futures', {confirmation: 'REDUCE FUTURES POSITION'});
   });
-  $('start').addEventListener('click', () => action('start'));
+  $('exchange').addEventListener('change', () => {
+    const exchange = $('exchange').value;
+    if (!confirm(`Switch to ${exchange === 'alpaca' ? 'Alpaca HOSTED PAPER' : 'Kraken'}? The current engine must be stopped, reconciled and flat. Settings, ledgers and order history stay separate. The selected exchange remains paused; no balances are moved.`)) { $('exchange').value = state.exchange; return; }
+    action('exchange', {exchange, confirmation: 'SWITCH EXCHANGE'});
+  });
+  $('start').addEventListener('click', () => {
+    if (state?.exchange === 'alpaca') {
+      if (confirm('Start Alpaca HOSTED PAPER using SAVED settings? Orders go to Alpaca’s simulator, not local simulation or live trading. Use a dedicated unused paper account. GTC passive quotes are canceled locally and can stay working while Kairos is offline.')) action('start', {confirmation: 'START ALPACA PAPER'});
+    } else action('start');
+  });
   $('restart').addEventListener('click', () => {
-    const mode = state?.mode === 'trading' ? 'LIVE trading with REAL funds' : 'paper trading';
-    if (confirm(`Restart the stopped engine and resume ${mode} using SAVED settings? This refreshes market-data streams and repeats preflight checks. It does not reset holdings, risk limits, schedules or uncertain orders.`)) action('restart', {confirmation: 'RESTART ENGINE'});
+    const mode = state?.exchange === 'alpaca' ? 'Alpaca HOSTED PAPER trading (broker-side simulated orders)' : state?.mode === 'trading' ? 'LIVE trading with REAL funds' : 'paper trading';
+    if (confirm(`Restart the stopped engine and resume ${mode} using SAVED settings? This refreshes market-data streams and repeats preflight checks. It does not reset holdings, risk limits, schedules or uncertain orders.`)) action('restart', {confirmation: state?.exchange === 'alpaca' ? 'RESTART ALPACA PAPER' : 'RESTART ENGINE'});
   });
   $('stop').addEventListener('click', () => action('stop'));
+  $('quick-stop').addEventListener('click', () => action('stop'));
   $('reconcile').addEventListener('click', () => {
     const acknowledge = state?.cycle ? confirm('An interrupted arbitrage cycle may have left intermediate holdings. Have you reviewed the order records and balances? Acknowledging retains those holdings; it does not liquidate them.') : false;
     action('reconcile', {acknowledge});
@@ -444,7 +465,18 @@
   }, 500);
   async function boot() {
     [settingsSchema, pairs] = await Promise.all([request('settings-schema'), request('pairs')]);
-    settingsForm = new SettingsForm(form, settingsSchema);
+    marketPicker.setExchange(settingsSchema.exchange || 'kraken');
+    if (settingsSchema.exchange === 'alpaca') {
+      SettingsForm.choices($('mode'), {paper: 'Hosted paper · Alpaca'}, 'paper');
+      SettingsForm.choices($('account-source'), settingsSchema.account_sources, 'alpaca-account');
+      SettingsForm.choices($('market-kind'), {all: 'All products', spot: 'Crypto spot', equity: 'US stocks / ETFs · IEX'}, 'all');
+      $('account-source').parentElement.firstChild.textContent = 'Hosted paper data · read-only';
+      $('fees-heading').textContent = 'Alpaca planning fee estimates';
+      $('market-search').placeholder = 'Search BTC, AAPL or a company';
+      document.querySelector('[data-sort="last"]').firstChild.textContent = 'Mid quote ';
+      for (const [name, label] of Object.entries(settingsSchema.field_labels || {})) form.elements[name].closest('label').firstChild.textContent = label;
+    }
+    settingsForm = new SettingsForm(form, settingsSchema, pairs);
     settingsHelp = new SettingsHelp($('settings-panel'), form, settingsSchema);
     SettingsForm.choices($('candle-interval'), settingsSchema.fields.candle_minutes.choices, $('candle-interval').value);
     priceChart.intervals = Object.keys(settingsSchema.fields.candle_minutes.choices).map(Number);
@@ -462,7 +494,7 @@
     stream.addEventListener('state', event => render(JSON.parse(event.data)));
     stream.addEventListener('ticker', event => { const ticker = JSON.parse(event.data); tickers[ticker.symbol] = ticker; });
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });
-    for (const kind of ['decision','order','fill','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
+    for (const kind of ['decision','order','fill','account-fee','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
   }
   boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); $('connection').textContent = 'DISCONNECTED'; });
 })();
