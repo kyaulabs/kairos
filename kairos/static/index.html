@@ -24,16 +24,18 @@
   <script defer src="/static/settings-help.js"></script>
   <script defer src="/static/assessment.js"></script>
   <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/review.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
 <aside id="settings-sidebar" class="settings-sidebar" aria-label="Kairos settings navigation">
   <div class="sidebar-heading"><button id="sidebar-toggle" class="brand" type="button" aria-label="Open Kairos settings" aria-expanded="false" aria-controls="settings-panel" title="Open Kairos settings"><img id="brand-wordmark" src="/static/brand/kairos-wordmark-on-dark.svg" alt="" width="120" height="31"><img id="brand-icon" src="/static/brand/kai-icon-on-dark.svg" alt="" width="48" height="25"><span class="icon icon-menu" aria-hidden="true">☰</span></button></div>
   <div id="sidebar-body" class="sidebar-body">
-    <nav class="sidebar-rail" aria-label="Settings shortcuts">
-      <button type="button" data-settings-tab="strategy-tab" aria-label="Open Strategy settings" title="Strategy" aria-controls="settings-panel" aria-expanded="false"><span class="icon icon-strategy" aria-hidden="true">♞</span></button>
-      <button type="button" data-settings-tab="capital-tab" aria-label="Open Capital settings" title="Capital" aria-controls="settings-panel" aria-expanded="false"><span class="icon icon-coins" aria-hidden="true"></span></button>
-      <button type="button" data-settings-tab="execution-tab" aria-label="Open Execution settings" title="Execution" aria-controls="settings-panel" aria-expanded="false"><span class="icon icon-execution" aria-hidden="true">↯</span></button>
+    <nav class="sidebar-rail" role="tablist" aria-label="Kairos sections" aria-orientation="vertical">
+      <button type="button" id="strategy-tab" role="tab" aria-selected="true" data-settings-tab="strategy-tab" aria-label="Strategy" title="Strategy" aria-controls="strategy-settings" aria-expanded="false"><span class="icon icon-strategy" aria-hidden="true">♞</span></button>
+      <button type="button" id="capital-tab" role="tab" aria-selected="false" tabindex="-1" data-settings-tab="capital-tab" aria-label="Capital" title="Capital" aria-controls="capital-settings" aria-expanded="false"><span class="icon icon-coins" aria-hidden="true"></span></button>
+      <button type="button" id="execution-tab" role="tab" aria-selected="false" tabindex="-1" data-settings-tab="execution-tab" aria-label="Execution" title="Execution" aria-controls="execution-settings" aria-expanded="false"><span class="icon icon-execution" aria-hidden="true">↯</span></button>
+      <button type="button" id="review-tab" role="tab" aria-selected="false" tabindex="-1" data-settings-tab="review-tab" aria-label="Review" title="Review" aria-controls="review-settings" aria-expanded="false"><span class="icon icon-activity" aria-hidden="true">∿</span></button>
     </nav>
   </div>
 </aside>
@@ -133,17 +135,12 @@
     </section>
 
     <section id="settings-panel" class="panel settings-panel" aria-labelledby="settings-title" hidden>
-      <div class="panel-head"><h2 id="settings-title"><span class="icon icon-settings" aria-hidden="true">☷</span> Kairos settings</h2><strong id="engine-status" class="engine-status">Paused</strong></div>
+      <div class="panel-head"><h2 id="settings-title"><span class="icon icon-settings" aria-hidden="true">☷</span> <span id="settings-section-title">Strategy</span></h2><strong id="engine-status" class="engine-status">Paused</strong></div>
       <div class="execution-controls" aria-label="Trading controls">
         <label class="execution-mode exchange-choice">Exchange<select id="exchange" aria-label="Trading exchange" disabled><option value="kraken">Kraken</option><option value="alpaca">Alpaca · hosted paper</option></select></label>
         <label class="execution-mode">Execution<select id="mode"><option value="dry-run">Dry-run</option><option value="trading">Trading — real funds</option></select></label>
         <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="restart" hidden disabled>Restart engine</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
         <span id="engine-strategy" class="muted">—</span>
-      </div>
-      <div class="tab-list settings-tabs" role="tablist" aria-label="Configuration sections">
-        <button type="button" id="strategy-tab" role="tab" aria-selected="true" aria-controls="strategy-settings"><span class="icon icon-strategy" aria-hidden="true">♞</span> Strategy</button>
-        <button type="button" id="capital-tab" role="tab" aria-selected="false" aria-controls="capital-settings" tabindex="-1"><span class="icon icon-coins" aria-hidden="true"></span> Capital</button>
-        <button type="button" id="execution-tab" role="tab" aria-selected="false" aria-controls="execution-settings" tabindex="-1"><span class="icon icon-execution" aria-hidden="true">↯</span> Execution</button>
       </div>
       <form id="settings">
         <fieldset id="settings-fields" disabled>
@@ -239,6 +236,18 @@
           <div class="form-actions"><button id="save-settings" class="primary" type="submit">Save settings</button></div>
         </fieldset>
       </form>
+      <div id="review-settings" class="settings-scroll strategy-review" role="tabpanel" aria-labelledby="review-tab" tabindex="0" hidden>
+        <p id="review-status" class="muted">Read-only · awaiting engine state.</p>
+        <h3>Readiness</h3><div id="review-readiness"></div>
+        <h3>Entry checks and fills</h3><div id="review-funnel"></div>
+        <p class="muted">Checks may repeat the same setup; they are not independent opportunities. Order records include submission attempts, not necessarily broker acceptance. Filled and partial counts overlap.</p>
+        <ol id="review-blockers" class="review-reasons"></ol>
+        <h3>Costs and risk</h3><div id="review-costs"></div>
+        <p class="muted">Recorded estimates, not profit forecasts. Net target room already deducts its cost assumptions. Stops show price-only distance; fees, gaps and failed fills can worsen losses. Model confidence is not a probability of profit.</p>
+        <h3>Program execution</h3><div id="review-program"></div>
+        <p class="muted">Claimed slots are not fills. Unspent allowance includes future/unfilled slices and planning fee reserves; it is not freely spendable cash. No automatic catch-up or rearming.</p>
+        <h3>Retained assets</h3><p id="review-exposure-note" class="muted"></p><div id="review-holdings"></div>
+      </div>
     </section>
   </div>
 </main>

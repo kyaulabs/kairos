@@ -143,7 +143,44 @@ class Store:
             GROUP BY 1, 2 ORDER BY COUNT(*) DESC""",
             (strategy, pair, mode, product, run_id, run_id),
         ).fetchall()
+        # Repeated checks are observations, not independent signals/trades. Older
+        # records without these inputs remain unavailable, never inferred as zero.
+        checks = self.db.execute(
+            """WITH scoped AS (
+                SELECT json_extract(data, '$.state') AS input FROM events
+                WHERE kind='decision' AND json_extract(data, '$.strategy')=?
+                AND json_extract(data, '$.pair')=? AND json_extract(data, '$.mode')=?
+                AND COALESCE(json_extract(data, '$.product'), json_extract(data, '$.state.product'), 'spot')=?
+                AND (? IS NULL OR json_extract(data, '$.run_id')=?)
+            ), checks AS (
+                SELECT CASE
+                    WHEN json_type(input, '$.pullback_long') IN ('true', 'false')
+                    THEN json_extract(input, '$.pullback_long') OR
+                        (? != 'spot' AND json_extract(input, '$.pullback_short'))
+                    WHEN json_type(input, '$.signal')='text'
+                    THEN json_extract(input, '$.signal')='buy' OR
+                        (? != 'spot' AND json_extract(input, '$.signal')='sell')
+                    END AS signal,
+                    CASE WHEN json_type(input, '$.pullback_long') IN ('true', 'false')
+                    THEN json_extract(input, '$.entry_eligible') OR
+                        (? != 'spot' AND json_extract(input, '$.short_entry_eligible'))
+                    WHEN json_type(input, '$.cost_eligible') IN ('true', 'false')
+                    THEN json_extract(input, '$.cost_eligible') AND
+                        json_extract(input, '$.range_eligible') AND
+                        (json_extract(input, '$.signal')='buy' OR
+                            (? != 'spot' AND json_extract(input, '$.signal')='sell'))
+                    END AS qualified
+                FROM scoped
+            ) SELECT COUNT(signal), SUM(signal), COUNT(qualified), SUM(qualified) FROM checks""",
+            (strategy, pair, mode, product, run_id, run_id, product, product, product, product),
+        ).fetchone()
         return {
+            "entry_checks": {
+                "observed": checks[0],
+                "signals": checks[1],
+                "cost_observed": checks[2],
+                "cost_qualified": checks[3],
+            },
             "assessments": sum(count for _, _, count in rows),
             "actions": {
                 action: sum(n for a, _, n in rows if a == action)
