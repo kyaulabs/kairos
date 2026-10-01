@@ -211,13 +211,16 @@ class Scenario:
             self.exit_reason = "daily loss halt"
         if self.qty and not self.reference:
             if self.stop and bar.end >= self.opened and dec(bar.low) <= self.stop:
-                self.exit_reason = self.exit_reason or "stop observed after publication"
+                if self.exit_reason != "daily loss halt":
+                    self.exit_reason = "stop observed after publication"
             if self.opened and bar.available - self.opened >= self.risk["max_hold_hours"] * 3600:
-                self.exit_reason = self.exit_reason or "deadline"
+                if self.exit_reason not in {"daily loss halt", "stop observed after publication"}:
+                    self.exit_reason = "deadline"
             if self.qty * price > self.cap:
                 self.exit_reason = self.exit_reason or "exposure trim"
             if not self.benchmark and view and not signal:
-                self.exit_reason = self.exit_reason or "momentum exit"
+                if self.exit_reason in {None, "exposure trim"}:
+                    self.exit_reason = "momentum exit"
         if self.exit_reason == "exposure trim" and self.qty * price <= self.target:
             self.exit_reason = None
         action = "hold"
@@ -230,6 +233,13 @@ class Scenario:
                 self.cancel_entry()
         if self.qty and self.exit_reason:
             self.cancel_entry()
+            if (
+                self.pending
+                and self.pending["side"] == "sell"
+                and self.exit_reason != "exposure trim"
+            ):
+                # Upgrade the existing intent without postponing its submission.
+                self.pending["reason"] = self.exit_reason
             if self.qty * price < self.minimum:
                 action = "retained_dust"
             elif self.pending is None:

@@ -219,6 +219,29 @@ class ResearchExperimentTests(unittest.TestCase):
         self.assertEqual(result["trailing_days_omitted"], 3)
         self.assertTrue(0 <= result["pbo"] <= 1)
 
+    def test_pending_trim_cannot_mask_or_delay_stop_deadline_or_halt(self):
+        config, data = plan(), bars(6)
+        for reason in ("stop", "deadline", "daily loss"):
+            state = Scenario(config, "BTC/USD", "momentum", "base", None, 1)
+            state.qty, state.cash, state.opened = dec("1.2"), dec(380), 1
+            state.stop = dec(100) if reason == "stop" else dec(50)
+            state.exit_reason = "exposure trim"
+            due = data[3].start
+            state.pending = {"created": 1, "due": due, "side": "sell", "reason": "exposure trim"}
+            if reason == "deadline":
+                state.opened = data[1].available - config["risk"]["max_hold_hours"] * 3600
+            if reason == "daily loss":
+                state.day_open = dec(1000)
+            state.observe(data[1], views(data)[1])
+            self.assertIn(reason, state.pending["reason"])
+            self.assertEqual(state.pending["due"], due)
+            state.opening(data[3], data[1])
+            # A trim would leave about 0.8; a capped hard exit sells about 1.0.
+            self.assertLess(state.qty, dec(".3"))
+            self.assertLessEqual(
+                dec(state.orders[-1]["filled"]) * dec(state.orders[-1]["price"]), 100
+            )
+
     def test_buy_hold_price_reference_is_full_exposure_not_a_tiny_partial(self):
         config = plan()
         config["scenarios"]["base"].update(reject_probability=1, participation=0)
