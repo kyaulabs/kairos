@@ -4,6 +4,8 @@ Offline evidence, not a trading feature. Nothing here starts an engine, loads cr
 
 The first study is fixed in [`PLAN.json`](PLAN.json): BTC/USD and ETH/USD on Alpaca US, evaluated separately with identical hypothetical $500 allocations. These are two asset replications, not a jointly executable portfolio. There are five arms: deterministic momentum and four separate additions. No combined winner or parameter search is authorized.
 
+The completed study is [inconclusive](RESULTS.md). [RESULTS.json](RESULTS.json) preserves both validation runs, the single final run and the complete trial journal. A disclosed post-run safety correction invalidates the final run as confirmatory evidence; it was not reopened. Nothing is promoted to production.
+
 ## Repository audit
 
 Audit baseline: `7a9d4927681673cf9db296ff0109abb18ac458cd` (v0.3.1 tree).
