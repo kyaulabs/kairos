@@ -219,6 +219,22 @@ class ResearchExperimentTests(unittest.TestCase):
         self.assertEqual(result["trailing_days_omitted"], 3)
         self.assertTrue(0 <= result["pbo"] <= 1)
 
+    def test_buy_hold_price_reference_is_full_exposure_not_a_tiny_partial(self):
+        config = plan()
+        config["scenarios"]["base"].update(reject_probability=1, participation=0)
+        data = [replace(b, volume="0") for b in bars(5)]
+        result = simulate(
+            data, views(data), config, "BTC/USD", "buy_hold_reference", "base", 0, data[-1].end
+        )
+        self.assertEqual(len(result["orders"]), 1)
+        self.assertGreater(dec(result["open_quantity"]) * 100, 495)
+        self.assertLess(dec(result["cash"]), dec(".00001"))
+        self.assertGreater(dec(result["fees"]), 1)
+        self.assertGreater(dec(result["spread_cost_estimate"]), 0)
+        self.assertGreater(dec(result["slippage_cost_estimate"]), 0)
+        # The same fictitious liquidity cannot be used to invent real strategy fills.
+        self.assertEqual(self.execute(data, config)["open_quantity"], "0")
+
     def test_cscv_detects_rank_reversal_not_just_large_sharpe(self):
         stable = [[0.01, 0.02] * 12, [0, 0.01] * 12]
         self.assertEqual(selection_diagnostics(stable, 2, blocks=4)["pbo"], 0)

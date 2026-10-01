@@ -64,7 +64,11 @@ class Scenario:
             self.qty += amount
             self.opened = at
             self.stop = price * (1 - dec(self.risk["stop_bps"]) / 10000)
-            self.spread -= amount * opening * self.half
+            if self.reference:
+                self.spread += amount * opening * self.half
+                self.slippage += amount * opening * (1 + self.half) * self.slip
+            else:
+                self.spread -= amount * opening * self.half
             self.last_entry_day = at // 86400
         else:
             self.cash += cost - fee
@@ -105,6 +109,8 @@ class Scenario:
             opening * (1 - self.half if side == "buy" else (1 - self.half) * (1 - self.slip)),
             self.tick,
         )
+        if self.reference and side == "buy":
+            price = down(opening * (1 + self.half) * (1 + self.slip), self.tick)
         if price <= 0:
             raise SafetyError("Scenario price below tick")
         if side == "buy":
@@ -135,6 +141,10 @@ class Scenario:
         self.orders.append(order)
         if bar.start != intent["due"]:
             order["reason"] = "expired before observed execution bar"
+        elif self.reference:
+            # Deliberately untradeable full-exposure PRICE reference. It has costs,
+            # but no queue, latency, participation, rejection, caps or protective exits.
+            self.fill(order, requested, bar.start, opening)
         elif requested * price < self.minimum:
             order.update(status="rejected", reason="retained dust or below synthetic minimum")
         elif (
@@ -318,6 +328,14 @@ def simulate(
         if bar.available < start:
             state.previous_signal = bool(view and view["momentum"] > 0) if view else None
         if start <= bar.start < end:
+            if state.reference and not events:
+                state.pending = {
+                    "created": bar.start,
+                    "due": bar.start,
+                    "side": "buy",
+                    "budget": state.initial,
+                    "reason": "unconstrained price reference",
+                }
             # Close precedes next open at the same boundary; publication is later.
             events.extend([(bar.start, 1, i), (bar.end, 0, i), (bar.available, 2, i)])
     for at, kind, i in sorted(events):
