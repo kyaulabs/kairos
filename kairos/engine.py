@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kairos import diagnostics, htf, margin, programs, scalping
+from kairos import diagnostics, htf, margin, programs, review, scalping
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.fees import AccountFees, FeeUnavailable
@@ -251,7 +251,7 @@ class Engine:
         return self.summary_cache[1]
 
     def snapshot(self):
-        return {
+        state = {
             "ready": self.ready,
             "exchange": self.exchange,
             "running": self.running,
@@ -303,6 +303,9 @@ class Engine:
                 "us_stocks": "not integrated: reviewed CLI offers xStocks, not brokerage stock orders",
             },
         }
+
+        state["review"] = review.snapshot(state, self.clock())
+        return state
 
     def emit_state(self):
         self.publish("state", self.snapshot())

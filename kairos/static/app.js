@@ -2,7 +2,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const form = $('settings');
-  const sidebar = new SettingsSidebar(selectTab);
+  const sidebar = new SettingsSidebar();
+  const strategyReview = new StrategyReview($('review-settings'));
   const priceChart = new LiveChart('#chart', 'var(--success)', 'price', Number($('candle-interval').value));
   const equityChart = new LiveChart('#equity-chart', 'var(--accent)', 'equity');
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
@@ -26,7 +27,11 @@
     .catch(() => { /* Licensed Pro files are optional; keep the text icon fallbacks. */ });
 
   function selectTab(tab) {
-    if (tab.closest('#settings-panel')) sidebar.reveal(tab.id);
+    if (tab.closest('#settings-sidebar')) {
+      sidebar.reveal(tab.id);
+      form.hidden = tab.id === 'review-tab';
+      $('settings-section-title').textContent = tab.title;
+    }
     for (const sibling of tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')) {
       const selected = sibling === tab;
       sibling.setAttribute('aria-selected', String(selected));
@@ -44,7 +49,9 @@
       tab.addEventListener('click', () => selectTab(tab));
       tab.addEventListener('keydown', event => {
         const i = tabs.indexOf(tab);
-        const next = {ArrowRight: (i+1)%tabs.length, ArrowLeft: (i+tabs.length-1)%tabs.length, Home: 0, End: tabs.length-1}[event.key];
+        const vertical = list.getAttribute('aria-orientation') === 'vertical';
+        const keys = {[vertical ? 'ArrowDown' : 'ArrowRight']: (i+1)%tabs.length, [vertical ? 'ArrowUp' : 'ArrowLeft']: (i+tabs.length-1)%tabs.length, Home: 0, End: tabs.length-1};
+        const next = keys[event.key];
         if (next === undefined) return;
         event.preventDefault();
         selectTab(tabs[next]); tabs[next].focus();
@@ -230,6 +237,7 @@
       textRow($('trading-fees'), row.symbol, hosted ? `${percent(row.maker_bps)} passive / ${percent(row.taker_bps)} taker estimates` : `${percent(row.maker_bps)} maker · ${percent(row.taker_bps)} taker`);
     }
     updateFeeStatus();
+    strategyReview.render(state, connected);
     const data = state.market_data;
     $('market-data-status').textContent = hosted ? `Alpaca free REST data · equities: IEX only (not consolidated NBBO), regular sessions and whole shares. ${state.market_session && !state.market_session.is_open ? 'Session closed; no equity orders. Elapsed schedule slots are skipped, not queued.' : ''} Passive crypto limits have no post-only guarantee; GTC cancellation requires Kairos online.` : state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
     $('market-data-status').classList.toggle('warning', state.settings.product !== 'futures' && !!data?.books_total && (data.books_ready < data.books_total || !!data.error));
