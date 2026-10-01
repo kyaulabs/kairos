@@ -624,6 +624,31 @@ class AlpacaWebTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.broker.orders)
         self.assertFalse(self.engine.running)
 
+    async def test_initial_funding_ack_requires_csrf_and_confirmation_without_start(self):
+        from tests.test_alpaca_funding import CONFIRM, FUNDING
+
+        await self.engine.reconcile_account(adopt=True)
+        self.broker.activities = [copy.deepcopy(FUNDING)]
+        payload = {"initial_funding_id": FUNDING["id"], "confirmation": CONFIRM}
+        response = await self.client.post("/api/reconcile", json=payload)
+        self.assertEqual(response.status, 403)
+        response = await self.client.post(
+            "/api/reconcile", json={"initial_funding_id": FUNDING["id"]}, headers=self.headers
+        )
+        self.assertEqual(response.status, 409)
+        self.assertFalse(self.store.get("alpaca-account")["baseline_activities"])
+        response = await self.client.post("/api/reconcile", json=payload, headers=self.headers)
+        self.assertEqual(response.status, 200)
+        state = await response.json()
+        self.assertFalse(state["running"] or state["paper_armed"])
+        self.assertTrue(all(method == "GET" for method, _, _ in self.broker.calls))
+        view = await (await self.client.get("/api/accounts/alpaca-activities")).json()
+        self.assertIn("description", view["columns"])
+        self.assertIn(FUNDING["description"], view["rows"][0])
+        self.app["engine"] = self.kraken
+        response = await self.client.post("/api/reconcile", json=payload, headers=self.headers)
+        self.assertEqual(response.status, 409)
+
     async def test_switch_requires_csrf_stopped_flat_account_and_never_resumes(self):
         before = self.engine.ledger()
         payload = {"exchange": "kraken", "confirmation": "SWITCH EXCHANGE"}

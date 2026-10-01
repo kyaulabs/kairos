@@ -267,6 +267,96 @@ class AlpacaEngine(Engine):
             },
         )
 
+    @staticmethod
+    def is_initial_funding(rows, cash):
+        """One completed cash journal matching the unused account's initial cash."""
+        if len(rows) != 1:
+            return False
+        row = rows[0]
+        return (
+            row.get("activity_type") == "JNLC"
+            and row.get("status") == "executed"
+            and row.get("currency", "USD") == "USD"
+            and not row.get("symbol")
+            and not dec(row.get("qty") or 0)
+            and dec(row.get("net_amount")) == dec(cash) > ZERO
+        )
+
+    async def reconcile_initial_funding(self, activity_id, confirmation):
+        if not activity_id or confirmation != "ACKNOWLEDGE INITIAL PAPER FUNDING":
+            raise SafetyError("Explicit initial paper funding activity and confirmation required")
+        generation = self.stop_generation
+        async with self.lock:
+
+            def guard():
+                if (
+                    not self.ready
+                    or self.running
+                    or self.shutting_down
+                    or self.mode != "paper"
+                    or self.recovery_required
+                    or self.orders()
+                    or self.store.get("cycle")
+                    or self.stop_generation != generation
+                ):
+                    raise SafetyError(
+                        "Initial funding reconciliation requires a paused unused account"
+                    )
+
+            guard()
+            identity, ledger = self.store.get("alpaca-account"), self.ledger()
+            if not identity or identity["baseline_activities"]:
+                raise SafetyError(
+                    "Initial funding acknowledgement requires an empty saved baseline"
+                )
+            initial = dec(ledger["initial"])
+            if self.balance("USD") != initial or any(
+                dec(q) for a, q in ledger["balances"].items() if a != "USD"
+            ):
+                raise SafetyError("Initial funding cannot change an existing portfolio")
+            cash = initial + dec(identity["unallocated_cash"])
+            # Two matching read passes catch changes during operator reconciliation.
+            observed = None
+            for _ in range(2):
+                account = await self.kraken.account()
+                positions = await self.kraken.positions()
+                orders = await self.kraken.request(
+                    "GET", "/v2/orders", params={"status": "all", "limit": 1}
+                )
+                rows = await self.kraken.activities(identity["activities_after"])
+                if (
+                    account["id"] != identity["id"]
+                    or dec(account["cash"]) != cash
+                    or positions
+                    or orders
+                    or not self.is_initial_funding(rows, cash)
+                    or rows[0]["id"] != activity_id
+                    or observed is not None
+                    and observed != rows
+                ):
+                    raise SafetyError(
+                        "Initial funding evidence does not match the saved unused account"
+                    )
+                observed = rows
+            guard()
+            if self.store.get("alpaca-account") != identity or self.ledger() != ledger:
+                raise SafetyError("Saved account changed during initial funding reconciliation")
+            # Retain the full row: subsequent corrections still fail normal reconciliation.
+            updated = {**identity, "baseline_activities": {activity_id: observed[0]}}
+            with self.store.db:
+                self.store._put("alpaca-account", updated)
+                self.event(
+                    "account-reconciliation",
+                    {
+                        "message": "Operator acknowledged delayed initial paper funding; trading remains paused",
+                        "activity_id": activity_id,
+                        "activity_type": "JNLC",
+                        "amount": str(cash),
+                        "previous_baseline": identity["baseline_activities"],
+                    },
+                )
+            self.emit_state()
+
     async def reconcile_account(self, *, adopt=False):
         identity = self.store.get("alpaca-account")
         if not identity and not adopt:
@@ -289,7 +379,9 @@ class AlpacaEngine(Engine):
                 raise SafetyError("Alpaca paper cash is below the configured allocation")
             after = iso(int(self.clock()) // 86400 * 86400)
             baseline = await self.kraken.activities(after)
-            if any(r["activity_type"] != "CSD" for r in baseline):
+            if any(r["activity_type"] != "CSD" for r in baseline) and not self.is_initial_funding(
+                baseline, account["cash"]
+            ):
                 raise SafetyError("First Alpaca connection requires an unused paper account")
             identity = {
                 "id": account["id"],
@@ -328,7 +420,9 @@ class AlpacaEngine(Engine):
                 self.apply_fee(row)
             else:
                 raise SafetyError(
-                    "External account activity or corporate action; manual reconciliation required"
+                    "Unacknowledged Alpaca cash journal (JNLC); manual reconciliation required"
+                    if row["activity_type"] == "JNLC"
+                    else "External account activity or corporate action; manual reconciliation required"
                 )
         # Re-read after fee activities; no assumptions about settlement timing or external edits.
         account = await self.kraken.account()

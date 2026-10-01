@@ -275,6 +275,9 @@ class AlpacaMarkets:
                 "alpaca-activities": [
                     "id",
                     "activity_type",
+                    "date",
+                    "status",
+                    "description",
                     "symbol",
                     "qty",
                     "price",

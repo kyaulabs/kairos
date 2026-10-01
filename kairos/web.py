@@ -344,7 +344,14 @@ async def command(request):
     elif action == "stop":
         await engine.stop()
     elif action == "reconcile":
-        await engine.reconcile(data.get("acknowledge") is True)
+        if "initial_funding_id" in data:
+            if not isinstance(engine, AlpacaEngine):
+                raise SafetyError("Initial paper funding acknowledgement is Alpaca-only")
+            await engine.reconcile_initial_funding(
+                data["initial_funding_id"], data.get("confirmation")
+            )
+        else:
+            await engine.reconcile(data.get("acknowledge") is True)
     elif action == "paper-order":
         await engine.paper_order_history(
             data["order_id"], data["operation"], data.get("confirmation", "")
