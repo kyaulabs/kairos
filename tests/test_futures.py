@@ -363,7 +363,8 @@ class FuturesTests(unittest.IsolatedAsyncioTestCase):
     async def test_funding_accrues_once_and_missing_history_stops(self):
         await self.place()
         ledger = self.engine.futures.ledger()
-        now = time.time()
+        # Whole seconds keep the exact-cash fixture stable across hour boundaries.
+        now = float(int(time.time()))
         start = int(now // 3600) * 3600
         ledger["funding_ts"] = now - 10
         self.store.put("futures:dry-run", ledger)
