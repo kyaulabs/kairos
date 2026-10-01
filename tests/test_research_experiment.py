@@ -219,6 +219,30 @@ class ResearchExperimentTests(unittest.TestCase):
         self.assertEqual(result["trailing_days_omitted"], 3)
         self.assertTrue(0 <= result["pbo"] <= 1)
 
+    def test_cscv_detects_rank_reversal_not_just_large_sharpe(self):
+        stable = [[0.01, 0.02] * 12, [0, 0.01] * 12]
+        self.assertEqual(selection_diagnostics(stable, 2, blocks=4)["pbo"], 0)
+        first = [0.01, 0.02] * 6 + [-0.01, -0.02] * 6
+        reversed_ranks = [first, [-x for x in first]]
+        self.assertEqual(selection_diagnostics(reversed_ranks, 2, blocks=4)["pbo"], 1)
+        self.assertEqual(
+            selection_diagnostics(reversed_ranks, 2, blocks=4)["dsr_raw_trial_sensitivity"],
+            [0.5, 0.5],
+        )
+
+    def test_signal_arrival_cannot_erase_an_already_submitted_potential_fill(self):
+        config, data = plan(), bars(5)
+        signals = views(data)
+        signals[2]["momentum"] = -0.1
+        result = self.execute(data, config, signals)
+        first = result["orders"][0]
+        self.assertTrue(first["cancel_requested"])
+        self.assertGreater(dec(first["filled"]), 0)
+        # Under a longer delay the withdrawal arrives BEFORE submission and really cancels it.
+        config["scenarios"]["base"]["delay_bars"] = 2
+        delayed = self.execute(data, config, signals)
+        self.assertEqual(delayed["orders"], [])
+
     def test_full_family_freezes_models_and_consumes_final_once(self):
         from dataclasses import asdict
         from datetime import UTC, datetime
