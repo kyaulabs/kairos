@@ -56,6 +56,30 @@ class ReviewTests(unittest.IsolatedAsyncioTestCase):
         state["settings"]["candle_minutes"] = 15
         self.assertIsNone(review.snapshot(state, 1800000061)["data"]["consecutive_minutes"])
 
+    async def test_native_readiness_uses_hourly_windows_not_minute_counts(self):
+        state = self.engine.snapshot()
+        state.update(exchange="alpaca", running=True)
+        state["htf_review"].update(
+            history_policy="alpaca-us-native-bars-v1",
+            bar_minutes=60,
+            window_end=1800000000,
+            native_bars=30,
+            required_native_bars=30,
+            minute_rows=None,
+            required_minute_rows=None,
+        )
+        current = review.snapshot(state, 1800001200)["data"]
+        self.assertTrue(current["window_current"])
+        self.assertEqual(current["consecutive_native_bars"], 30)
+        self.assertIsNone(current["consecutive_minutes"])
+        self.assertIsNone(current["required_minutes"])
+        self.assertIsNone(review.snapshot(state, 1800003600)["data"]["consecutive_native_bars"])
+        state["running"] = False
+        self.assertIsNone(review.snapshot(state, 1800001200)["data"]["consecutive_native_bars"])
+        state["running"] = True
+        state["settings"]["candle_minutes"] = 15
+        self.assertIsNone(review.snapshot(state, 1800001200)["data"]["consecutive_native_bars"])
+
     async def test_dca_budget_uses_saved_config_and_reserves_without_netting_sides(self):
         self.engine.settings.update(strategy="dca", dca_count=7, dca_amount="10")
         programs.prepare(self.engine)

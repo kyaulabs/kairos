@@ -5,6 +5,7 @@ Model IO never holds the execution lock. Only the HTF executor may place orders.
 
 import asyncio
 import contextlib
+import hashlib
 import json
 
 from kairos import diagnostics
@@ -84,6 +85,24 @@ def rolling_rows(store, pair, rows, cutoff, minutes):
     return result, count, needed
 
 
+NATIVE_POLICY = "alpaca-us-native-bars-v1"
+ROLLING_POLICY = "rolling-confirmed-minutes-v1"
+
+
+def native_rows(pair, rows, cutoff, minutes):
+    """Validate provider-native closed bars; missing minutes are not synthesized."""
+    history = CandleHistory(pair, minutes, 30)
+    rows = [history.validate(row) for row in rows]
+    times = [r[0] for r in rows]
+    if times != sorted(set(times)) or any(t >= cutoff for t in times):
+        raise SafetyError("Invalid completed native HTF history")
+    saved = {r[0]: r for r in rows}
+    count = 0
+    while count < 30 and cutoff - (count + 1) * minutes * 60 in saved:
+        count += 1
+    return (rows[-30:] if count == 30 else None), count, 30
+
+
 class HTFReview:
     def __init__(self, engine):
         self.engine = engine
@@ -93,12 +112,32 @@ class HTFReview:
         self.context = None
         self.next_at = 0
         self.cutoff = None
-        self.status = "Rolling history not loaded"
+        self.status = (
+            "Native HTF history not loaded" if self.native else "Rolling history not loaded"
+        )
         self.available = 0
-        self.required = 30 * engine.settings["candle_minutes"]
+        self.required = 30 if self.native else 30 * engine.settings["candle_minutes"]
+        self.history_fetched_at = None
+        self.history_revision = None
+        self.history_minutes = None
         self.observed_window = None
         self.permissions = None
         self.range_observation = None
+
+    @property
+    def native(self):
+        return getattr(self.engine.kraken, "hosted_paper", False) is True
+
+    @property
+    def policy(self):
+        return NATIVE_POLICY if self.native else ROLLING_POLICY
+
+    @property
+    def window_step(self):
+        return self.engine.settings["candle_minutes"] * 60 if self.native else 60
+
+    def window_end(self, now):
+        return int(now) // self.window_step * self.window_step
 
     def entry_view(self, rows, pair, book):
         view = signal(
@@ -136,8 +175,11 @@ class HTFReview:
         self.context = None
         self.rows = None
         self.cutoff = None
+        self.history_fetched_at = None
+        self.history_revision = None
+        self.history_minutes = None
         self.next_at = 0
-        self.status = "Rolling review paused"
+        self.status = "Native-bar review paused" if self.native else "Rolling review paused"
         self.permissions = None
         self.range_observation = None
 
@@ -152,8 +194,16 @@ class HTFReview:
         return {
             "status": self.status,
             "interval_seconds": 2 * self.engine.settings["interval_seconds"],
-            "minute_rows": self.available,
-            "required_minute_rows": self.required,
+            "history_policy": self.policy,
+            "bar_minutes": self.history_minutes
+            if self.native
+            else self.engine.settings["candle_minutes"],
+            "history_fetched_at": self.history_fetched_at,
+            "history_revision": self.history_revision,
+            "native_bars": self.available if self.native else None,
+            "required_native_bars": self.required if self.native else None,
+            "minute_rows": None if self.native else self.available,
+            "required_minute_rows": None if self.native else self.required,
             "window_end": self.cutoff,
             "in_flight": bool(self.task and not self.task.done()),
             "permissions": self.permissions,
@@ -176,7 +226,7 @@ class HTFReview:
             self.context = signature
             self.next_at = engine.clock() + 2 * engine.settings["interval_seconds"]
             self.task = asyncio.create_task(self.review(pair, signature))
-        return self.rows if self.cutoff == int(engine.clock()) // 60 * 60 else None
+        return self.rows if self.cutoff == self.window_end(engine.clock()) else None
 
     async def review(self, pair, signature):
         engine = self.engine
@@ -185,50 +235,71 @@ class HTFReview:
                 engine.futures.client if engine.settings["product"] == "futures" else engine.kraken
             )
             started = engine.clock()
-            cutoff = int(started) // 60 * 60
-            if self.cutoff != cutoff:
+            cutoff = self.window_end(started)
+            if self.cutoff != cutoff or self.native and self.rows is None:
                 if engine.settings["product"] == "futures":
                     rows = await client.completed_candles(pair, 1)
                     rows = [r for r in rows if r[0] < cutoff]
                 elif getattr(client, "hosted_paper", False) is True:
-                    rows = await client.completed_minutes(
-                        pair, engine.settings["candle_minutes"] * 30
-                    )
-                    rows = [r for r in rows if r[0] < cutoff]
+                    rows = await client.bars(pair, engine.settings["candle_minutes"], count=30)
                 else:
                     raw = await client.ohlc(pair, 1)
                     rows = list(CandleHistory(pair, 1, 1).rest_rows(raw, started).values())
                 if self.context != signature or self.signature() != signature or not engine.running:
                     return
-                self.rows, self.available, self.required = rolling_rows(
-                    engine.store, pair, rows, cutoff, engine.settings["candle_minutes"]
-                )
-                # A boundary response may still end with the previous forming minute.
-                # Retry that unconfirmed latest bucket next review, not next minute.
+                if self.native:
+                    self.rows, self.available, self.required = native_rows(
+                        pair, rows, cutoff, engine.settings["candle_minutes"]
+                    )
+                    self.history_fetched_at = engine.clock()
+                    self.history_minutes = engine.settings["candle_minutes"]
+                    self.history_revision = (
+                        hashlib.sha256(
+                            json.dumps(self.rows, separators=(",", ":")).encode()
+                        ).hexdigest()
+                        if self.rows
+                        else None
+                    )
+                else:
+                    self.rows, self.available, self.required = rolling_rows(
+                        engine.store, pair, rows, cutoff, engine.settings["candle_minutes"]
+                    )
+                # Retry a delayed latest closed bucket without accepting an older window.
                 self.cutoff = cutoff if self.available else None
             if not self.rows:
-                self.status = f"Rolling warm-up: {self.available}/{self.required} consecutive confirmed minutes; protection active"
+                self.status = (
+                    f"Native HTF warm-up: {self.available}/{self.required} consecutive completed "
+                    f"{engine.settings['candle_minutes']}-minute bars; protection active"
+                    if self.native
+                    else f"Rolling warm-up: {self.available}/{self.required} consecutive confirmed minutes; protection active"
+                )
                 return
             book = await client.book(pair)
             book.fresh(engine.settings["stale_seconds"])
             observed = engine.clock()
-            view = self.entry_view(self.rows, pair, book)
-            if int(observed) // 60 * 60 != cutoff or self.signature() != signature:
-                self.status = "Rolling window changed during data read; waiting for a fresh review"
+            if self.window_end(observed) != cutoff or self.signature() != signature:
+                self.status = "HTF window changed during data read; waiting for a fresh review"
                 return
+            view = self.entry_view(self.rows, pair, book)
             from kairos import htf
 
             window = self.rows[-1]
             permissions = htf.entry_context(engine, pair, view, book)
             self.permissions = permissions
             self.range_observation = view["range_observation"]
-            if self.observed_window != cutoff:
+            history_key = (cutoff, self.history_revision)
+            if self.observed_window != history_key:
                 engine.event(
                     "htf-observation",
                     {
                         "pair": pair.id,
                         "product": engine.settings["product"],
                         "window_end": cutoff,
+                        "history_policy": self.policy,
+                        "bar_minutes": engine.settings["candle_minutes"],
+                        "history_fetched_at": self.history_fetched_at,
+                        "history_revision": self.history_revision,
+                        "native_history": self.rows if self.native else None,
                         "mid": str(book.mid),
                         "entry_policy": view["entry_policy"],
                         "pullback_signal": permissions["entry_signal"],
@@ -250,9 +321,12 @@ class HTFReview:
                         ),
                     },
                 )
-                self.observed_window = cutoff
+                self.observed_window = history_key
+            window_key = "native_window" if self.native else "rolling_window"
             payload = {
-                "rolling_window": dict(
+                "history_policy": self.policy,
+                "history_revision": self.history_revision,
+                window_key: dict(
                     zip(
                         ("start", "open", "high", "low", "close", "vwap", "volume", "trades"),
                         window,
@@ -307,7 +381,9 @@ class HTFReview:
                     observed,
                     {
                         **answer,
-                        "rolling_window": payload["rolling_window"],
+                        window_key: payload[window_key],
+                        "history_policy": self.policy,
+                        "history_revision": self.history_revision,
                         "input_spread_bps": str(book.spread_bps),
                         "allowed_actions": permissions["allowed_actions"],
                     },
@@ -320,7 +396,7 @@ class HTFReview:
             error_id = diagnostics.capture(exc, "htf-review")
             self.answer = None
             self.status = (
-                "Rolling data/Jev unavailable; discretionary orders blocked; protection active"
+                "HTF data/Jev unavailable; discretionary orders blocked; protection active"
             )
             if engine.running and self.context == signature:
                 engine.event(
@@ -343,7 +419,7 @@ class HTFReview:
         now = self.engine.clock()
         if (
             signature != self.signature()
-            or cutoff != int(now) // 60 * 60
+            or cutoff != self.window_end(now)
             or not 0 <= now - observed <= 2 * self.engine.settings["interval_seconds"]
         ):
             self.status = "Stale Jev review discarded; protection active"
@@ -354,5 +430,7 @@ class HTFReview:
             **answer,
             "observed_at": observed,
             "window_end": cutoff,
-            "expires_at": min(observed + 2 * self.engine.settings["interval_seconds"], cutoff + 60),
+            "expires_at": min(
+                observed + 2 * self.engine.settings["interval_seconds"], cutoff + self.window_step
+            ),
         }

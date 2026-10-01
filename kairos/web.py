@@ -157,6 +157,12 @@ async def settings_schema(request):
             "fees": request.app["engine"].kraken.fee_note,
             "data": "Free Alpaca crypto data and IEX-only equity quotes. IEX is not consolidated NBBO. Equity execution uses whole-share limit orders during regular sessions only. Hosted paper fills do not model actual queue position, market impact or regulatory fees.",
         }
+        contract["fields"]["candle_minutes"]["help"] = (
+            "Alpaca crypto HTF uses 30 consecutive completed native bars from Alpaca US. "
+            "At 60 minutes these are UTC-aligned hourly bars, not rolling minute aggregates. "
+            "New setups require a new completed bar; execution and protective exits still "
+            "check fresh quotes each engine cycle. Missing native bars block entries."
+        )
         contract["account_sources"] = ACCOUNT_SOURCES
         contract["fields"]["pair"]["help"] = (
             "The saved Alpaca execution market, independent of the chart. Crypto supports passive limit strategies and scheduled programs. Stocks/ETFs support long-only whole-share DCA, TWAP and rebalancing; no equity HTF, scalp, margin or short sales. Slice budgets must afford at least one share."

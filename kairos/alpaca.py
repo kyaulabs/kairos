@@ -374,6 +374,8 @@ class Alpaca:
             params["page_token"] = token
         else:
             raise SafetyError("Alpaca bar history incomplete")
+        if any(timestamp(r["t"]) % (minutes * 60) for r in rows):
+            raise SafetyError("Unaligned Alpaca bar timestamp")
         normalized = [
             [
                 int(timestamp(r["t"])),
@@ -393,13 +395,6 @@ class Alpaca:
         history = CandleHistory(pair, minutes, 31)
         history.seed = {r[0]: history.validate(r) for r in rows}
         return history.completed(streamed=False)
-
-    async def completed_minutes(self, pair, count):
-        if self.is_equity(pair):
-            raise SafetyError(
-                "Equity indicators need session-aware history; use scheduled strategies"
-            )
-        return await self.bars(pair, 1, count=count)
 
     def normalize_order(self, row):
         if row["status"] not in STATES or row.get("replaced_by") or row.get("legs"):
