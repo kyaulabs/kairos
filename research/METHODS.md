@@ -2,6 +2,8 @@
 
 This study tests the existing spot strategy code rather than another momentum proxy. [METHODS_PLAN.json](METHODS_PLAN.json) freezes the source, calendar selection, execution assumptions and outputs before historical method outcomes are examined.
 
+The [completed replay and research comparison](METHODS_RESULTS.md) reports all 728 sessions. Sparse minute inputs prevent an informative HTF/scalp performance conclusion; scheduled-program returns are not alpha certification.
+
 ## What runs
 
 The offline adapter calls the production `Engine.tick`, `htf.run`, `scalping.run` and `programs.run` paths. Order validation, limits, fee reserves, cumulative-fill accounting, position ownership, fresh-entry state, residual handling, stops, targets, holding deadlines and daily-loss behavior remain in those functions. No production files are changed.

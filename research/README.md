@@ -12,6 +12,8 @@ The separate [Kraken daily price pilot](KRAKEN_RESULTS.md) used no Alpaca data. 
 
 The [broader Alpaca-cost study](BROAD_RESULTS.md) extended the unchanged Kraken price rule across seven complete years. With 25-bps-per-side planning fees, neither asset passed the consistency and adjusted-comparison gates. The 2018 missing-data exclusion was fixed before new performance evaluation; no risk-constrained simulation or paper activation followed.
 
+The [existing-method replay](METHODS_RESULTS.md) exercises production HTF, scalping and program code across 728 registered archive sessions, rather than the momentum proxy. It reports sparse minute-history readiness, limited conditional HTF fills, halted scalp sessions, scheduled-program outcomes and a method-by-method comparison with all nine research sources. It is not verified Alpaca execution or a reconstruction of Jev.
+
 ## Repository audit
 
 Audit baseline: `7a9d4927681673cf9db296ff0109abb18ac458cd` (v0.3.1 tree).
