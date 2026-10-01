@@ -30,12 +30,22 @@ class StrategyReview {
       ['Assessment at snapshot', connected && data.assessment_current ? 'Within review cadence; not an order authorization' : 'Unavailable, stale or paused'],
       ['Halt / recovery', state.error || (state.recovery_required ? 'Reconciliation required' : 'None reported')],
     ];
-    if (state.settings.strategy === 'htf') readiness.push(
-      ['Confirmed minute suffix', `${n(data.consecutive_minutes)} / ${n(data.required_minutes)}`],
-      ['Additional consecutive minutes needed', n(data.consecutive_shortfall)],
-      ['Rolling window end', t(data.window_end)],
-      ['Review', data.status || 'Unavailable'],
-    );
+    if (state.settings.strategy === 'htf') {
+      readiness.push(['HTF history policy', data.history_policy || 'Unavailable']);
+      if (data.required_native_bars != null) readiness.push(
+        [`Completed native ${n(data.bar_minutes)}-minute bars`, `${n(data.consecutive_native_bars)} / ${n(data.required_native_bars)}`],
+        ['Additional consecutive native bars needed', n(data.native_bar_shortfall)],
+        ['Native window end', t(data.window_end)],
+        ['History fetched', t(data.history_fetched_at)],
+        ['History revision', data.history_revision || 'Unavailable'],
+      );
+      else readiness.push(
+        ['Confirmed minute suffix', `${n(data.consecutive_minutes)} / ${n(data.required_minutes)}`],
+        ['Additional consecutive minutes needed', n(data.consecutive_shortfall)],
+        ['Rolling window end', t(data.window_end)],
+      );
+      readiness.push(['Review', data.status || 'Unavailable']);
+    }
     else readiness.push(['Candle readiness', ['dca','twap','rebalance'].includes(state.settings.strategy) ? 'Not required; fresh quotes/risk checks still apply' : 'No separate rolling coverage count recorded']);
     const feed = state.market_data, requests = feed?.requests;
     if (state.exchange === 'alpaca') {

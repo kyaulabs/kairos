@@ -48,6 +48,21 @@ test('Review preserves real zero, missing diagnostics, disconnected state and re
   assert.equal(text('review-blockers'), '');
 });
 
+test('Review labels native bar readiness without claiming fabricated minute coverage', () => {
+  const {view,state,text} = fixture();
+  state.settings.strategy = 'htf';
+  state.review.data = {history_policy:'alpaca-us-native-bars-v1',bar_minutes:60,required_native_bars:30,consecutive_native_bars:30,native_bar_shortfall:0,history_revision:'recorded-hash'};
+  view.render(state,true);
+  assert.match(text('review-readiness'), /Completed native 60-minute bars 30 \/ 30/);
+  assert.match(text('review-readiness'), /native bars needed 0/);
+  assert.doesNotMatch(text('review-readiness'), /Confirmed minute suffix/);
+  state.review.data.consecutive_native_bars = null;
+  state.review.data.native_bar_shortfall = null;
+  view.render(state,false);
+  assert.match(text('review-readiness'), /bars Unavailable \/ 30/);
+  assert.match(text('review-status'), /cached state only/);
+});
+
 test('Review separates market age, receipt latency, quota exhaustion and bounded waiting', () => {
   const {view,state,text} = fixture();
   state.market_data = {status:'reconnecting', books:[{pair:'alpaca:BTC/USD', source:'REST', fresh:false, market_age_seconds:48, market_at:1800000000, received_at:1800000048}], requests:{admissions_last_minute:92,budget_per_minute:150,queued:2,last_response:{method:'GET',endpoint:'/v1beta3/crypto/us/latest/orderbooks',http_status:200,latency_seconds:.2},quotas:{data:{remaining:0,limit:200,observed_at:1800000048,reset:1800000078,retry_in_seconds:30},trading:{retry_in_seconds:0}}}};
