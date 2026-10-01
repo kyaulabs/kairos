@@ -47,3 +47,15 @@ test('Review preserves real zero, missing diagnostics, disconnected state and re
   assert.match(text('review-holdings'), /Unavailable/);
   assert.equal(text('review-blockers'), '');
 });
+
+test('Review separates market age, receipt latency, quota exhaustion and bounded waiting', () => {
+  const {view,state,text} = fixture();
+  state.market_data = {status:'reconnecting', books:[{pair:'alpaca:BTC/USD', source:'REST', fresh:false, market_age_seconds:48, market_at:1800000000, received_at:1800000048}], requests:{admissions_last_minute:92,budget_per_minute:150,queued:2,last_response:{method:'GET',endpoint:'/v1beta3/crypto/us/latest/orderbooks',http_status:200,latency_seconds:.2},quotas:{data:{remaining:0,limit:200,observed_at:1800000048,reset:1800000078,retry_in_seconds:30},trading:{retry_in_seconds:0}}}};
+  state.market_wait = {since:1800000048,timeout_seconds:300};
+  view.render(state,true);
+  assert.match(text('review-readiness'), /REST \/ no/);
+  assert.match(text('review-readiness'), /seconds 0.2/);
+  assert.match(text('review-readiness'), /remaining \/ limit 0 \/ 200/);
+  assert.match(text('review-readiness'), /300s maximum/);
+  assert.match(text('review-readiness'), /local exits may be unavailable/);
+});

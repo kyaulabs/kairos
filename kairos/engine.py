@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kairos import diagnostics, htf, margin, programs, review, scalping
+from kairos.alpaca_transport import PendingAlpacaData
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.fees import AccountFees, FeeUnavailable
@@ -41,6 +42,8 @@ EXECUTION_REVISION = hashlib.sha256(
             "clients",
             "market_data",
             "alpaca",
+            "alpaca_data",
+            "alpaca_transport",
             "alpaca_engine",
             "exchanges",
         )
@@ -1655,6 +1658,9 @@ class Engine:
             )
         return True
 
+    def wait_for_market_data(self, exc):
+        return False  # Venue-specific, read-only recovery must opt in explicitly.
+
     async def tick(self):
         async with self.lock:
             if not self.running:
@@ -1751,6 +1757,8 @@ class Engine:
                     self.last_error = f"Waiting for confirmed execution candles ({self.candle_retries}/3); no stale-data entries"
                     self.event("system", {"message": self.last_error})
             except Exception as exc:
+                if isinstance(exc, PendingAlpacaData) and self.wait_for_market_data(exc):
+                    return
                 error_id = diagnostics.capture(exc, "engine-cycle")
                 self.running = False
                 self.fee_recovery = False

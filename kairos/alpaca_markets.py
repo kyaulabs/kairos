@@ -50,6 +50,7 @@ class AlpacaMarkets:
                         "/v2/stocks/snapshots",
                         params={"symbols": ",".join(symbols), "feed": "iex"},
                         data=True,
+                        background=True,
                     )
                     for symbol, snapshot in data.items():
                         if symbol not in symbols:
@@ -83,7 +84,11 @@ class AlpacaMarkets:
                     totals, seen, tokens = {}, set(), set()
                     for _ in range(20):
                         data = await self.spot.request(
-                            "GET", "/v1beta3/crypto/us/bars", params=params, data=True
+                            "GET",
+                            "/v1beta3/crypto/us/bars",
+                            params=params,
+                            data=True,
+                            background=True,
                         )
                         for symbol, bars in data["bars"].items():
                             if symbol not in symbols:
@@ -169,7 +174,9 @@ class AlpacaMarkets:
             for key in keys:
                 self.attempts[key] = time.monotonic()
             try:
-                data = await self.spot.request("GET", path, params=params, data=True)
+                data = await self.spot.request(
+                    "GET", path, params=params, data=True, background=True
+                )
                 for symbol, row in data["quotes"].items():
                     if symbol not in symbols:
                         raise SafetyError("Unexpected symbol in Alpaca quotes")
@@ -205,7 +212,7 @@ class AlpacaMarkets:
         }
 
     async def candles(self, market, minutes):
-        rows = await self.spot.bars(self.spot.pairs[market["id"]], minutes)
+        rows = await self.spot.bars(self.spot.pairs[market["id"]], minutes, background=True)
         return [
             {
                 "time": r[0],
@@ -220,7 +227,7 @@ class AlpacaMarkets:
             raise SafetyError("Unknown Alpaca account view")
         truncated = False
         if source == "alpaca-account":
-            row = await self.spot.account()
+            row = await self.spot.account(background=True)
             columns = ["Field", "Broker paper account value (not bot allocation)"]
             keys = (
                 "id",
@@ -246,7 +253,7 @@ class AlpacaMarkets:
                 if source == "alpaca-activities"
                 else None
             )
-            raw = await self.spot.request("GET", path, params=params)
+            raw = await self.spot.request("GET", path, params=params, background=True)
             columns = {
                 "alpaca-positions": [
                     "symbol",

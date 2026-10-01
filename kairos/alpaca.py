@@ -4,7 +4,6 @@ Reference: https://docs.alpaca.markets/us/reference
 The live trading host and funding endpoints are deliberately not configurable.
 """
 
-import asyncio
 import time
 from datetime import UTC, datetime
 from urllib.parse import quote
@@ -12,8 +11,10 @@ from urllib.parse import quote
 import aiohttp
 
 from kairos import diagnostics
+from kairos.alpaca_data import AlpacaBook, AlpacaData
+from kairos.alpaca_transport import AlpacaRequests, PendingAlpacaData, RejectedAlpacaData
 from kairos.clients import ExchangeRejected
-from kairos.domain import Book, Pair, SafetyError, dec
+from kairos.domain import Pair, SafetyError, dec
 from kairos.market_data import CandleHistory, validate_levels
 
 PAPER_URL = "https://paper-api.alpaca.markets"
@@ -47,30 +48,6 @@ def iso(value):
     return datetime.fromtimestamp(value, UTC).isoformat()
 
 
-class AlpacaData:
-    """REST execution data; never describe the free IEX feed as consolidated depth."""
-
-    def __init__(self):
-        self.pairs, self.candle_spec, self.book_age = {}, None, 10
-
-    async def configure(self, pairs, candle=None, *, max_age=10):
-        self.pairs = {p.id: p for p in pairs}
-        self.candle_spec, self.book_age = candle, max_age
-
-    async def close(self):
-        self.pairs = {}
-
-    def snapshot(self):
-        return {
-            "source": "Alpaca REST: crypto order books; equities IEX top-of-book only",
-            "status": "REST",
-            "books_total": 0,
-            "books_ready": 0,
-            "error": None,
-            "candle_minutes": None,
-        }
-
-
 class Alpaca:
     name = "Alpaca"
     hosted_paper = True
@@ -86,11 +63,23 @@ class Alpaca:
         self.session, self.key, self.secret = session, key, secret
         self.allow_paper = allow_paper
         self.pairs, self.assets = {}, {}
-        self.market_data = AlpacaData()
-        self.lock, self.last_request = asyncio.Lock(), 0
+        self.requests = AlpacaRequests()
+        self.market_data = AlpacaData(self)
+        self.order_guard = None
         diagnostics.register_secrets(key, secret)
 
-    async def request(self, method, path, *, params=None, payload=None, data=False, deadline=None):
+    async def request(
+        self,
+        method,
+        path,
+        *,
+        params=None,
+        payload=None,
+        data=False,
+        deadline=None,
+        background=False,
+        before_send=None,
+    ):
         if method not in {"GET", "POST", "DELETE"} or not path.startswith("/"):
             raise SafetyError("Unsupported Alpaca request")
         if method != "GET" and (
@@ -101,12 +90,24 @@ class Alpaca:
             raise SafetyError("Alpaca paper order writes are not authorized")
         if not self.key or not self.secret:
             raise SafetyError("Configure ALPACA_PAPER_API_KEY and ALPACA_PAPER_SECRET_KEY")
-        async with self.lock:
-            # One bounded request stream, including UI reads; no automatic write retries.
-            await asyncio.sleep(max(0, 0.35 - (time.monotonic() - self.last_request)))
-            self.last_request = time.monotonic()
-            if deadline is not None and time.time() + 1 >= deadline:
-                raise ExchangeRejected("Alpaca intent expired before the network write")
+        bucket = "data" if data else "trading"
+        priority = (
+            3
+            if background
+            else 0
+            if method != "GET"
+            or path.startswith("/v2/orders/")
+            or path == "/v2/orders:by_client_order_id"
+            else 2
+            if data
+            else 1
+        )
+        async with self.requests.slot(priority, bucket, deadline):
+            if method == "POST" and self.order_guard and not self.order_guard():
+                raise ExchangeRejected("Alpaca submission canceled by Stop")
+            if before_send:
+                before_send()
+            started = time.monotonic()
             try:
                 async with self.session.request(
                     method,
@@ -117,9 +118,18 @@ class Alpaca:
                     allow_redirects=False,
                     timeout=aiohttp.ClientTimeout(total=12),
                 ) as response:
+                    self.requests.response(bucket, method, path, response, started)
                     if response.status == 204:
                         return None
                     if not 200 <= response.status < 300:
+                        if (
+                            method == "GET"
+                            and data
+                            and response.status in {429, 500, 502, 503, 504}
+                        ):
+                            raise PendingAlpacaData(
+                                f"Alpaca market data unavailable (HTTP {response.status}); reads deferred"
+                            )
                         error = (
                             ExchangeRejected
                             if method != "GET" and response.status in {400, 401, 403, 404, 422}
@@ -131,10 +141,18 @@ class Alpaca:
                         exc.diagnostic_details = {"endpoint": path, "http_status": response.status}
                         raise exc
                     return await response.json()
-            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            except aiohttp.ContentTypeError as exc:
+                raise SafetyError("Malformed Alpaca response; no automatic retry") from exc
+            except (aiohttp.ClientError, TimeoutError) as exc:
+                if method == "GET" and data:
+                    raise PendingAlpacaData(
+                        "Alpaca market-data transport unavailable; read deferred"
+                    ) from exc
                 raise SafetyError(
                     "Alpaca transport failure; request outcome may be unknown"
                 ) from exc
+            except ValueError as exc:
+                raise SafetyError("Malformed Alpaca response; no automatic retry") from exc
 
     async def catalog(self):
         pairs, assets = {}, {}
@@ -190,8 +208,8 @@ class Alpaca:
     def symbol(self, pair):
         return self.assets[pair.id]["symbol"]
 
-    async def account(self):
-        row = await self.request("GET", "/v2/account")
+    async def account(self, *, background=False):
+        row = await self.request("GET", "/v2/account", background=background)
         if (
             not isinstance(row.get("id"), str)
             or not row["id"]
@@ -276,6 +294,22 @@ class Alpaca:
         return rates, dict(rates)
 
     async def book(self, pair):
+        feed = self.market_data
+        async with feed.rest_lock:
+            book = feed.fresh_book(pair)
+            if book:
+                return book
+            if time.monotonic() - feed.attempts.get(pair.id, -5) < 5:
+                raise PendingAlpacaData(
+                    "Waiting for a fresh Alpaca book; REST retry limited to once per five seconds"
+                )
+            feed.attempts[pair.id] = time.monotonic()
+            book = await self.rest_book(pair)
+            feed.rest_books[pair.id] = book
+            book.fresh(feed.book_age)
+            return book
+
+    async def rest_book(self, pair):
         symbol = self.symbol(pair)
         if self.is_equity(pair):
             data = await self.request(
@@ -299,7 +333,7 @@ class Alpaca:
         received = timestamp(row["t"])
         if received > time.time() + 2:
             raise SafetyError("Alpaca quote is from the future")
-        return Book(pair, bids, asks, received)
+        return AlpacaBook(pair, bids, asks, received, time.time(), time.monotonic())
 
     async def marks(self, pairs):
         result = {}
@@ -309,7 +343,7 @@ class Alpaca:
             result[pair.id] = book.mid
         return result
 
-    async def bars(self, pair, minutes, count=720):
+    async def bars(self, pair, minutes, count=720, *, background=False):
         equity = self.is_equity(pair)
         path = "/v2/stocks/bars" if equity else "/v1beta3/crypto/us/bars"
         cutoff = int(time.time()) // (minutes * 60) * minutes * 60
@@ -329,7 +363,7 @@ class Alpaca:
             params.update(feed="iex", adjustment="raw")
         rows, tokens = [], set()
         for _ in range(20):
-            data = await self.request("GET", path, params=params, data=True)
+            data = await self.request("GET", path, params=params, data=True, background=background)
             rows.extend(data["bars"].get(self.symbol(pair), []))
             token = data.get("next_page_token")
             if not token:
@@ -422,8 +456,28 @@ class Alpaca:
             "time_in_force": "gtc" if passive else "ioc",
             "extended_hours": False,
         }
+
+        def fresh_before_send():
+            # Recheck after queue/quota waits, before the HTTP write, including a
+            # stream disconnect or a passive price that now crosses the market.
+            try:
+                book = self.market_data.fresh_book(pair)
+            except SafetyError as exc:
+                raise ExchangeRejected(str(exc)) from exc
+            if book is None:
+                raise RejectedAlpacaData("No fresh Alpaca execution book before submission")
+            if passive and (
+                (params["type"] == "buy" and dec(params["price"]) >= book.asks[0][0])
+                or (params["type"] == "sell" and dec(params["price"]) <= book.bids[0][0])
+            ):
+                raise ExchangeRejected("Passive Alpaca limit now crosses; no order sent")
+
         row = await self.request(
-            "POST", "/v2/orders", payload=payload, deadline=timestamp(params["deadline"])
+            "POST",
+            "/v2/orders",
+            payload=payload,
+            deadline=timestamp(params["deadline"]),
+            before_send=fresh_before_send,
         )
         if row["client_order_id"] != params["cl_ord_id"] or not row.get("id"):
             raise SafetyError("Alpaca submission identity mismatch")

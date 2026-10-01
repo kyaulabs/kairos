@@ -37,6 +37,26 @@ class StrategyReview {
       ['Review', data.status || 'Unavailable'],
     );
     else readiness.push(['Candle readiness', ['dca','twap','rebalance'].includes(state.settings.strategy) ? 'Not required; fresh quotes/risk checks still apply' : 'No separate rolling coverage count recorded']);
+    const feed = state.market_data, requests = feed?.requests;
+    if (state.exchange === 'alpaca') {
+      readiness.push(['Execution feed', feed?.status || 'Unavailable'], ['Stream diagnostic', feed?.error || 'None reported']);
+      for (const book of feed?.books || []) readiness.push(
+        [`${book.pair} source / fresh at snapshot`, `${book.source || 'Unavailable'} / ${book.fresh ? 'yes' : 'no'}`],
+        ['Market timestamp / age · seconds', `${t(book.market_at)} / ${n(book.market_age_seconds)}`],
+        ['Book received locally', t(book.received_at)],
+      );
+      if (requests) {
+        readiness.push(['Request admissions / minute budget', `${n(requests.admissions_last_minute)} / ${n(requests.budget_per_minute)} (includes rejected preflights)`], ['Queued requests', n(requests.queued)]);
+        const last = requests.last_response;
+        readiness.push(['Last HTTP endpoint / status', last ? `${last.method} ${last.endpoint} / ${last.http_status}` : 'Unavailable'], ['Last HTTP latency · seconds', n(last?.latency_seconds)]);
+        for (const [bucket, quota] of Object.entries(requests.quotas)) readiness.push(
+          [`${bucket} quota remaining / limit`, `${n(quota.remaining)} / ${n(quota.limit)}`],
+          [`${bucket} quota observed / reset`, `${t(quota.observed_at)} / ${t(quota.reset)}`],
+          [`${bucket} backoff · seconds`, n(quota.retry_in_seconds)],
+        );
+      }
+      if (state.market_wait) readiness.push(['Data wait', `Since ${t(state.market_wait.since)}; ${state.market_wait.timeout_seconds}s maximum. Orders blocked; local exits may be unavailable.`]);
+    }
     this.rows('review-readiness', readiness);
     this.rows('review-funnel', [
       ['Execution run', report.run_id ? report.run_id.slice(0, 8) : 'Not started for this configuration/revision'],
