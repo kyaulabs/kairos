@@ -168,7 +168,7 @@ class AlpacaClientTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaises(SafetyError):
                 await client.request(method, path, data=data)
-        client.last_request = 0
+        client.requests.last_request = 0
         await client.request("GET", "/v2/stocks/quotes/latest", data=True)
         self.assertEqual(session.calls[-1][0][1], DATA_URL + "/v2/stocks/quotes/latest")
         session.status = 503

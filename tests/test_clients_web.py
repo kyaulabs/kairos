@@ -23,6 +23,7 @@ from tests.helpers import RuleEngine as Engine
 class Response:
     def __init__(self, body, status=200):
         self.body, self.status = body, status
+        self.headers = {}
 
     async def __aenter__(self):
         return self
