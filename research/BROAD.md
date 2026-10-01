@@ -4,6 +4,8 @@ This study extends the fixed seven-day momentum rule across 2019–2025 using Kr
 
 [BROAD_PLAN.json](BROAD_PLAN.json) freezes the specification before examining the new annual outcomes. The existing [price-index implementation](kraken_daily.py) is reused without changing signals, timing or accounting. Prices, volume and the artifact registry remain Kraken-only. No Alpaca price rows, credentials, account state or old final-window data are read.
 
+The [completed study](BROAD_RESULTS.md) failed the progression gate on both assets. All annual scenarios, primary return series and audit records are preserved in [BROAD_RESULTS.json](BROAD_RESULTS.json).
+
 ## Method
 
 A timestamp-only coverage check found the ETH/USD daily candle for January 12, 2018 missing. The original 2018–2025 draft and that check were retained before any new returns were examined. Both assets therefore use the common complete 2019–2025 window with December 2018 warm-up. No source is spliced into the gap. The 2,000-day, 100-episode and five-positive-year thresholds remain unchanged, as does the conservative 36-comparison correction.

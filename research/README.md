@@ -10,6 +10,8 @@ The [execution-first rerun](STAGED_RESULTS.md) stopped at stage one: 76 checks p
 
 The separate [Kraken daily price pilot](KRAKEN_RESULTS.md) used no Alpaca data. It produced 34 signal-closed episodes per asset, but the fixed seven-day rule failed the declared cost test. These are unfunded price indices, not risk-controlled Kairos portfolios or a new final holdout.
 
+The [broader Alpaca-cost study](BROAD_RESULTS.md) extended the unchanged Kraken price rule across seven complete years. With 25-bps-per-side planning fees, neither asset passed the consistency and adjusted-comparison gates. The 2018 missing-data exclusion was fixed before new performance evaluation; no risk-constrained simulation or paper activation followed.
+
 ## Repository audit
 
 Audit baseline: `7a9d4927681673cf9db296ff0109abb18ac458cd` (v0.3.1 tree).
