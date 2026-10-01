@@ -2,6 +2,8 @@
 
 This is a separate Kraken-only **price-signal and cost-sensitivity study**, not a rerun of the Alpaca execution simulator. It cannot pass the earlier execution-validity gate or establish broker profitability. No production strategy, account, portfolio or risk control changes.
 
+The [completed pilot](KRAKEN_RESULTS.md) failed its declared cost criteria; [KRAKEN_RESULTS.json](KRAKEN_RESULTS.json) preserves all outcomes and audit records.
+
 ## Frozen scope
 
 [KRAKEN_PLAN.json](KRAKEN_PLAN.json) is frozen before examining returns. Use Kraken XBT/USD (BTC) and ETH/USD only, with December 2024 warm-up and 2025 development observations. The last price mark is the December 31, 2025 opening, yielding 364 open-to-open daily returns without a 2026 endpoint. No 2026 row enters analysis.
