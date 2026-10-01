@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "study": "btc-eth-staged-002",
+  "purpose": "Execution validity before another momentum experiment",
+  "universe": ["BTC/USD", "ETH/USD"],
+  "scope": "Offline fixtures and development-only research; no credentials, broker requests, orders, funds, release or deployment",
+  "prior_study": "btc-eth-momentum-001",
+  "consumed_final": {"start": "2026-01-01T00:00:00Z", "end": "2026-09-01T00:00:00Z", "reopen": false},
+  "sequence": [
+    {"stage": 1, "name": "execution_validity", "required": ["execution_and_accounting_tests_pass", "causal_data_tests_pass", "market_rule_representation_matches_adapter", "eligible_residual_handling_matches_production", "dated_market_rules_available", "execution_scenario_assumptions_justified"]},
+    {"stage": 2, "name": "momentum_baseline", "requires": "stage_1_pass", "arms": ["momentum", "cash", "capped_passive", "buy_hold_reference"], "data": "development_only", "minimum_completed_round_trips_per_active_asset": 30, "minimum_coverage": 0.99, "minimum_days": 180, "parameter_search": false},
+    {"stage": 3, "name": "cost_aware_position_construction", "requires": "informative_stage_2_and_separate_frozen_optimizer_specification", "implemented": false},
+    {"stage": 4, "name": "registered_family_validation", "requires": "adequate_complete_candidate_family_and_new_holdout", "reuse_consumed_final": false},
+    {"stage": 5, "name": "volatility_and_calibration", "requires": "supported_simpler_baseline"}
+  ],
+  "stop_policy": "A failed or unverified required gate stops progression. Record blocked stages; do not silently substitute guessed rules, relax trade-count criteria or run later stages for a favorable result.",
+  "stage_1_inputs": "Existing deterministic software fixtures and repository call paths, not historical price partitions",
+  "historical_evaluation_in_this_invocation": false,
+  "always_deferred": ["multi_agent_trading", "reinforcement_learning", "production_promotion"]
+}
