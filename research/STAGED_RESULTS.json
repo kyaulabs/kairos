@@ -1,0 +1,101 @@
+{
+  "report": "8bfc097d08f6160a54dfa5b6cf3bc86586d513404ee8c6e9ed5ccbef67d81c4a",
+  "result": {
+    "spec": {
+      "operation": "staged_execution_audit",
+      "study": "btc-eth-staged-002",
+      "protocol": "023e8c6ec1aeb83a62d194bb9d9159b05665f1199f0a33ea8cc5e7765ebdebd7",
+      "prior_plan": "9fd4dbe1269280cf7f92db706c765b7f1c17fe2637a8944e1f025f7084ea06cb",
+      "research_code": "1fa73e484a8de6abcb36ab753d0d00f7ac3744e439cb93c27a6375d6e7c1c114",
+      "repository_commit": "79ddcba7897a1e321083c659f0c85fca78b7751c",
+      "audit_code": "da8fcaf8d8215efc24e7c0b639b536b68341ededf22ab680c7929ce32302ebd7",
+      "historical_partitions_read": [],
+      "final_evaluation": false
+    },
+    "gate_passed": false,
+    "gates": {
+      "execution_and_accounting_tests_pass": true,
+      "causal_data_tests_pass": true,
+      "market_rule_representation_matches_adapter": false,
+      "eligible_residual_handling_matches_production": false,
+      "dated_market_rules_available": false,
+      "execution_scenario_assumptions_justified": false
+    },
+    "execution_tests": {
+      "passed": true,
+      "tests": 67,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "log": "test_activity_pagination_cannot_silently_truncate_or_repeat (tests.test_alpaca.AlpacaClientTests.test_activity_pagination_cannot_silently_truncate_or_repeat) ... ok\ntest_catalog_equity_limits_free_feed_and_order_shape (tests.test_alpaca.AlpacaClientTests.test_catalog_equity_limits_free_feed_and_order_shape) ... ok\ntest_hosts_headers_redirects_permissions_and_no_write_retries (tests.test_alpaca.AlpacaClientTests.test_hosts_headers_redirects_permissions_and_no_write_retries) ... ok\ntest_account_adoption_rejects_prior_holdings_orders_and_identity_changes (tests.test_alpaca.AlpacaEngineTests.test_account_adoption_rejects_prior_holdings_orders_and_identity_changes) ... ok\ntest_equity_capabilities_and_regular_session_scheduled_execution (tests.test_alpaca.AlpacaEngineTests.test_equity_capabilities_and_regular_session_scheduled_execution) ... ok\ntest_external_activity_cash_changes_and_untracked_orders_fail_closed (tests.test_alpaca.AlpacaEngineTests.test_external_activity_cash_changes_and_untracked_orders_fail_closed) ... ok\ntest_idle_does_not_adopt_account_or_send_orders_and_start_requires_consent (tests.test_alpaca.AlpacaEngineTests.test_idle_does_not_adopt_account_or_send_orders_and_start_requires_consent) ... ok\ntest_initial_exchange_is_saved_and_environment_changes_cannot_abandon_it (tests.test_alpaca.AlpacaEngineTests.test_initial_exchange_is_saved_and_environment_changes_cannot_abandon_it) ... ok\ntest_legacy_kraken_state_cannot_be_bypassed_by_an_environment_default (tests.test_alpaca.AlpacaEngineTests.test_legacy_kraken_state_cannot_be_bypassed_by_an_environment_default) ... ok\ntest_lost_submission_response_is_reconciled_by_durable_id_without_resubmission (tests.test_alpaca.AlpacaEngineTests.test_lost_submission_response_is_reconciled_by_durable_id_without_resubmission) ... ok\ntest_partial_crypto_fee_keeps_htf_ownership_and_original_protection (tests.test_alpaca.AlpacaEngineTests.test_partial_crypto_fee_keeps_htf_ownership_and_original_protection) ... ok\ntest_passive_fill_is_observed_before_balance_reconciliation (tests.test_alpaca.AlpacaEngineTests.test_passive_fill_is_observed_before_balance_reconciliation) ... ok\ntest_passive_partial_fill_stop_cancels_remainder_without_taker_fallback (tests.test_alpaca.AlpacaEngineTests.test_passive_partial_fill_stop_cancels_remainder_without_taker_fallback) ... ok\ntest_remote_fills_and_fee_debits_are_reconciled_exactly_once (tests.test_alpaca.AlpacaEngineTests.test_remote_fills_and_fee_debits_are_reconciled_exactly_once) ... ok\ntest_scheduled_equity_inventory_can_be_sold_with_twap_without_a_reset (tests.test_alpaca.AlpacaEngineTests.test_scheduled_equity_inventory_can_be_sold_with_twap_without_a_reset) ... ok\ntest_stop_wins_during_broker_preflight (tests.test_alpaca.AlpacaEngineTests.test_stop_wins_during_broker_preflight) ... ok\ntest_switch_preserves_isolated_state_and_remains_paused (tests.test_alpaca.AlpacaEngineTests.test_switch_preserves_isolated_state_and_remains_paused) ... ok\ntest_boundary_errors_recover_but_exhausted_budget_stops (tests.test_htf.HTFTests.test_boundary_errors_recover_but_exhausted_budget_stops) ... ok\ntest_bounded_exits_leave_a_tradeable_tranche_instead_of_avoidable_dust (tests.test_htf.HTFTests.test_bounded_exits_leave_a_tradeable_tranche_instead_of_avoidable_dust) ... ok\ntest_cost_only_residual_exits_without_candles_when_tradeable_again (tests.test_htf.HTFTests.test_cost_only_residual_exits_without_candles_when_tradeable_again) ... ok\ntest_daily_loss_still_allows_only_owned_reduction (tests.test_htf.HTFTests.test_daily_loss_still_allows_only_owned_reduction) ... ok\ntest_deadline_exit_uses_no_candles_and_retains_original_plan_settings (tests.test_htf.HTFTests.test_deadline_exit_uses_no_candles_and_retains_original_plan_settings) ... ok\ntest_decision_counts_include_persisted_history_not_only_browser_window (tests.test_htf.HTFTests.test_decision_counts_include_persisted_history_not_only_browser_window) ... ok\ntest_derivative_entries_bound_marked_exposure_not_just_limit_notional (tests.test_htf.HTFTests.test_derivative_entries_bound_marked_exposure_not_just_limit_notional) ... ok\ntest_derivative_trims_reduce_longs_and_shorts_without_reversing (tests.test_htf.HTFTests.test_derivative_trims_reduce_longs_and_shorts_without_reversing) ... ok\ntest_entry_leaves_growth_headroom_and_does_not_sell_a_small_gain (tests.test_htf.HTFTests.test_entry_leaves_growth_headroom_and_does_not_sell_a_small_gain) ... ok\ntest_existing_short_signal_also_requires_a_new_transition (tests.test_htf.HTFTests.test_existing_short_signal_also_requires_a_new_transition) ... ok\ntest_exposure_breach_trims_to_target_once_without_resetting_protection (tests.test_htf.HTFTests.test_exposure_breach_trims_to_target_once_without_resetting_protection) ... ok\ntest_live_spot_uses_persisted_plan_and_guarded_real_order_path (tests.test_htf.HTFTests.test_live_spot_uses_persisted_plan_and_guarded_real_order_path) ... ok\ntest_malformed_data_and_uncertain_orders_never_auto_resume (tests.test_htf.HTFTests.test_malformed_data_and_uncertain_orders_never_auto_resume) ... ok\ntest_no_pyramiding_and_plan_survives_restart_without_model (tests.test_htf.HTFTests.test_no_pyramiding_and_plan_survives_restart_without_model) ... ok\ntest_partial_trim_continues_below_hard_cap_and_survives_restart (tests.test_htf.HTFTests.test_partial_trim_continues_below_hard_cap_and_survives_restart) ... ok\ntest_product_short_positions_reduce_at_deadline_without_reversal (tests.test_htf.HTFTests.test_product_short_positions_reduce_at_deadline_without_reversal) ... ok\ntest_protective_exits_take_priority_over_pending_trims (tests.test_htf.HTFTests.test_protective_exits_take_priority_over_pending_trims) ... ok\ntest_rebaseline_never_delays_an_existing_trend_reversal_exit (tests.test_htf.HTFTests.test_rebaseline_never_delays_an_existing_trend_reversal_exit) ... ok\ntest_recorded_link_moves_keep_small_gain_open_but_still_stop_the_loss (tests.test_htf.HTFTests.test_recorded_link_moves_keep_small_gain_open_but_still_stop_the_loss) ... ok\ntest_residual_survives_restart_joins_eligible_entry_and_eventually_closes (tests.test_htf.HTFTests.test_residual_survives_restart_joins_eligible_entry_and_eventually_closes) ... ok\ntest_restart_checks_confirmation_permissions_and_preserves_state (tests.test_htf.HTFTests.test_restart_checks_confirmation_permissions_and_preserves_state) ... ok\ntest_resume_and_recreated_engine_rebaseline_even_an_already_seen_candle (tests.test_htf.HTFTests.test_resume_and_recreated_engine_rebaseline_even_an_already_seen_candle) ... ok\ntest_running_mode_change_cannot_use_a_previous_mode_session_signal (tests.test_htf.HTFTests.test_running_mode_change_cannot_use_a_previous_mode_session_signal) ... ok\ntest_short_residual_never_reverses_and_only_joins_a_new_short (tests.test_htf.HTFTests.test_short_residual_never_reverses_and_only_joins_a_new_short) ... ok\ntest_small_exit_cap_waits_without_mistaking_tradeable_holdings_for_dust (tests.test_htf.HTFTests.test_small_exit_cap_waits_without_mistaking_tradeable_holdings_for_dust) ... ok\ntest_start_skips_existing_signal_until_a_later_fresh_transition (tests.test_htf.HTFTests.test_start_skips_existing_signal_until_a_later_fresh_transition) ... ok\ntest_stop_during_read_cannot_submit_and_does_not_duplicate_entry (tests.test_htf.HTFTests.test_stop_during_read_cannot_submit_and_does_not_duplicate_entry) ... ok\ntest_stop_during_restart_preflight_wins (tests.test_htf.HTFTests.test_stop_during_restart_preflight_wins) ... ok\ntest_stop_exit_partial_fills_remain_owned_and_never_reverse (tests.test_htf.HTFTests.test_stop_exit_partial_fills_remain_owned_and_never_reverse) ... ok\ntest_strategy_switch_and_history_deletion_cannot_remove_protection (tests.test_htf.HTFTests.test_strategy_switch_and_history_deletion_cannot_remove_protection) ... ok\ntest_trend_reversal_closes_even_when_move_is_below_costs (tests.test_htf.HTFTests.test_trend_reversal_closes_even_when_move_is_below_costs) ... ok\ntest_trim_respects_minimum_quantity_and_does_not_force_a_subminimum_order (tests.test_htf.HTFTests.test_trim_respects_minimum_quantity_and_does_not_force_a_subminimum_order) ... ok\ntest_trim_rounds_up_to_cost_minimum_without_flattening (tests.test_htf.HTFTests.test_trim_rounds_up_to_cost_minimum_without_flattening) ... ok\ntest_trim_waits_when_order_cap_cannot_meet_market_minimum (tests.test_htf.HTFTests.test_trim_waits_when_order_cap_cannot_meet_market_minimum) ... ok\ntest_unfilled_entry_does_not_lock_strategy_switch_or_repeat_candle (tests.test_htf.HTFTests.test_unfilled_entry_does_not_lock_strategy_switch_or_repeat_candle) ... ok\ntest_unfilled_residual_entry_keeps_old_plan_and_never_retries_same_candle (tests.test_htf.HTFTests.test_unfilled_residual_entry_keeps_old_plan_and_never_retries_same_candle) ... ok\ntest_unfilled_trim_keeps_ownership_and_retries_only_as_a_reduction (tests.test_htf.HTFTests.test_unfilled_trim_keeps_ownership_and_retries_only_as_a_reduction) ... ok\ntest_unrelated_inventory_cannot_be_adopted_or_exit_only_sold (tests.test_htf.HTFTests.test_unrelated_inventory_cannot_be_adopted_or_exit_only_sold) ... ok\ntest_passive_touch_does_not_fill_and_miss_has_no_taker_fallback (tests.test_research_experiment.ResearchExperimentTests.test_passive_touch_does_not_fill_and_miss_has_no_taker_fallback) ... ok\ntest_starting_in_positive_signal_does_not_force_entry (tests.test_research_experiment.ResearchExperimentTests.test_starting_in_positive_signal_does_not_force_entry) ... ok\ntest_full_and_partial_fills_preserve_cash_and_inventory (tests.test_research_experiment.ResearchExperimentTests.test_full_and_partial_fills_preserve_cash_and_inventory) ... ok\ntest_protection_never_calls_or_waits_for_quality_model (tests.test_research_experiment.ResearchExperimentTests.test_protection_never_calls_or_waits_for_quality_model) ... ok\ntest_daily_loss_halt_does_not_restart_the_next_day (tests.test_research_experiment.ResearchExperimentTests.test_daily_loss_halt_does_not_restart_the_next_day) ... ok\ntest_exposure_trim_is_bounded_and_does_not_liquidate_to_zero (tests.test_research_experiment.ResearchExperimentTests.test_exposure_trim_is_bounded_and_does_not_liquidate_to_zero) ... ok\ntest_rejections_do_not_spend_cash_or_invent_inventory (tests.test_research_experiment.ResearchExperimentTests.test_rejections_do_not_spend_cash_or_invent_inventory) ... ok\ntest_opening_cannot_consume_unpublished_liquidity_or_future_cancel (tests.test_research_experiment.ResearchExperimentTests.test_opening_cannot_consume_unpublished_liquidity_or_future_cancel) ... ok\ntest_unavailable_bar_features_and_future_perturbations_do_not_rewrite_decisions (tests.test_research_experiment.ResearchExperimentTests.test_unavailable_bar_features_and_future_perturbations_do_not_rewrite_decisions) ... ok\ntest_pending_trim_cannot_mask_or_delay_stop_deadline_or_halt (tests.test_research_experiment.ResearchExperimentTests.test_pending_trim_cannot_mask_or_delay_stop_deadline_or_halt) ... ok\ntest_buy_hold_price_reference_is_full_exposure_not_a_tiny_partial (tests.test_research_experiment.ResearchExperimentTests.test_buy_hold_price_reference_is_full_exposure_not_a_tiny_partial) ... ok\ntest_signal_arrival_cannot_erase_an_already_submitted_potential_fill (tests.test_research_experiment.ResearchExperimentTests.test_signal_arrival_cannot_erase_an_already_submitted_potential_fill) ... ok\n\n----------------------------------------------------------------------\nRan 67 tests in 2.557s\n\nOK\n"
+    },
+    "causal_data_tests": {
+      "passed": true,
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "log": "test_collector_keeps_failed_pagination_in_registry (tests.test_research_data.ResearchDataTests.test_collector_keeps_failed_pagination_in_registry) ... ok\ntest_collector_records_vintage_and_separates_final_values (tests.test_research_data.ResearchDataTests.test_collector_records_vintage_and_separates_final_values) ... ok\ntest_failures_interrupts_and_repeated_attempts_are_retained (tests.test_research_data.ResearchDataTests.test_failures_interrupts_and_repeated_attempts_are_retained) ... ok\ntest_future_and_delayed_bars_cannot_enter_information_set (tests.test_research_data.ResearchDataTests.test_future_and_delayed_bars_cannot_enter_information_set) ... ok\ntest_gaps_duplicates_invalid_ohlc_and_naive_time_fail (tests.test_research_data.ResearchDataTests.test_gaps_duplicates_invalid_ohlc_and_naive_time_fail) ... ok\ntest_label_intervals_and_embargo_are_not_random_row_splits (tests.test_research_data.ResearchDataTests.test_label_intervals_and_embargo_are_not_random_row_splits) ... ok\ntest_objects_are_immutable_and_corruption_is_detected (tests.test_research_data.ResearchDataTests.test_objects_are_immutable_and_corruption_is_detected) ... ok\ntest_registry_refuses_unrelated_database (tests.test_research_data.ResearchDataTests.test_registry_refuses_unrelated_database) ... ok\ntest_seal_mismatch_and_second_final_even_under_new_study_fail (tests.test_research_data.ResearchDataTests.test_seal_mismatch_and_second_final_even_under_new_study_fail) ... ok\n\n----------------------------------------------------------------------\nRan 9 tests in 0.423s\n\nOK\n"
+    },
+    "comparisons": {
+      "scope": "Synthetic API-shaped BTC fixture, NOT actual or historical BTC market rules",
+      "adapter_rules": {
+        "minimum_quantity": "0.0001",
+        "lot": "0.0001",
+        "tick": "0.01",
+        "minimum_notional": "0"
+      },
+      "research_rules": {
+        "tick": "0.01",
+        "lot": "0.00000001",
+        "minimum_usd": "10"
+      },
+      "minimum_counterexample": {
+        "quantity": "0.01",
+        "price": "100",
+        "production_rejects": false,
+        "research_rejects": true
+      },
+      "residual_counterexample": {
+        "quantity": "0.00005",
+        "fresh_same_direction_setup": true,
+        "production_entry_context": {
+          "entry_signal": "buy",
+          "previous_entry_signal": "hold",
+          "pending_signal": "buy",
+          "entry_ready": true,
+          "startup_baseline_pending": false,
+          "allowed_actions": [
+            "hold",
+            "buy"
+          ],
+          "entry_blockers": []
+        },
+        "research_action": "retained_dust",
+        "research_entry_queued": false
+      },
+      "fixture_requests": [
+        {
+          "method": "GET",
+          "path": "/v2/assets"
+        },
+        {
+          "method": "GET",
+          "path": "/v2/assets"
+        },
+        {
+          "method": "GET",
+          "path": "/v1beta3/crypto/us/latest/orderbooks"
+        }
+      ]
+    },
+    "unverified_evidence": [
+      "Dated BTC/ETH asset precision/minimum snapshots",
+      "Historical executable quotes/depth, fills and cancellation timing"
+    ],
+    "later_stages": "not run; stage-one evidence must be resolved and reviewed first",
+    "historical_backtests_run": 0,
+    "models_fitted": 0,
+    "final_window_opened": false
+  }
+}

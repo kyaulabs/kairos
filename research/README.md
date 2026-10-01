@@ -6,6 +6,8 @@ The first study is fixed in [`PLAN.json`](PLAN.json): BTC/USD and ETH/USD on Alp
 
 The completed study is [inconclusive](RESULTS.md). [RESULTS.json](RESULTS.json) preserves both validation runs, the single final run and the complete trial journal. A disclosed post-run safety correction invalidates the final run as confirmatory evidence; it was not reopened. Nothing is promoted to production.
 
+The [execution-first rerun](STAGED_RESULTS.md) stopped at stage one: 76 checks passed, but market-rule and retained-inventory mismatches block another momentum experiment. No historical partition was loaded or final window reopened.
+
 ## Repository audit
 
 Audit baseline: `7a9d4927681673cf9db296ff0109abb18ac458cd` (v0.3.1 tree).
