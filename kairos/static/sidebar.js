@@ -1,6 +1,6 @@
 /* Settings navigation only. Collapsing the drawer never stops or starts an engine. */
 class SettingsSidebar {
-  constructor(selectTab) {
+  constructor() {
     this.root = document.getElementById('settings-sidebar');
     this.panel = document.getElementById('settings-panel');
     this.toggle = document.getElementById('sidebar-toggle');
@@ -11,7 +11,6 @@ class SettingsSidebar {
     document.getElementById('sidebar-body').append(this.panel);
     this.toggle.addEventListener('click', () => this.setOpen(!this.expanded));
     this.backdrop.addEventListener('click', () => this.setOpen(false, true));
-    for (const button of this.shortcuts) button.addEventListener('click', () => selectTab(document.getElementById(button.dataset.settingsTab)));
     this.mobile.addEventListener('change', () => this.render());
     document.addEventListener('keydown', event => {
       if (!this.expanded || event.defaultPrevented || document.querySelector(':popover-open, dialog[open]')) return;

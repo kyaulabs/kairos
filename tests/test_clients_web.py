@@ -367,6 +367,8 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"us_stocks"', text)
 
     async def test_settings_contract_is_read_only_and_contains_no_runtime_credentials(self):
+        # Review reports include observation time; hold time fixed to compare state.
+        self.enterContext(patch.object(self.engine, "clock", return_value=self.engine.clock()))
         before = self.engine.snapshot()
         response = await self.client.get("/api/settings-schema")
         self.assertEqual(response.status, 200)

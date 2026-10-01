@@ -29,4 +29,30 @@ Chart bars exclude the forming interval. HTF still requires 30 contiguous rollin
 
 Hosted paper does not establish execution quality or profitability. Alpaca's simulation does not faithfully model queue position, market impact or available liquidity. Verification covers API-shaped fixtures, risk/reconciliation failures and browser behavior, plus unauthenticated public crypto data reads. Authenticated Alpaca account access and broker-hosted orders have not been exercised with real paper credentials.
 
+## Review and first operational trial
+
+Open the hamburger menu and select the **Review** icon on the vertical rail. The panel shows only the selected section; use the rail icons or Arrow Up/Down, Home/End to switch. It uses saved settings and existing engine snapshots, not chart selections or unsaved form drafts. Opening it makes no broker requests, adds no market subscriptions and cannot save settings or start orders. Review remains available while trading; Stop stays reachable above the tabs.
+
+The report separates repeated entry checks, cost-qualified checks, order records and fills. A partial fill is also a filled order; these counts are not additive. Missing historical inputs remain unavailable. The HTF minute shortfall measures the additional consecutive suffix needed, not the number of holes in the entire archive. Paused/stale history is not entry authorization. Program quantities are separated by market and side; archived records still count. Unspent DCA allowance includes planning reserves and future slices, not just freely available cash. Posted Alpaca fees remain account-wide, without invented order/run attribution.
+
+For a first operational trial with a dedicated $10,000 paper account, use **BTC/USD DCA** and a **$500 local allocation**. This tests scheduling, bounded orders, fills, fees and reconciliation. It is not a profitability recommendation or evidence that DCA beats holding cash or BTC.
+
+| Setting | Trial value |
+| --- | --- |
+| Exchange / execution / product | Alpaca / hosted paper / spot |
+| Bot market | `alpaca:BTC/USD` |
+| Strategy | DCA · scheduled accumulation |
+| Paper starting balance | $500 local allocation, not $10,000 |
+| Slice notional including planning fees | $10 |
+| Slices / period | 7 / 86,400 seconds |
+| Engine cycle | 60 seconds |
+| Order cap / exposure cap | $10 / $100 |
+| Daily loss limit | $12.50 |
+| Reinvest / capital recovery | Both off |
+| Slippage / maximum spread / depth age | Keep defaults: 10 bps / 30 bps / 10 seconds |
+
+Save these settings before Start. If a previous program exists with different terms, stop and reconcile it, then explicitly create a **New strategy run**; never reset balances or erase history. Start validates and binds the unused account. Assuming $10,000 available cash, $9,500 remains outside the fixed $500 allocation. No broker funds are transferred. The seven planned slices total $70 including planning reserves, not $500 or $10,000. The first slice is due immediately and the seventh six days later if the engine remains online. Prices, market minima, risk checks and available liquidity may prevent or reduce fills; do not increase limits merely to force activity.
+
+DCA uses bounded IOC limits, not guaranteed fills or passive GTC entries. Review requested versus filled quantities, retained assets, working orders and reconciliation errors after the first slice and daily afterward. Missed slices are not caught up automatically. Completion does not sell BTC, and DCA creates no automatic stop/target exit plan. Stop and the daily-loss halt do not flatten inventory or guarantee a maximum loss. Leave a failed run stopped for investigation; do not automatically restart or rearm. No authenticated broker request or trial order is made by this reporting release.
+
 References: [Alpaca API reference](https://docs.alpaca.markets/us/reference), [paper trading](https://docs.alpaca.markets/docs/paper-trading), [crypto trading](https://docs.alpaca.markets/docs/crypto-trading), [market data](https://docs.alpaca.markets/docs/about-market-data-api).
