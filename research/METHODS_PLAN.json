@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "study": "production-methods-kraken-003",
+  "source_venue": "kraken",
+  "archive_sha256": "fc81b54cba6e12af3e9422dde9416179e6ef76af4831d48d839fbdb43018eaa4",
+  "years": [2019, 2020, 2021, 2022, 2023, 2024, 2025],
+  "months": [1, 4, 7, 10],
+  "window_days": 7,
+  "warmup_minutes": 1800,
+  "selection": "First seven UTC days of each quarter, fixed before method outcomes. 28 independent flat-start sessions per asset, not continuous seven-year performance. Calendar sampling misses unselected events and has seasonality bias. No favorable-window selection or restarts inside a session.",
+  "rules": [
+    {"id": "XBTUSD", "symbol": "BTC/USD", "base": "XXBT", "tick": "0.1", "lot": "0.00000001", "minimum": "0.00005", "cost_minimum": "0.5"},
+    {"id": "ETHUSD", "symbol": "ETH/USD", "base": "XETH", "tick": "0.01", "lot": "0.00000001", "minimum": "0.001", "cost_minimum": "0.5"}
+  ],
+  "rule_status": "Current Kraken AssetPairs snapshot retained in the first Kraken study. Fixed scenario rules, not verified historical rules and NOT Alpaca minima. No fabricated universal USD10 minimum.",
+  "methods": ["htf", "scalp", "dca", "twap", "rebalance", "passive80"],
+  "scenarios": {
+    "base": {"path": "OLHC", "spread_bps": 10, "slippage_bps": 10, "participation": "0.01", "passive": "strict_path_cross"},
+    "sensitivity": {"path": "OHLC", "spread_bps": 20, "slippage_bps": 30, "participation": "0.005", "passive": "strict_path_cross"}
+  },
+  "no_fill_control": "Also run htf_no_fill with base prices/costs and no passive fills for every asset/window. This brackets the absence of observed queue evidence, not the unknown Jev contribution. No guaranteed fill claims.",
+  "fees": "25 bps each side, including passive orders, as an Alpaca planning reserve. Local executor debits quote fees, not actual Alpaca fee-asset activities.",
+  "inputs": "Native Kraken minute OHLCVT; validate all selected rows, preserve gaps, never invent candles or VWAP. History available at close plus assumed one second. Exact rolling OHLCV aggregation is regression-tested against production rolling_rows; VWAP remains zero/unavailable and is not used by these signal functions.",
+  "execution": "Production strategy functions and Engine risk/order/ledger code, with synthetic quotes and bounded liquidity. Four assumed observations per minute at seconds 1/20/40/59. IOC fills at adverse limit, at most 1% (sensitivity 0.5%) of the previous adjacent published minute volume shared across that minute's orders. Missing adjacent volume means zero depth. Partial fills remain possible. No observed quotes, trade prints, queue or cancellation fidelity claimed.",
+  "passive": "Hypothetical strict crossing at a later assumed path observation before expiry, bounded by the same remaining liquidity. Touches never fill. Production tick cancels surviving orders after the settlement check. These are assumed fills, NOT reconstructed trade evidence; no-fill control required.",
+  "htf": "Reuse htf.run, HTFReview.entry_view/htf_policy.signal, entry_context, sizing, ownership, fresh-edge handling, targets, stops, deadlines and trims. Replace ONLY unavailable Jev approval with explicit eligible-entry permission ablation, no discretionary model exits. Internal confidence=1 authorizes the ablation, not a calibrated probability or Jev result. Not the complete deployed HTF/Jev strategy.",
+  "settings": "Shared defaults except explicit research allocation: USD500, order cap100, exposure cap100, daily loss12.50, reinvestment on, recovery off; original HTF 80%/100% hysteresis and independent protective exits. No automatic resume after halt. Registered settings are not asserted to equal private runtime configuration.",
+  "programs": "DCA seven daily USD10 slices; TWAP USD80-derived quantity from first observed quote/limit, 12 slices over one hour, immutable initial parent limit; rebalance single-asset16%/cash84% with existing5pp band, minimum10, daily turnover100 and hourly cooldown. Passive80 is existing DCA code with one USD80 purchase. These test execution/allocation programs, not predictive alpha.",
+  "outputs": "All session orders, retained holdings, actual simulated fees, daily net-liquidation marks, path drawdown, halt/completion reason, skipped slots and decision-reason counts/examples. Canceled/partial orders retained. After stop/completion only mark retained holdings; never liquidate or resume. Distinguish unspent cash and inactive gates from profitable trading.",
+  "analysis": "Report every asset/window/method/scenario and data gap. Compare session outcomes descriptively with cash and passive80; no selection of a winning year, inference promotion, pooled continuous-return claim, DSR/PBO, optimizer or fitting. Price-path/cost sensitivities are confounded jointly and are not mathematical performance bounds.",
+  "unavailable": {"complete_htf_jev": "No historical Jev responses/vintages; calls unauthorized", "maker": "Historical L2, queue and model decisions absent", "arbitrage": "No synchronous triangle books/depth or latency", "margin_futures": "No derivative-specific marks, funding or borrowing data", "equities": "Crypto archive cannot test equity sessions/IEX"},
+  "research_comparison": "Map measured blockers, churn, cost room, drawdown and inactivity to all nine audited sources. Propose separately preregistered changes with falsifiers; no post-result tuning or production edits in this study.",
+  "final_window": "All 2026 observations excluded. Retrospective development only, not a new final holdout.",
+  "broker_writes": false,
+  "paper_activation": false,
+  "network_calls": false,
+  "workers": 4
+}
