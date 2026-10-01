@@ -1,6 +1,7 @@
 """Read-only reporting from existing snapshots; no requests, signals or state writes."""
 
 from kairos.domain import BPS, TERMINAL, ZERO, dec
+from kairos.htf_review import NATIVE_POLICY
 from kairos.programs import fill_cost
 
 
@@ -37,15 +38,23 @@ def snapshot(state, now):
     age = now - observed if observed is not None else None
     review = state.get("htf_review") or {}
     cutoff = review.get("window_end")
-    required = 30 * settings["candle_minutes"] if strategy == "htf" else None
+    native = state.get("exchange") == "alpaca" and review.get("history_policy") == NATIVE_POLICY
+    required = 30 * settings["candle_minutes"] if strategy == "htf" and not native else None
+    step = settings["candle_minutes"] * 60 if native else 60
     # A stopped/canceled review can retain old counts. Do not call these current data.
     current_window = bool(
         strategy == "htf"
         and state["running"]
-        and cutoff == int(now) // 60 * 60
-        and review.get("required_minute_rows") == required
+        and cutoff == int(now) // step * step
+        and (
+            review.get("required_native_bars") == 30
+            and review.get("bar_minutes") == settings["candle_minutes"]
+            if native
+            else review.get("required_minute_rows") == required
+        )
     )
-    available = review.get("minute_rows") if current_window else None
+    available = review.get("minute_rows") if current_window and not native else None
+    native_available = review.get("native_bars") if current_window and native else None
     holdings = (
         {
             asset: quantity
@@ -116,6 +125,13 @@ def snapshot(state, now):
         "run_id": run["id"] if run else None,
         "orders": order_totals([o for o in orders if run and o.get("run_id") == run["id"]]),
         "data": {
+            "history_policy": review.get("history_policy"),
+            "bar_minutes": settings["candle_minutes"] if native else None,
+            "required_native_bars": 30 if strategy == "htf" and native else None,
+            "consecutive_native_bars": native_available,
+            "native_bar_shortfall": 30 - native_available if native_available is not None else None,
+            "history_fetched_at": review.get("history_fetched_at") if current_window else None,
+            "history_revision": review.get("history_revision") if current_window else None,
             "required_minutes": required,
             "consecutive_minutes": available,
             "consecutive_shortfall": required - available if available is not None else None,

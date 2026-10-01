@@ -122,7 +122,12 @@ def entry_context(engine, pair, view, book):
     if previous is None:
         pending = None
     elif side != previous:
-        pending = side if side != "hold" else None
+        new_window = (
+            not engine.htf_review.native
+            or state.get("last_candle")
+            != f"{engine.settings['candle_minutes']}:{view['candle_close_time']}"
+        )
+        pending = side if side != "hold" and new_window else None
     ready = pending == side and side != "hold"
     held = quantity(engine, pair)
     exit_side = "sell" if held > 0 else "buy"
@@ -136,6 +141,8 @@ def entry_context(engine, pair, view, book):
         blockers.append("passive entry experiment is paper-only")
     if previous is None:
         blockers.append("startup baseline")
+    elif engine.htf_review.native and side != previous and not new_window:
+        blockers.append("native HTF setup transitions require a new completed bar")
     if side == "hold":
         blockers.append("no cost-qualified pullback")
     elif not ready:
@@ -292,6 +299,7 @@ async def run(engine):
         "spread_bps": str(book.spread_bps),
         "taker_fee_bps": str(fee),
         "candle_minutes": settings["candle_minutes"],
+        "history_policy": engine.htf_review.policy,
         "position": position,
     }
     mark = book.bids[0][0] if held > 0 else book.asks[0][0]

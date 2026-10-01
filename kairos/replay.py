@@ -23,6 +23,9 @@ class RuleReview:
     Production always uses HTFReview, never this adapter.
     """
 
+    native = False
+    policy = "offline-fixed-candle-rules"
+
     def __init__(self, engine):
         self.engine = engine
         self.view = None

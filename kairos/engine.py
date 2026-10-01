@@ -114,6 +114,9 @@ class Engine:
                 "opening_equity": self.equity,
                 "opening_exposure": self.exposure,
             }
+            if self.settings["strategy"] == "htf":
+                run["history_policy"] = self.htf_review.policy
+                run["bar_minutes"] = self.settings["candle_minutes"]
             self.store.put(self.run_key(), run)
             self.summary_cache = None
             self.event(
