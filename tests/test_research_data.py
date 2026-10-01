@@ -109,6 +109,7 @@ class ResearchDataTests(unittest.TestCase):
             path = Path(root) / "research.sqlite3"
             with sqlite3.connect(path) as db:
                 db.execute("CREATE TABLE private (value TEXT)")
+            db.close()
             before = path.read_bytes()
             with self.assertRaises(SafetyError):
                 Registry(root)

@@ -42,7 +42,9 @@ All additions remain subordinate to protective exits. Initial capital is $500, o
 
 Costs and execution are predeclared in the plan. Both passive and aggressive executions pay a 25-bps-per-side fee assumption. Passive entry requires a *subsequent strict crossing*, bounded volume participation, and expiry; touching is insufficient, and a miss has no taker fallback. Rejections and partial fills use reproducible common random numbers. Protective exits take priority and may also reject/partially fill. Base/stress delays are one/two full hourly bars. Hourly checks cannot reproduce production's roughly ten-second protection cadence. Spread, slippage, queue, participation, rejection and historical market-rule assumptions are **scenarios, not measured Alpaca execution facts**. The $10 minimum and precision in the plan are explicitly synthetic, not asserted broker capabilities.
 
-Compare cash, an unconstrained buy-and-hold reference (not deployable under Kairos caps), capped passive exposure, and passive exposure scaled using training-only realized risk. Report realized out-of-sample risk too: training risk matching is not a guarantee of equal future risk. No ex-post leverage or volatility matching.
+Compare cash, an unconstrained buy-and-hold reference (not deployable under Kairos caps), capped passive exposure, and passive exposure scaled using prevalidation realized risk. Risk scales are estimated on the October–December 2024 calibration partition, never on validation/final returns. For that calculation only, quality uses its September-fitted coefficients with temperature fixed at 1, so future calibration labels cannot affect earlier decisions. Freeze each scale as `min(1, arm_volatility / capped_passive_volatility)`; unavailable/zero passive volatility gives scale zero, disclosed as an uninformative cash reference. Report realized out-of-sample risk too: this is not a guarantee of equal future risk. No ex-post leverage or volatility matching.
+
+The capped passive benchmark retries entry on a later observed schedule after a flat exit, with the same caps, stops, deadline and permanent daily-loss halt. The unconstrained buy-and-hold reference omits those restrictions and is labeled accordingly; neither is represented as the deployed HTF strategy. All entry attempts still use the scenario's passive fill assumptions. Momentum and its additions consume a fresh *base momentum* transition; a suppressed/missed entry is not retried within that same positive episode.
 
 ## Acceptance and failure
 
@@ -52,7 +54,22 @@ Require at least 99% coverage, 180 daily observations and 30 completed round tri
 
 A supported improvement requires positive net returns on both assets, positive adjusted lower bounds against both benchmarks, positive stress returns, maximum drawdown ≤10% and ≤baseline +1 percentage point, adequate samples, and no leakage/risk failures. It additionally requires verified point-in-time and execution inputs. **Retrospective bar-only simulations cannot meet that last requirement.** Adequate evidence with a nonpositive adjusted upper bound on incremental return, or a safety violation, rejects the improvement under the tested conditions. Other outcomes are inconclusive. These criteria do not change after results arrive.
 
-Report every arm, failure, halt and sensitivity; fees, estimated spread/slippage, turnover, rejections, partial fills, exposure, open holdings, drawdown and daily net returns. Liquidation valuation is an estimate, never an invented closing fill. DSR and CSCV/PBO are design-window diagnostics, not leakage detectors or replacements for chronological final evaluation. Their independence/stationarity assumptions and small-family limitations must accompany any values.
+Report every arm, failure, halt and sensitivity; fees, estimated spread/slippage, turnover, rejections, partial fills, exposure, open holdings, drawdown and daily net returns. Event processing orders closes, openings and later bar-publication events by timestamp. An opening cannot consume the just-closed bar's unpublished volume or be canceled using a later publication. Passive fills are confirmed only at bar expiry; an early cancel request does not erase possible intrabar fills. This conservative ambiguity is not measured queue simulation. Drawdown includes close marks and a separately labeled adverse bar-low bound, not a reconstructed intrabar path. Liquidation valuation is an estimate, never an invented closing fill. DSR and CSCV/PBO are design-window diagnostics, not leakage detectors or replacements for chronological final evaluation. Their independence/stationarity assumptions and small-family limitations must accompany any values. Diagnostics use the five fixed candidate columns within each asset/scenario replication, not cash/reference benchmarks or acquisition attempts. Physical attempts remain separately journaled; a failed/constant candidate makes the comparable-family diagnostic unavailable. CSCV uses eight equal blocks, disclosing any omitted trailing days; it does not refit models on shuffled time blocks.
+
+## Commands
+
+From this checkout with Python 3.12+, choose a persistent research-only directory (not production `data/`). No extra dependency is needed:
+
+```sh
+ROOT=/path/to/research-artifacts
+python3 -m kairos.research collect --root "$ROOT"
+python3 -m kairos.research development --root "$ROOT" --dataset DATASET_HASH
+python3 -m kairos.research seal --root "$ROOT" --dataset DATASET_HASH --development REPORT_HASH
+python3 -m kairos.research final --root "$ROOT" --dataset DATASET_HASH --development REPORT_HASH
+python3 -m kairos.research journal --root "$ROOT"
+```
+
+`collect` prints a dataset manifest; each evaluation prints its report hash and summary. Detailed decisions/orders/returns and fitted models are separate verified objects referenced by that report. Preserve the entire directory. Do not run `final` until the reviewed source, data-quality checks and validation report are sealed. A final failure is still a consumed holdout. Identical-code/seed outputs are reproducible, but deliberate repeat validation runs remain separate physical trials.
 
 ## Boundaries
 
