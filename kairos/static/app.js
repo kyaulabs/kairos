@@ -239,7 +239,7 @@
     updateFeeStatus();
     strategyReview.render(state, connected);
     const data = state.market_data;
-    $('market-data-status').textContent = hosted ? `Alpaca free REST data · equities: IEX only (not consolidated NBBO), regular sessions and whole shares. ${state.market_session && !state.market_session.is_open ? 'Session closed; no equity orders. Elapsed schedule slots are skipped, not queued.' : ''} Passive crypto limits have no post-only guarantee; GTC cancellation requires Kairos online.` : state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
+    $('market-data-status').textContent = hosted ? `Alpaca execution data: ${data?.status || 'unavailable'} · ${data?.books_ready || 0}/${data?.books_total || 0} books fresh. Crypto: US WebSocket with bounded REST fallback. Equities: IEX only (not consolidated NBBO), regular sessions and whole shares. ${state.market_session && !state.market_session.is_open ? 'Session closed; no equity orders. Elapsed schedule slots are skipped, not queued.' : ''} Passive crypto limits have no post-only guarantee; GTC cancellation requires Kairos online.` : state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
     $('market-data-status').classList.toggle('warning', state.settings.product !== 'futures' && !!data?.books_total && (data.books_ready < data.books_total || !!data.error));
     const decision = AssessmentView.matches(state.decision, state) ? state.decision : null;
     const definition = settingsSchema.strategies[state.settings.strategy];
@@ -502,7 +502,7 @@
     stream.addEventListener('state', event => render(JSON.parse(event.data)));
     stream.addEventListener('ticker', event => { const ticker = JSON.parse(event.data); tickers[ticker.symbol] = ticker; });
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });
-    for (const kind of ['decision','order','fill','account-fee','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
+    for (const kind of ['decision','order','fill','account-fee','data-wait','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
   }
   boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); $('connection').textContent = 'DISCONNECTED'; });
 })();

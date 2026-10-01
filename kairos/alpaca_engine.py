@@ -1,7 +1,10 @@
 """Hosted-paper reconciliation reusing Kairos's existing execution/risk engine."""
 
+import time
+
 from kairos import diagnostics, htf, programs, scalping
 from kairos.alpaca import iso
+from kairos.alpaca_transport import PendingAlpacaData
 from kairos.domain import ZERO, SafetyError, dec
 from kairos.engine import Engine
 from kairos.settings import DEFAULTS
@@ -27,6 +30,10 @@ class AlpacaEngine(Engine):
         super().__init__(store, client, jev, publish, clock=clock)
         self.mode, self.paper_armed = "paper", False
         self.market_session = None
+        self.market_wait = None
+        self.kraken.order_guard = lambda: (
+            self.running and self.paper_armed and not self.shutting_down
+        )
 
     async def initialize(self):
         await self.kraken.catalog()
@@ -49,6 +56,9 @@ class AlpacaEngine(Engine):
             "paper_enabled": self.kraken.allow_paper,
             "recovery_required": self.recovery_required or bool(self.orders(active=True)),
             "market_session": self.market_session,
+            "market_wait": {"since": self.market_wait[0], "timeout_seconds": 300}
+            if self.market_wait
+            else None,
             "fee_note": self.kraken.fee_note,
             "broker_account": self.store.get("alpaca-account", {}).get("id"),
             "capabilities": {
@@ -122,6 +132,40 @@ class AlpacaEngine(Engine):
                 raise SafetyError("Start canceled by Stop")
             self.paper_armed = True
         await super().start(restart=restart, confirmation="RESTART ENGINE" if restart else None)
+        self.market_wait = None
+
+    async def stop(self):
+        self.market_wait = None
+        await super().stop()
+
+    def wait_for_market_data(self, exc):
+        if not self.running or self.shutting_down:
+            return True  # A concurrent explicit Stop wins; never turn running back on.
+        if (
+            not self.paper_armed
+            or self.recovery_required
+            or self.orders(active=True)
+            or self.daily_pnl is not None
+            and -dec(self.daily_pnl) >= dec(self.settings["daily_loss"])
+        ):
+            return False
+        now = time.monotonic()
+        if self.market_wait and now - self.market_wait[1] >= 300:
+            return False  # Bounded read recovery exhausted; explicit Restart required.
+        if not self.market_wait:
+            self.market_wait = (self.clock(), now)
+            self.event(
+                "data-wait",
+                {
+                    "message": "Waiting for fresh Alpaca market data; no stale-data orders, local exits may be blocked"
+                },
+            )
+        self.htf_review.cancel()
+        self.last_error = (
+            str(exc)
+            + "; waiting up to five minutes for fresh data. No stale-data orders; local exits may be blocked."
+        )
+        return True
 
     def tag_order(self, order):
         super().tag_order(order)
@@ -376,8 +420,33 @@ class AlpacaEngine(Engine):
                     await self.valuation(False)
                     self.emit_state()
                     return  # Scheduled slots are skipped normally on the next open cycle.
+                if self.market_wait:
+                    if time.monotonic() - self.market_wait[1] >= 300:
+                        raise SafetyError(
+                            "Alpaca data recovery exhausted; explicit Restart required"
+                        )
+                    # Continue reconciliation and enforce the loss halt during data
+                    # recovery. Neither fresh data nor the stream may restart a halt.
+                    await self.valuation(True)
+                    for pair in self.fee_pairs():
+                        book = await self.kraken.book(pair)
+                        book.fresh(self.settings["stale_seconds"])
+                    if not self.running or self.shutting_down:
+                        return
+                    if self.settings["strategy"] == "htf":
+                        htf.arm(self)  # Do not chase a setup observed before the outage.
+                    self.market_wait, self.last_error = None, None
+                    self.event(
+                        "data-wait",
+                        {
+                            "message": "Fresh Alpaca data restored; rechecking strategy and risk gates, HTF entries re-baselined"
+                        },
+                    )
             await super().tick()
         except Exception as exc:
+            if isinstance(exc, PendingAlpacaData) and self.wait_for_market_data(exc):
+                self.emit_state()
+                return
             error_id = diagnostics.capture(exc, "alpaca-reconciliation")
             self.running = False
             self.last_error = (
