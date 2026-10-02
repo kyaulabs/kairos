@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kairos import diagnostics, htf, margin, programs, review, scalping
-from kairos.alpaca_transport import PendingAlpacaData
+from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.fees import AccountFees, FeeUnavailable
@@ -1661,6 +1661,9 @@ class Engine:
             )
         return True
 
+    def wait_for_account_data(self, exc):
+        return False  # Only the hosted-paper adapter can recover account reads.
+
     def wait_for_market_data(self, exc):
         return False  # Venue-specific, read-only recovery must opt in explicitly.
 
@@ -1760,6 +1763,8 @@ class Engine:
                     self.last_error = f"Waiting for confirmed execution candles ({self.candle_retries}/3); no stale-data entries"
                     self.event("system", {"message": self.last_error})
             except Exception as exc:
+                if isinstance(exc, PendingAlpacaAccount) and self.wait_for_account_data(exc):
+                    return
                 if isinstance(exc, PendingAlpacaData) and self.wait_for_market_data(exc):
                     return
                 error_id = diagnostics.capture(exc, "engine-cycle")

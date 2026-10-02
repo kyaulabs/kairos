@@ -14,6 +14,27 @@ class PendingAlpacaData(SafetyError):
     """A read-only market-data interruption, never an uncertain account/order write."""
 
 
+ACCOUNT_READ_PATHS = frozenset(
+    {"/v2/account", "/v2/positions", "/v2/orders", "/v2/account/activities", "/v2/clock"}
+)
+
+
+class PendingAlpacaAccount(SafetyError):
+    """A transient failure of an allowlisted GET, never an order-write outcome."""
+
+    def __init__(self, endpoint, reason, http_status=None):
+        self.details = {
+            "endpoint": endpoint,
+            "method": "GET",
+            "reason": reason,
+            "http_status": http_status,
+        }
+        self.diagnostic_details = self.details
+        super().__init__(
+            f"Alpaca account read GET {endpoint} unavailable ({reason}); no write attempted by this request"
+        )
+
+
 class RejectedAlpacaData(ExchangeRejected, PendingAlpacaData):
     """Freshness failed before POST: definitively rejected, not an uncertain write."""
 
@@ -48,7 +69,7 @@ class AlpacaRequests:
         return max(waits)
 
     @asynccontextmanager
-    async def slot(self, priority, bucket, deadline=None):
+    async def slot(self, priority, bucket, deadline=None, *, account_read=None):
         async with self.condition:
             ticket = self.sequence
             self.sequence += 1
@@ -57,6 +78,8 @@ class AlpacaRequests:
                 or priority == 3
                 and sum(p == 3 for p, _ in self.waiters.values()) >= 16
             ):
+                if account_read:
+                    raise PendingAlpacaAccount(account_read, "queue full")
                 raise SafetyError("Alpaca request queue full; no request sent")
             self.waiters[ticket] = (priority, bucket)
             started = time.monotonic()
@@ -66,6 +89,8 @@ class AlpacaRequests:
                     if deadline is not None and time.time() + 1 >= deadline:
                         raise ExchangeRejected("Alpaca intent expired before the network write")
                     if now - started >= 12:
+                        if account_read:
+                            raise PendingAlpacaAccount(account_read, "quota/queue wait")
                         error = PendingAlpacaData if bucket == "data" else SafetyError
                         raise error("Alpaca request deferred by quota/queue; no request sent")
                     eligible = [

@@ -65,6 +65,18 @@ class StrategyReview {
           [`${bucket} backoff · seconds`, n(quota.retry_in_seconds)],
         );
       }
+      const account = state.account_reads;
+      if (account) {
+        const failure = account.last_failure, recovery = account.recovery;
+        readiness.push(['Last full account reconciliation', t(account.last_success_at)]);
+        readiness.push(['Last execution account-read failure', failure ? `${failure.method} ${failure.endpoint} · ${failure.reason} · ${t(failure.at)}` : 'None recorded this service session']);
+        if (recovery) readiness.push(
+          ['Account-read recovery', `${recovery.status} · ${n(recovery.attempts)} / ${n(recovery.max_attempts)} recovery attempts · ${n(recovery.timeout_seconds)}s retry deadline`],
+          ['Account recovery since / ended', `${t(recovery.since)} / ${t(recovery.ended_at)}`],
+          ['Account recovery duration · seconds', n(recovery.duration_seconds)],
+          ['Account recovery execution', recovery.status === 'waiting' ? `Orders and local exits blocked; next retry no earlier than ${t(recovery.next_retry_at)}. Stop and loss halts take precedence.` : 'Episode ended; normal safety gates still apply. No order write was retried.'],
+        );
+      }
       if (state.market_wait) readiness.push(['Data wait', `Since ${t(state.market_wait.since)}; ${state.market_wait.timeout_seconds}s maximum. Orders blocked; local exits may be unavailable.`]);
     }
     this.rows('review-readiness', readiness);
