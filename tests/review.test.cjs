@@ -63,6 +63,26 @@ test('Review labels native bar readiness without claiming fabricated minute cove
   assert.match(text('review-status'), /cached state only/);
 });
 
+test('Review distinguishes account-read recovery from market data and preserves completed episode diagnostics', () => {
+  const {view,state,text} = fixture();
+  state.account_reads = {last_success_at:null,last_failure:{method:'GET',endpoint:'/v2/orders',reason:'timeout',at:1800000000},recovery:{status:'waiting',since:1800000000,attempts:0,max_attempts:3,timeout_seconds:120,duration_seconds:12,next_retry_at:1800000015}};
+  const before = JSON.stringify(state); view.render(state,true);
+  assert.equal(JSON.stringify(state), before);
+  assert.match(text('review-readiness'), /Last full account reconciliation Unavailable/);
+  assert.match(text('review-readiness'), /GET \/v2\/orders · timeout/);
+  assert.match(text('review-readiness'), /0 \/ 3 recovery attempts/);
+  assert.match(text('review-readiness'), /Orders and local exits blocked/);
+  state.account_reads.recovery.status = 'restored';
+  state.account_reads.recovery.attempts = 1;
+  state.account_reads.recovery.ended_at = 1800000030;
+  state.account_reads.recovery.duration_seconds = 30;
+  view.render(state,false);
+  assert.match(text('review-readiness'), /restored · 1 \/ 3/);
+  assert.match(text('review-readiness'), /duration · seconds 30/);
+  assert.match(text('review-readiness'), /No order write was retried/);
+  assert.match(text('review-status'), /cached state only/);
+});
+
 test('Review separates market age, receipt latency, quota exhaustion and bounded waiting', () => {
   const {view,state,text} = fixture();
   state.market_data = {status:'reconnecting', books:[{pair:'alpaca:BTC/USD', source:'REST', fresh:false, market_age_seconds:48, market_at:1800000000, received_at:1800000048}], requests:{admissions_last_minute:92,budget_per_minute:150,queued:2,last_response:{method:'GET',endpoint:'/v1beta3/crypto/us/latest/orderbooks',http_status:200,latency_seconds:.2},quotas:{data:{remaining:0,limit:200,observed_at:1800000048,reset:1800000078,retry_in_seconds:30},trading:{retry_in_seconds:0}}}};

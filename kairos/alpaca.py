@@ -12,7 +12,13 @@ import aiohttp
 
 from kairos import diagnostics
 from kairos.alpaca_data import AlpacaBook, AlpacaData
-from kairos.alpaca_transport import AlpacaRequests, PendingAlpacaData, RejectedAlpacaData
+from kairos.alpaca_transport import (
+    ACCOUNT_READ_PATHS,
+    AlpacaRequests,
+    PendingAlpacaAccount,
+    PendingAlpacaData,
+    RejectedAlpacaData,
+)
 from kairos.clients import ExchangeRejected
 from kairos.domain import Pair, SafetyError, dec
 from kairos.market_data import CandleHistory, validate_levels
@@ -102,7 +108,8 @@ class Alpaca:
             if data
             else 1
         )
-        async with self.requests.slot(priority, bucket, deadline):
+        account_read = path if method == "GET" and not data and path in ACCOUNT_READ_PATHS else None
+        async with self.requests.slot(priority, bucket, deadline, account_read=account_read):
             if method == "POST" and self.order_guard and not self.order_guard():
                 raise ExchangeRejected("Alpaca submission canceled by Stop")
             if before_send:
@@ -122,6 +129,10 @@ class Alpaca:
                     if response.status == 204:
                         return None
                     if not 200 <= response.status < 300:
+                        if account_read and response.status in {429, 500, 502, 503, 504}:
+                            raise PendingAlpacaAccount(
+                                path, f"HTTP {response.status}", response.status
+                            )
                         if (
                             method == "GET"
                             and data
@@ -136,7 +147,12 @@ class Alpaca:
                             else SafetyError
                         )
                         exc = error(
-                            f"Alpaca {method} request failed (HTTP {response.status}); reconcile uncertain orders"
+                            f"Alpaca {method} request failed (HTTP {response.status}); "
+                            + (
+                                "read failed; no write attempted"
+                                if method == "GET"
+                                else "reconcile uncertain orders"
+                            )
                         )
                         exc.diagnostic_details = {"endpoint": path, "http_status": response.status}
                         raise exc
@@ -144,12 +160,24 @@ class Alpaca:
             except aiohttp.ContentTypeError as exc:
                 raise SafetyError("Malformed Alpaca response; no automatic retry") from exc
             except (aiohttp.ClientError, TimeoutError) as exc:
+                if (
+                    account_read
+                    and isinstance(exc, (TimeoutError, aiohttp.ClientConnectionError))
+                    and not isinstance(
+                        exc, (aiohttp.ClientSSLError, aiohttp.ServerFingerprintMismatch)
+                    )
+                ):
+                    raise PendingAlpacaAccount(
+                        path, "timeout" if isinstance(exc, TimeoutError) else "connection failure"
+                    ) from exc
                 if method == "GET" and data:
                     raise PendingAlpacaData(
                         "Alpaca market-data transport unavailable; read deferred"
                     ) from exc
                 raise SafetyError(
-                    "Alpaca transport failure; request outcome may be unknown"
+                    "Alpaca read transport failure; no write attempted by this request"
+                    if method == "GET"
+                    else "Alpaca transport failure; request outcome may be unknown"
                 ) from exc
             except ValueError as exc:
                 raise SafetyError("Malformed Alpaca response; no automatic retry") from exc
