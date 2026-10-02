@@ -1,10 +1,11 @@
 """Hosted-paper reconciliation reusing Kairos's existing execution/risk engine."""
 
+import asyncio
 import time
 
 from kairos import diagnostics, htf, programs, scalping
 from kairos.alpaca import iso
-from kairos.alpaca_transport import PendingAlpacaData
+from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
 from kairos.domain import ZERO, SafetyError, dec
 from kairos.engine import Engine
 from kairos.settings import DEFAULTS
@@ -31,8 +32,14 @@ class AlpacaEngine(Engine):
         self.mode, self.paper_armed = "paper", False
         self.market_session = None
         self.market_wait = None
+        self.account_wait = None
+        self.account_read_status = {"last_success_at": None, "last_failure": None, "recovery": None}
         self.kraken.order_guard = lambda: (
-            self.running and self.paper_armed and not self.shutting_down
+            self.running
+            and self.paper_armed
+            and not self.shutting_down
+            and not self.account_wait
+            and not self.recovery_required
         )
 
     async def initialize(self):
@@ -56,6 +63,10 @@ class AlpacaEngine(Engine):
             "paper_enabled": self.kraken.allow_paper,
             "recovery_required": self.recovery_required or bool(self.orders(active=True)),
             "market_session": self.market_session,
+            "account_reads": {
+                **self.account_read_status,
+                "recovery": self.account_recovery_snapshot(),
+            },
             "market_wait": {"since": self.market_wait[0], "timeout_seconds": 300}
             if self.market_wait
             else None,
@@ -137,6 +148,149 @@ class AlpacaEngine(Engine):
     async def stop(self):
         self.market_wait = None
         await super().stop()
+        self.finish_account_recovery("stopped")
+        self.emit_state()
+
+    async def reconcile(self, acknowledge=False):
+        await super().reconcile(acknowledge)
+        self.finish_account_recovery("reconciled")
+        self.emit_state()
+
+    def account_recovery_snapshot(self):
+        result = self.account_read_status["recovery"]
+        if result is not None:
+            result = dict(result)
+            if self.account_wait:
+                result["duration_seconds"] = round(time.monotonic() - self.account_wait[0], 3)
+        return result
+
+    def finish_account_recovery(self, status):
+        if not self.account_wait:
+            return
+        result = self.account_recovery_snapshot()
+        result.update(status=status, ended_at=self.clock())
+        self.account_wait = None
+        self.account_read_status["recovery"] = result
+        self.account_read_event(
+            {
+                "message": f"Alpaca account-read recovery {status}",
+                **result,
+                "last_success_at": self.account_read_status["last_success_at"],
+            },
+        )
+
+    def account_read_event(self, data):
+        try:
+            self.event("account-read", data)
+        except Exception:
+            self.running = False
+            self.recovery_required = True
+            self.last_error = "Account-read audit storage failed; Reconcile and Restart required"
+            result = self.account_recovery_snapshot()
+            if result:
+                result.update(status="halted", ended_at=self.clock())
+                self.account_read_status["recovery"] = result
+            self.account_wait = None
+            raise  # Audit/storage failures must not leave automatic execution permitted.
+
+    def account_retry_safe(self):
+        return (
+            self.paper_armed
+            and not self.recovery_required
+            and not self.orders(active=True)
+            and not self.store.get("cycle")
+            and not (
+                self.daily_pnl is not None
+                and -dec(self.daily_pnl) >= dec(self.settings["daily_loss"])
+            )
+        )
+
+    def wait_for_account_data(self, exc):
+        if not self.running or self.shutting_down:
+            self.finish_account_recovery("stopped")
+            return True  # A read finishing after Stop cannot renew permission.
+        failure = {**exc.details, "at": self.clock()}
+        self.account_read_status["last_failure"] = failure
+        if self.account_wait:
+            self.account_read_status["recovery"].update(failure)
+        now = time.monotonic()
+        if (
+            not self.account_retry_safe()
+            or self.account_wait
+            and (
+                now - self.account_wait[0] >= 120
+                or self.account_read_status["recovery"]["attempts"] >= 3
+            )
+        ):
+            self.recovery_required = True
+            exc.args = (
+                str(exc)
+                + "; automatic read recovery unavailable or exhausted; Reconcile before Start",
+            )
+            self.finish_account_recovery("halted")
+            return False
+        if not self.account_wait:
+            self.account_wait = (now, now + 15)
+            self.account_read_status["recovery"] = {
+                "status": "waiting",
+                "since": self.clock(),
+                "attempts": 0,
+                "max_attempts": 3,
+                "timeout_seconds": 120,
+            }
+        else:
+            self.account_wait = (self.account_wait[0], now + 15)
+        self.account_read_status["recovery"].update(failure, next_retry_at=self.clock() + 15)
+        self.htf_review.cancel()
+        self.last_error = (
+            str(exc) + "; bounded account reconciliation pending. Orders and local exits blocked."
+        )
+        self.account_read_event(
+            {
+                "message": self.last_error,
+                **self.account_recovery_snapshot(),
+                "last_success_at": self.account_read_status["last_success_at"],
+            },
+        )
+        return True
+
+    async def recover_account_reads(self):
+        if not self.account_retry_safe():
+            raise SafetyError(
+                "Account-read recovery blocked by loss, orders or reconciliation latch"
+            )
+        now = time.monotonic()
+        remaining = 120 - (now - self.account_wait[0])
+        if remaining <= 0:
+            raise SafetyError(
+                "Alpaca account-read recovery deadline exhausted; Reconcile before Start"
+            )
+        if now < self.account_wait[1]:
+            return
+        self.account_read_status["recovery"]["attempts"] += 1
+        try:
+            async with asyncio.timeout(remaining):
+                # Full reconciliation plus current loss/session checks, never a broker write.
+                await self.valuation(True)
+                equities = any(self.kraken.is_equity(p) for p in self.fee_pairs())
+                self.market_session = await self.kraken.clock() if equities else None
+        except TimeoutError as exc:
+            raise SafetyError(
+                "Alpaca account-read recovery deadline exhausted; Reconcile before Start"
+            ) from exc
+        if not self.running or self.shutting_down:
+            self.finish_account_recovery("stopped")
+            return
+        if time.monotonic() - self.account_wait[0] >= 120:
+            raise SafetyError(
+                "Alpaca account-read recovery deadline exhausted; Reconcile before Start"
+            )
+        if self.settings["strategy"] == "htf":
+            htf.arm(self)  # Retain ownership/protection; discard outage-era entry approval.
+        self.finish_account_recovery("restored")
+        if not self.market_wait:
+            self.last_error = None
+        # Normal strategy/freshness checks run on the next cycle; never replay an intent.
 
     def wait_for_market_data(self, exc):
         if not self.running or self.shutting_down:
@@ -454,6 +608,7 @@ class AlpacaEngine(Engine):
         with self.store.db:
             self.store._put("ledger:paper", ledger)
             self.store._put("alpaca-cash-checkpoint", checkpoint)
+        self.account_read_status["last_success_at"] = self.clock()
         return account
 
     async def valuation(self, enforce=False):
@@ -472,6 +627,8 @@ class AlpacaEngine(Engine):
     async def place(self, pair, side, volume, price, book, maker=False, **kwargs):
         if not self.paper_armed or not self.kraken.allow_paper or self.mode != "paper":
             raise SafetyError("Alpaca hosted paper is not armed")
+        if self.account_wait:
+            raise SafetyError("Account reconciliation pending; orders blocked")
         self.validate_capabilities(self.settings)
         account = await self.reconcile_account()
         if not self.kraken.is_equity(pair) and account.get("crypto_status") != "ACTIVE":
@@ -506,6 +663,10 @@ class AlpacaEngine(Engine):
             return await super().tick()
         try:
             async with self.lock:
+                if self.account_wait:
+                    await self.recover_account_reads()
+                    self.emit_state()
+                    return
                 await self.cancel_active()
                 await self.reconcile_account()
                 equities = any(self.kraken.is_equity(p) for p in self.fee_pairs())
@@ -538,6 +699,9 @@ class AlpacaEngine(Engine):
                     )
             await super().tick()
         except Exception as exc:
+            if isinstance(exc, PendingAlpacaAccount) and self.wait_for_account_data(exc):
+                self.emit_state()
+                return
             if isinstance(exc, PendingAlpacaData) and self.wait_for_market_data(exc):
                 self.emit_state()
                 return
@@ -547,6 +711,7 @@ class AlpacaEngine(Engine):
                 str(exc) if isinstance(exc, SafetyError) else "Alpaca reconciliation failed"
             )
             self.recovery_required = True
+            self.finish_account_recovery("halted")
             self.event("error", {"message": self.last_error, "error_id": error_id})
             try:
                 await self.stop()
