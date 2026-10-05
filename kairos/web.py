@@ -22,6 +22,7 @@ from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
 from kairos.exchanges import ExchangeDesk
 from kairos.futures_client import FuturesTrading
+from kairos.operations import DiscordAlerts
 from kairos.retail import RetailMarkets, usd_volume
 from kairos.settings import schema
 from kairos.store import Store, encode
@@ -179,6 +180,11 @@ async def settings_schema(request):
                 "time: closed-session/missed slots are skipped, not caught up. Mixed rebalance "
                 "baskets wait for the equity session. No broker account resets or funding."
             )
+    else:
+        contract["fields"]["htf_policy"]["choices"] = {
+            "pullback-v1": "Legacy pullback · experimental"
+        }
+        contract["fields"]["api_auto_recovery"]["products"] = ["unavailable"]
     return web.json_response(contract)
 
 
@@ -358,6 +364,10 @@ async def command(request):
             )
         else:
             await engine.reconcile(data.get("acknowledge") is True)
+    elif action == "qualify-paper":
+        if not isinstance(engine, AlpacaEngine):
+            raise SafetyError("Execution qualification is Alpaca paper only")
+        await engine.qualify_paper(data.get("confirmation"))
     elif action == "paper-order":
         await engine.paper_order_history(
             data["order_id"], data["operation"], data.get("confirmation", "")
@@ -501,12 +511,19 @@ async def lifecycle(app):
             os.environ.get("ALPACA_PAPER_SECRET_KEY", ""),
             allow_paper=os.environ.get("ALLOW_ALPACA_PAPER_TRADING", "false").lower() == "true",
         )
+        alerts = DiscordAlerts(session, os.environ.get("KAIROS_DISCORD_WEBHOOK_URL", ""))
+
+        def alpaca_engine(publish):
+            engine = AlpacaEngine(alpaca_store, alpaca, jev, publish, observe=True)
+            engine.operations.alerts = alerts
+            return engine
+
         desk = ExchangeDesk(
             app,
             store,
             {
                 "kraken": lambda publish: Engine(store, kraken, jev, publish, futures=futures),
-                "alpaca": lambda publish: AlpacaEngine(alpaca_store, alpaca, jev, publish),
+                "alpaca": alpaca_engine,
             },
             default=os.environ.get("KAIROS_EXCHANGE", "kraken"),
         )
@@ -526,6 +543,7 @@ async def lifecycle(app):
                 with contextlib.suppress(asyncio.CancelledError):
                     await feed_task
             await desk.close()
+            await alerts.close()
             await kraken.market_data.close()
             alpaca_store.close()
             store.close()

@@ -218,8 +218,10 @@
     $('exposure-cap').textContent = `Effective limit ${money(state.effective_exposure_cap)} USD`;
     $('valuation-time').textContent = state.valuation_ts ? `Valued ${time(state.valuation_ts)}` : 'Not yet valued';
     if (state.valuation_ts && state.equity != null) equityChart.add(state.valuation_ts, Number(state.equity));
-    $('engine-status').textContent = state.running ? (state.fee_recovery ? 'Recovering fees' : state.data_recovery?.attempts ? 'Recovering data' : 'Running') : state.error ? 'Stopped · error' : 'Paused';
-    $('engine-status').classList.toggle('running', state.running);
+    $('engine-status').textContent = state.operations ? ({running:'Running',paused:'Paused',halted:'Halted · error','waiting-data':'Waiting · data','waiting-account':'Waiting · account','retry-wait':`Retry wait · ${state.scheduled_recovery?.attempts ?? 0}/5`}[state.operations.status] || state.operations.status) : state.running ? (state.fee_recovery ? 'Recovering fees' : state.data_recovery?.attempts ? 'Recovering data' : 'Running') : state.error ? 'Stopped · error' : 'Paused';
+    $('engine-status').classList.toggle('running', state.operations ? state.operations.status === 'running' : state.running);
+    $('engine-status').classList.toggle('waiting', ['waiting-data','waiting-account','retry-wait'].includes(state.operations?.status));
+    $('engine-status').classList.toggle('halted', state.operations?.status === 'halted');
     $('engine-strategy').textContent = settingsSchema.strategies[state.settings.strategy].label;
     $('engine-error').hidden = !state.error;
     $('engine-error').textContent = state.error || '';
@@ -245,7 +247,7 @@
     const definition = settingsSchema.strategies[state.settings.strategy];
     $('assessment-panel').dataset.strategy = state.settings.strategy;
     const scheduled = scheduledStrategy(state.settings.strategy);
-    const rules = scheduled || definition.deterministic;
+    const rules = scheduled || definition.deterministic || (state.settings.strategy === 'htf' && state.settings.htf_policy === 'multibar-v2');
     const liveOption = $('mode').querySelector('option[value="trading"]');
     if (liveOption) liveOption.disabled = !!definition.paper_only;
     $('assessment-label').textContent = rules ? 'Strategy signals' : 'Jev assessment';
@@ -502,7 +504,7 @@
     stream.addEventListener('state', event => render(JSON.parse(event.data)));
     stream.addEventListener('ticker', event => { const ticker = JSON.parse(event.data); tickers[ticker.symbol] = ticker; });
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });
-    for (const kind of ['decision','order','fill','account-fee','account-read','data-wait','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
+    for (const kind of ['decision','order','fill','account-fee','account-read','operating-state','scheduled-recovery','candidate','qualification','data-wait','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
   }
   boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); $('connection').textContent = 'DISCONNECTED'; });
 })();

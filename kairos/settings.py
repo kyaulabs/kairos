@@ -76,6 +76,16 @@ FIELDS = {
         },
         strategies=("htf",),
     ),
+    "htf_policy": setting(
+        "pullback-v1",
+        choices={
+            "pullback-v1": "Legacy pullback · experimental",
+            "multibar-v2": "Multi-bar pullback · 14-day paper trial",
+        },
+        strategies=("htf",),
+        migrate=True,
+    ),
+    "api_auto_recovery": setting(False, products=("spot",), migrate=True),
     "htf_stop_bps": setting("300", ("10", "5000"), strategies=("htf",), migrate=True),
     "htf_max_hold_seconds": setting(604800, (3600, 2592000), strategies=("htf",), migrate=True),
     "scalp_window": setting(30, (20, 120), strategies=("scalp",), migrate=True),

@@ -212,6 +212,8 @@ th.order-actions { z-index: 2; background: var(--surface-raised); }
 .portfolio-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: .75rem; margin-top: 12px; }
 .engine-status { color: var(--muted); font-size: .75rem; font-weight: 500; }
 .engine-status.running { color: var(--green); }
+.engine-status.waiting { color: var(--warning); }
+.engine-status.halted { color: var(--red); }
 .execution-controls { flex-shrink: 0; padding: 12px; border-bottom: 1px solid var(--line); }
 .execution-mode { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .875rem; color: var(--muted); }
 .execution-mode select { width: auto; max-width: 75%; }

@@ -140,7 +140,10 @@ class HTFReview:
         return int(now) // self.window_step * self.window_step
 
     def entry_view(self, rows, pair, book):
-        view = signal(
+        policy = signal
+        if self.engine.settings.get("htf_policy") == "multibar-v2":
+            from kairos.multibar import signal as policy
+        view = policy(
             rows,
             self.engine.settings,
             book,
@@ -150,6 +153,10 @@ class HTFReview:
         if getattr(self.engine.kraken, "hosted_paper", False) is True:
             view["entry_execution"] = "passive-limit"
             view["execution_note"] = "Alpaca has no post-only guarantee; taker-rate cost screen"
+        if self.engine.settings.get("htf_policy") == "multibar-v2":
+            from kairos.multibar import candidate_view
+
+            view = candidate_view(self.engine, view, book)
         return view
 
     def signature(self):
@@ -302,6 +309,11 @@ class HTFReview:
                         "native_history": self.rows if self.native else None,
                         "mid": str(book.mid),
                         "entry_policy": view["entry_policy"],
+                        "structural_gates": view.get("structural_gates"),
+                        "execution_gates": view.get("execution_gates"),
+                        "gate_values": view.get("gate_values"),
+                        "legacy_control": view.get("legacy_control"),
+                        "candidate": view.get("candidate"),
                         "pullback_signal": permissions["entry_signal"],
                         "pullback_targets": view["entry_targets"],
                         "pullback_net_room_bps": view["target_net_room_bps"],
@@ -363,6 +375,16 @@ class HTFReview:
                     "confidence": None,
                     "probabilities": {},
                     "model": "HTF entry gates",
+                    "deterministic": True,
+                    "latency_ms": 0,
+                }
+            elif engine.settings.get("htf_policy") == "multibar-v2":
+                self.status = "Deterministic multi-bar review; Jev has no execution authority"
+                answer = {
+                    "action": "buy" if "buy" in permissions["allowed_actions"] else "hold",
+                    "confidence": None,
+                    "probabilities": {},
+                    "model": "Multi-bar rules",
                     "deterministic": True,
                     "latency_ms": 0,
                 }

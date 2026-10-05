@@ -27,6 +27,14 @@ def arm(engine):
     state = snapshot(engine)
     state["entry_signal"] = None
     state["pending_signal"] = None
+    if engine.settings.get("htf_policy") == "multibar-v2":
+        if state.get("candidate"):
+            state["consumed_candidates"] = (
+                state.get("consumed_candidates", []) + [state["candidate"]["id"]]
+            )[-64:]
+        state["baseline_after"] = engine.htf_review.window_end(engine.clock())
+        state["candidate"] = None
+        state["candidate_window"] = state["baseline_after"]
     engine.htf_review.cancel()
     engine.store.put(key(engine), state)
 
@@ -128,6 +136,9 @@ def entry_context(engine, pair, view, book):
             != f"{engine.settings['candle_minutes']}:{view['candle_close_time']}"
         )
         pending = side if side != "hold" and new_window else None
+    multibar = engine.settings.get("htf_policy") == "multibar-v2"
+    if multibar:
+        pending = side if view.get("candidate") and side != "hold" else None
     ready = pending == side and side != "hold"
     held = quantity(engine, pair)
     exit_side = "sell" if held > 0 else "buy"
@@ -139,7 +150,13 @@ def entry_context(engine, pair, view, book):
         "paper",
     }:
         blockers.append("passive entry experiment is paper-only")
-    if previous is None:
+    if multibar:
+        if view["candle_close_time"] <= state.get("baseline_after", view["candle_close_time"]):
+            blockers.append("startup/recovery baseline")
+        run = engine.active_run() or {}
+        if engine.clock() >= run.get("trial_ends_at", 0):
+            blockers.append("14-day trial ended; entries disabled")
+    elif previous is None:
         blockers.append("startup baseline")
     elif engine.htf_review.native and side != previous and not new_window:
         blockers.append("native HTF setup transitions require a new completed bar")
@@ -354,6 +371,23 @@ async def run(engine):
         side = context["entry_signal"]
         previous_signal = context["previous_entry_signal"]
         state["pending_signal"] = context["pending_signal"]
+        if settings.get("htf_policy") == "multibar-v2":
+            old = state.get("candidate")
+            candidate = view.get("candidate")
+            if old and (not candidate or old["id"] != candidate["id"]):
+                state["consumed_candidates"] = (state.get("consumed_candidates", []) + [old["id"]])[
+                    -64:
+                ]
+            if candidate and (not old or candidate["id"] != old["id"]):
+                engine.event(
+                    "candidate",
+                    {
+                        "message": "New closed-bar candidate, not an order authorization",
+                        **candidate,
+                        "structural_gates": view["structural_gates"],
+                    },
+                )
+            state.update(candidate=candidate, candidate_window=view["candle_close_time"])
         entry_ready = context["entry_ready"]
         state.update(
             last_candle=f"{settings['candle_minutes']}:{view['candle_close_time']}",
@@ -377,7 +411,11 @@ async def run(engine):
         if assessment:
             data["jev"] = assessment
             approved = (
-                dec(assessment.get("confidence") or 0) >= dec(settings["min_confidence"])
+                (
+                    settings.get("htf_policy") == "multibar-v2"
+                    and assessment.get("model") == "Multi-bar rules"
+                    or dec(assessment.get("confidence") or 0) >= dec(settings["min_confidence"])
+                )
                 and assessment["action"] in context["allowed_actions"]
                 and assessment["action"]
                 in assessment.get("allowed_actions", context["allowed_actions"])
@@ -532,6 +570,11 @@ async def run(engine):
         return
     # Consume the setup only on an actual submission attempt, including unfilled orders.
     state["pending_signal"] = None
+    if settings.get("htf_policy") == "multibar-v2":
+        state["consumed_candidates"] = (
+            state.get("consumed_candidates", []) + [view["candidate"]["id"]]
+        )[-64:]
+        state["candidate"] = None
     data["review_required"] = True
     now = engine.clock()
     previous = position
@@ -545,7 +588,10 @@ async def run(engine):
             price * (1 + (-1 if side == "buy" else 1) * dec(settings["htf_stop_bps"]) / BPS)
         ),
         "opened_at": now,
-        "deadline": now + settings["htf_max_hold_seconds"],
+        "deadline": min(
+            now + settings["htf_max_hold_seconds"],
+            (engine.active_run() or {}).get("trial_ends_at", float("inf")),
+        ),
         "exit_reason": None,
     }
     if residual and "inventory_adjustment" in previous:
@@ -562,7 +608,11 @@ async def run(engine):
         engine,
         pair,
         side,
-        "HTF pullback and net target room passed; Jev approved; passive entry, no taker fallback"
+        (
+            "Multi-bar rules passed; passive entry, no taker fallback"
+            if settings.get("htf_policy") == "multibar-v2"
+            else "HTF pullback and net target room passed; Jev approved; passive entry, no taker fallback"
+        )
         if maker
         else "Offline HTF rule benchmark momentum screen passed; not the deployed pullback policy",
         {
