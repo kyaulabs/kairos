@@ -42,7 +42,8 @@ class SettingsForm {
     for (const [name, field] of Object.entries(this.schema.fields)) {
       if (field.editable === false) continue;
       const input = this.form.elements.namedItem(name);
-      const active = SettingsForm.applies(field, values);
+      const deterministicHTF = values.strategy === 'htf' && this.form.elements.namedItem('htf_policy')?.value === 'multibar-v2';
+      const active = SettingsForm.applies(field, values) && !(name === 'min_confidence' && deterministicHTF);
       // An incompatible enabled switch stays visible until the operator explicitly turns it off.
       input.disabled = !active && !(field.must_be_off_when_inactive && input.checked);
       const label = input.closest('.setting-field') || input.closest('label');

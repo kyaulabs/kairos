@@ -25,11 +25,25 @@ class StrategyReview {
     }
     const data = report.data, costs = report.costs, entry = report.entry, checks = state.decision_summary?.entry_checks, program = report.program;
     const readiness = [
-      ['Engine', state.running ? 'Running' : 'Paused · not evaluating new entries'],
+      ['Engine', state.operations ? state.operations.status.replaceAll('-', ' ') : state.running ? 'Running' : 'Paused · not evaluating new entries'],
       ['Last assessment', t(data.assessment_at)],
       ['Assessment at snapshot', connected && data.assessment_current ? 'Within review cadence; not an order authorization' : 'Unavailable, stale or paused'],
       ['Halt / recovery', state.error || (state.recovery_required ? 'Reconciliation required' : 'None reported')],
     ];
+    if (state.operations) {
+      readiness.push(['Operating state / since', `${state.operations.status} / ${t(state.operations.since)}`], ['Last strategy evaluation · service session', t(state.operations.last_evaluation_at)]);
+      for (const [status, seconds] of Object.entries(state.operations.session_seconds || {})) readiness.push([`${status} · service-session seconds`, n(seconds)]);
+      const alerts = state.operations.notifications;
+      readiness.push(['Discord alerts', alerts?.configured ? `${alerts.status} · ${t(alerts.last_at)}` : alerts?.status || 'Not configured']);
+    }
+    if (state.diagnostic_observation) {
+      const observed = state.diagnostic_observation;
+      readiness.push(['Last read-only native window', `${observed.pair} · ${observed.bar_minutes}m · ${t(observed.window_end)}`], ['Diagnostic bars / required', `${n(observed.consecutive)} / ${n(observed.required)}`], ['Diagnostic record time', t(observed.observed_at)], ['Diagnostic permission', 'History only; does not clear a halt or authorize orders']);
+    }
+    if (state.scheduled_recovery) {
+      const retry = state.scheduled_recovery;
+      readiness.push(['Scheduled recovery', `${retry.status} · ${retry.attempts}/${retry.max_attempts}`], ['Next recovery attempt', t(retry.next_at)], ['Recovery reason', retry.reason]);
+    }
     if (state.settings.strategy === 'htf') {
       readiness.push(['HTF history policy', data.history_policy || 'Unavailable']);
       if (data.required_native_bars != null) readiness.push(
@@ -83,14 +97,20 @@ class StrategyReview {
     this.rows('review-funnel', [
       ['Execution run', report.run_id ? report.run_id.slice(0, 8) : 'Not started for this configuration/revision'],
       ['Assessments', n(state.decision_summary?.assessments)],
-      ['Raw entry checks positive / observed', `${n(checks?.signals)} / ${n(checks?.observed)}`],
-      ['Setup + cost checks passed / observed', `${n(checks?.cost_qualified)} / ${n(checks?.cost_observed)}`],
+      ['Distinct recorded windows / v2 candidates', `${n(state.decision_summary?.distinct_windows)} / ${n(state.decision_summary?.distinct_candidates)}`],
+      ['Trial end', t(state.execution_run?.trial_ends_at)],
+      ['Trial protocol', state.execution_run?.protocol_hash || 'Not a registered multi-bar trial'],
+      ['Paper execution qualification', state.paper_qualification?.status || 'Not performed'],
+      ['Trial interpretation', state.settings.htf_policy === 'multibar-v2' ? '14 calendar days; ≥10 candidates, ≥5 accepted entries, ≥95% running availability. Economics inconclusive below 30 completed owned lineages; no automatic extension.' : 'Legacy experiment; no profitability claim'],
+      [state.settings.htf_policy === 'multibar-v2' ? 'New closed-bar pattern positive / checks' : 'Raw entry checks positive / observed', `${n(checks?.signals)} / ${n(checks?.observed)}`],
+      [state.settings.htf_policy === 'multibar-v2' ? 'Candidate + cost gate passed / checks' : 'Setup + cost checks passed / observed', `${n(checks?.cost_qualified)} / ${n(checks?.cost_observed)}`],
       ['Latest entry readiness', entry.entry_ready == null ? 'Unavailable' : entry.entry_ready ? 'Eligible at assessment; execution must recheck' : 'Not ready at assessment'],
       ['Order records / with fills', `${report.orders.records} / ${report.orders.filled}`],
       ['Partial / working / terminal unfilled', `${report.orders.partial} / ${report.orders.working} / ${report.orders.terminal_unfilled}`],
     ]);
     const blockers = this.root.querySelector('#review-blockers'); blockers.replaceChildren();
-    const reasons = [...(entry.entry_blockers || []).map(reason => `Latest assessment: ${reason}`), ...(state.decision_summary?.hold_reasons || []).map(row => `${row.count} HOLD assessments: ${row.reason}`)];
+    const structural = state.decision?.state?.structural_gates || {};
+    const reasons = [...Object.entries(structural).filter(([,pass]) => !pass).map(([gate]) => `Latest recorded structural gate failed: ${gate}`), ...(entry.entry_blockers || []).map(reason => `Latest assessment: ${reason}`), ...(state.decision_summary?.hold_reasons || []).map(row => `${row.count} HOLD assessments: ${row.reason}`)];
     for (const reason of reasons) { const item = document.createElement('li'); item.textContent = reason; blockers.append(item); }
     const risk = [
       ['Costs recorded at', t(data.assessment_at)],

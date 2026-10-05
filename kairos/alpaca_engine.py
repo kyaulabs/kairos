@@ -2,13 +2,17 @@
 
 import asyncio
 import time
+import uuid
 
 from kairos import diagnostics, htf, programs, scalping
 from kairos.alpaca import iso
 from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
-from kairos.domain import ZERO, SafetyError, dec
+from kairos.domain import ZERO, SafetyError, dec, floor
 from kairos.engine import Engine
+from kairos.observations import Observations
+from kairos.operations import Operations
 from kairos.settings import DEFAULTS
+from kairos.strategies import limit_price
 
 
 class AlpacaEngine(Engine):
@@ -25,7 +29,7 @@ class AlpacaEngine(Engine):
         "recover_initial": False,
     }
 
-    def __init__(self, store, client, jev, publish, *, clock=None):
+    def __init__(self, store, client, jev, publish, *, clock=None, observe=False):
         if store.get("settings") is None:
             store.put("settings", self.defaults)
         super().__init__(store, client, jev, publish, clock=clock)
@@ -33,12 +37,18 @@ class AlpacaEngine(Engine):
         self.market_session = None
         self.market_wait = None
         self.account_wait = None
+        self.long_retry = None
+        self.retry_status = None
+        self.operations = Operations(self)
+        self.observations = Observations(self)
+        self.observations.enabled = observe
         self.account_read_status = {"last_success_at": None, "last_failure": None, "recovery": None}
         self.kraken.order_guard = lambda: (
             self.running
             and self.paper_armed
             and not self.shutting_down
             and not self.account_wait
+            and not self.long_retry
             and not self.recovery_required
         )
 
@@ -63,6 +73,10 @@ class AlpacaEngine(Engine):
             "paper_enabled": self.kraken.allow_paper,
             "recovery_required": self.recovery_required or bool(self.orders(active=True)),
             "market_session": self.market_session,
+            "operations": self.operations.snapshot(),
+            "scheduled_recovery": self.retry_status,
+            "paper_qualification": self.store.get("paper-qualification"),
+            "diagnostic_observation": self.observations.latest,
             "account_reads": {
                 **self.account_read_status,
                 "recovery": self.account_recovery_snapshot(),
@@ -82,7 +96,295 @@ class AlpacaEngine(Engine):
             },
         }
 
+    async def qualify_paper(self, confirmation):
+        if confirmation != "ONE ALPACA PAPER ROUND TRIP":
+            raise SafetyError("Explicit one-round-trip paper authorization required")
+        generation = self.stop_generation
+        async with self.lock:
+            if (
+                not self.ready
+                or self.running
+                or self.shutting_down
+                or self.recovery_required
+                or self.orders()
+                or not self.is_flat()
+                or self.store.get("paper-qualification")
+                or htf.snapshot(self).get("position")
+                or htf.snapshot(self).get("entry_attempt")
+                or self.settings["strategy"] != "htf"
+                or self.settings["htf_policy"] != "pullback-v1"
+                or self.settings["pair"] != "alpaca:BTC/USD"
+                or not self.kraken.allow_paper
+            ):
+                raise SafetyError(
+                    "Qualification requires a paused, reconciled, unused flat BTC paper run with legacy policy"
+                )
+            await self.reconcile_account()
+            await self.refresh_fees()
+            await self.valuation(True)
+            if self.stop_generation != generation or self.shutting_down:
+                raise SafetyError("Qualification canceled by Stop")
+            pair = self.resolve(self.settings["pair"])
+            book = await self.kraken.book(pair)
+            book.fresh(self.settings["stale_seconds"])
+            price = pair.price(book.bids[0][0], "buy")
+            budget = min(dec(25), self.limits()[0], self.balance("USD"))
+            volume = floor(budget / (price * (1 + self.fees.reserve(pair) / 10000)), pair.lot)
+            if volume < 2 * htf.minimum_volume(pair, price):
+                raise SafetyError(
+                    "Qualification budget cannot leave a tradeable exit after fees/rounding"
+                )
+            if self.stop_generation != generation or self.shutting_down:
+                raise SafetyError("Qualification canceled by Stop")
+            before = self.ledger()
+            record = {
+                "id": str(uuid.uuid4()),
+                "status": "started",
+                "at": self.clock(),
+                "cash_before": str(self.balance("USD")),
+                "budget": str(budget),
+                "market_rules": {
+                    k: str(getattr(pair, k)) for k in ("tick", "lot", "minimum", "cost_minimum")
+                },
+            }
+            self.store.put("paper-qualification", record)  # Claim once before permission or writes.
+            self.running, self.paper_armed = True, True
+            try:
+                self.execution_purpose = "execution-qualification; excluded from strategy trial"
+                run = self.ensure_run()
+                record["run_id"] = run["id"]
+                plan = {
+                    "id": record["id"],
+                    "side": "buy",
+                    "entry_limit": str(price),
+                    "stop": str(price * dec(".97")),
+                    "opened_at": self.clock(),
+                    "deadline": self.clock() + 3600,
+                    "exit_reason": None,
+                }
+                state = htf.snapshot(self)
+                state.update(position=None, entry_attempt={"position": plan, "order_id": None})
+                self.store.put(htf.key(self), state)
+                self.event(
+                    "qualification",
+                    {"message": "Authorized one paper round trip; not a strategy signal", **record},
+                )
+                await self.place(pair, "buy", volume, price, book, maker=True)
+                deadline = time.monotonic() + 60
+                while self.orders(active=True) and time.monotonic() < deadline:
+                    if self.stop_generation != generation or not self.running or self.shutting_down:
+                        raise SafetyError(
+                            "Qualification canceled by Stop; tracked order needs reconciliation"
+                        )
+                    await asyncio.sleep(3)
+                    await self.reconcile_account()
+                if self.orders(active=True):
+                    await self.cancel_active()
+                await self.reconcile_account()
+                if self.stop_generation != generation or not self.running or self.shutting_down:
+                    raise SafetyError("Qualification canceled by Stop; no exit submitted")
+                held = htf.quantity(self, pair)
+                record["entry_filled"] = str(
+                    sum(dec(o["filled"]) for o in self.orders() if o["side"] == "buy")
+                )
+                record["entry_owned"] = str(held)
+                if held:
+                    book = await self.kraken.book(pair)
+                    price = limit_price(book, "sell", self.settings["slippage_bps"])
+                    volume = floor(min(held, self.limits()[0] / price), pair.lot)
+                    if htf.below_minimum(pair, volume, price):
+                        raise SafetyError(
+                            "Qualification residual cannot be sold; retained, no dust-clearing buy"
+                        )
+                    await self.place(pair, "sell", volume, price, book, exit_only=True)
+                    await self.reconcile_account()
+                if not htf.quantity(self, pair):
+                    saved = htf.snapshot(self)
+                    saved["position"] = None
+                    self.store.put(htf.key(self), saved)
+                record.update(
+                    status=("complete" if self.is_flat() else "residual retained")
+                    if held
+                    else "no entry fill; round trip untested",
+                    cash_after=str(self.balance("USD")),
+                    ended_at=self.clock(),
+                )
+                if self.ledger()["initial"] != before["initial"]:
+                    raise SafetyError("Qualification allocation baseline changed")
+            except (Exception, asyncio.CancelledError):
+                record.update(
+                    status="interrupted; manual reconciliation required", ended_at=self.clock()
+                )
+                self.recovery_required = True
+                raise
+            finally:
+                self.execution_purpose = None
+                self.running, self.paper_armed = False, False
+                self.recovery_required = self.recovery_required or bool(self.orders(active=True))
+                self.store.put("paper-qualification", record)
+                self.event(
+                    "qualification",
+                    {"message": "Qualification ended; paused and unarmed", **record},
+                )
+                self.update_operating_state()
+                if self.operations.alerts:
+                    self.operations.alerts.send("execution qualification ended; engine paused")
+                self.emit_state()
+
+    def event(self, kind, data):
+        try:
+            super().event(kind, data)
+        except Exception:
+            self.running = False
+            self.recovery_required = True
+            self.long_retry = None
+            self.last_error = "Audit/storage failure; manual recovery required"
+            if hasattr(self, "operations"):
+                self.operations.failed()
+            raise
+
+    def is_flat(self):
+        return not any(dec(q) for asset, q in self.ledger()["balances"].items() if asset != "USD")
+
+    def schedule_retry(self, exc):
+        if not (
+            self.settings["api_auto_recovery"]
+            and self.running
+            and not self.shutting_down
+            and self.account_retry_safe()
+            and self.is_flat()
+        ):
+            return False
+        self.long_retry = (self.stop_generation, time.monotonic() + 300)
+        self.retry_status = {
+            "status": "waiting",
+            "since": self.clock(),
+            "attempts": 0,
+            "max_attempts": 5,
+            "interval_seconds": 300,
+            "next_at": self.clock() + 300,
+            "reason": str(exc),
+        }
+        self.market_wait = None
+        self.htf_review.cancel()
+        self.last_error = "Temporary API/data interruption; flat-account recovery scheduled (0/5). Orders blocked."
+        self.event("scheduled-recovery", {"message": self.last_error, **self.retry_status})
+        return True
+
+    async def recover_scheduled(self):
+        generation, due = self.long_retry
+        if not self.running or self.shutting_down or generation != self.stop_generation:
+            self.long_retry = None
+            return
+        if not self.account_retry_safe() or not self.is_flat():
+            raise SafetyError(
+                "Automatic recovery blocked: holdings, orders, loss or reconciliation latch"
+            )
+        if time.monotonic() < due:
+            return
+        self.retry_status["attempts"] += 1
+        try:
+            async with asyncio.timeout(60):
+                await self.valuation(True)
+                if not self.is_flat():
+                    raise SafetyError("Automatic recovery found holdings; manual review required")
+                equities = any(self.kraken.is_equity(p) for p in self.fee_pairs())
+                self.market_session = await self.kraken.clock() if equities else None
+                for pair in self.fee_pairs():
+                    book = await self.kraken.book(pair)
+                    book.fresh(self.settings["stale_seconds"])
+        except (PendingAlpacaAccount, PendingAlpacaData, TimeoutError) as exc:
+            if not self.running or self.shutting_down or generation != self.stop_generation:
+                self.long_retry = None
+                return
+            self.retry_status.update(
+                reason=str(exc) or "Recovery read timed out", last_attempt_at=self.clock()
+            )
+            self.event(
+                "scheduled-recovery",
+                {"message": "Read-only recovery attempt failed", **self.retry_status},
+            )
+            if self.retry_status["attempts"] >= 5:
+                raise SafetyError(
+                    "Five scheduled recovery attempts exhausted; manual Reconcile/Restart required"
+                ) from exc
+            self.long_retry = (generation, time.monotonic() + 300)
+            self.retry_status["next_at"] = self.clock() + 300
+            return
+        if not self.running or self.shutting_down or generation != self.stop_generation:
+            self.long_retry = None
+            return
+        self.retry_status.update(status="restored", ended_at=self.clock(), next_at=None)
+        if self.settings["strategy"] == "htf":
+            htf.arm(self)
+        self.event(
+            "scheduled-recovery",
+            {
+                "message": "Fresh account and market checks passed; next cycle rechecks strategy, no order replay",
+                **self.retry_status,
+            },
+        )
+        self.long_retry = None
+        self.last_error = None
+
+    def update_operating_state(self):
+        status = (
+            ("halted" if self.last_error or self.recovery_required else "paused")
+            if not self.running
+            else (
+                "retry-wait"
+                if self.long_retry
+                else "waiting-account"
+                if self.account_wait
+                else "waiting-data"
+                if self.market_wait
+                else "running"
+            )
+        )
+        self.operations.set(status, self.last_error)
+
+    async def tick(self):
+        try:
+            await self._tick()
+        finally:
+            self.update_operating_state()
+            self.emit_state()
+        try:
+            await self.observations.sample()
+        except Exception as exc:
+            diagnostics.capture(exc, "read-only-observer")
+            # No recovery permission is created by the recorder. Event writes fail closed.
+            self.event(
+                "observation-error",
+                {
+                    "message": "Read-only diagnostic observation unavailable",
+                    "exception_type": type(exc).__name__,
+                },
+            )
+
     def validate_capabilities(self, values):
+        if (
+            values["strategy"] == "htf"
+            and values["htf_policy"] == "multibar-v2"
+            and (
+                values["pair"] != "alpaca:BTC/USD"
+                or values["candle_minutes"] != 60
+                or dec(values["paper_balance"]) > 500
+                or dec(values["order_size"]) > 25
+                or dec(values["max_exposure"]) > 100
+                or dec(values["daily_loss"]) > dec("12.50")
+                or values["stale_seconds"] > 10
+                or dec(values["slippage_bps"]) > 10
+                or dec(values["max_spread_bps"]) > 30
+                or dec(values["htf_stop_bps"]) != 300
+                or values["htf_max_hold_seconds"] != 604800
+                or values["reinvest_profits"]
+                or values["recover_initial"]
+            )
+        ):
+            raise SafetyError(
+                "Multi-bar trial requires BTC/USD hourly bars and the frozen trial risk limits"
+            )
         if (
             values["product"] != "spot"
             or values["strategy"] == "arbitrage"
@@ -128,6 +430,29 @@ class AlpacaEngine(Engine):
         raise SafetyError("Live Alpaca trading is not implemented")
 
     async def start(self, *, restart=False, confirmation=None):
+        if self.long_retry:
+            raise SafetyError("Scheduled recovery pending; Stop cancels it before manual Start")
+        run = self.active_run() or {}
+        if self.settings["strategy"] == "htf" and self.settings["htf_policy"] == "multibar-v2":
+            from kairos.multibar import PROTOCOL_HASH
+
+            qualification = self.store.get("paper-qualification") or {}
+            if qualification.get("status") != "complete":
+                raise SafetyError(
+                    "Complete the separately authorized paper round trip before trial Start"
+                )
+
+            trial = self.store.get("multibar-trial:" + PROTOCOL_HASH) or {}
+            if not trial and (not self.is_flat() or self.orders(active=True)):
+                raise SafetyError(
+                    "First trial Start requires flat, reconciled qualification holdings"
+                )
+            if self.is_flat() and self.clock() >= trial.get(
+                "ends_at", run.get("trial_ends_at", float("inf"))
+            ):
+                raise SafetyError(
+                    "Registered trial ended; no new entries. A new trial needs separate registration"
+                )
         generation = self.stop_generation
         if not self.kraken.allow_paper:
             raise SafetyError(
@@ -144,16 +469,30 @@ class AlpacaEngine(Engine):
             self.paper_armed = True
         await super().start(restart=restart, confirmation="RESTART ENGINE" if restart else None)
         self.market_wait = None
+        self.update_operating_state()
+        self.emit_state()
 
     async def stop(self):
+        if (
+            self.long_retry or self.market_wait or self.account_wait
+        ) and not self.recovery_required:
+            self.last_error = None
+        if self.long_retry:
+            self.retry_status.update(status="canceled by Stop", ended_at=self.clock())
+        self.long_retry = None
         self.market_wait = None
         await super().stop()
         self.finish_account_recovery("stopped")
+        self.update_operating_state()
         self.emit_state()
 
     async def reconcile(self, acknowledge=False):
+        if self.long_retry:
+            self.retry_status.update(status="canceled by Reconcile", ended_at=self.clock())
+        self.long_retry = None
         await super().reconcile(acknowledge)
         self.finish_account_recovery("reconciled")
+        self.update_operating_state()
         self.emit_state()
 
     def account_recovery_snapshot(self):
@@ -222,6 +561,9 @@ class AlpacaEngine(Engine):
                 or self.account_read_status["recovery"]["attempts"] >= 3
             )
         ):
+            if self.schedule_retry(exc):
+                self.finish_account_recovery("scheduled retry")
+                return True
             self.recovery_required = True
             exc.args = (
                 str(exc)
@@ -254,6 +596,17 @@ class AlpacaEngine(Engine):
         )
         return True
 
+    def expire_account_wait(self):
+        failure = self.account_read_status["last_failure"] or {}
+        if self.schedule_retry(
+            PendingAlpacaAccount(
+                failure.get("endpoint", "/v2/account"), "short recovery deadline exhausted"
+            )
+        ):
+            self.finish_account_recovery("scheduled retry")
+            return
+        raise SafetyError("Alpaca account-read recovery deadline exhausted; Reconcile before Start")
+
     async def recover_account_reads(self):
         if not self.account_retry_safe():
             raise SafetyError(
@@ -262,9 +615,7 @@ class AlpacaEngine(Engine):
         now = time.monotonic()
         remaining = 120 - (now - self.account_wait[0])
         if remaining <= 0:
-            raise SafetyError(
-                "Alpaca account-read recovery deadline exhausted; Reconcile before Start"
-            )
+            return self.expire_account_wait()
         if now < self.account_wait[1]:
             return
         self.account_read_status["recovery"]["attempts"] += 1
@@ -274,17 +625,13 @@ class AlpacaEngine(Engine):
                 await self.valuation(True)
                 equities = any(self.kraken.is_equity(p) for p in self.fee_pairs())
                 self.market_session = await self.kraken.clock() if equities else None
-        except TimeoutError as exc:
-            raise SafetyError(
-                "Alpaca account-read recovery deadline exhausted; Reconcile before Start"
-            ) from exc
+        except TimeoutError:
+            return self.expire_account_wait()
         if not self.running or self.shutting_down:
             self.finish_account_recovery("stopped")
             return
         if time.monotonic() - self.account_wait[0] >= 120:
-            raise SafetyError(
-                "Alpaca account-read recovery deadline exhausted; Reconcile before Start"
-            )
+            return self.expire_account_wait()
         if self.settings["strategy"] == "htf":
             htf.arm(self)  # Retain ownership/protection; discard outage-era entry approval.
         self.finish_account_recovery("restored")
@@ -305,13 +652,18 @@ class AlpacaEngine(Engine):
             return False
         now = time.monotonic()
         if self.market_wait and now - self.market_wait[1] >= 300:
-            return False  # Bounded read recovery exhausted; explicit Restart required.
+            return self.schedule_retry(
+                exc
+            )  # Bounded read recovery exhausted; explicit Restart required.
         if not self.market_wait:
             self.market_wait = (self.clock(), now)
             self.event(
                 "data-wait",
                 {
-                    "message": "Waiting for fresh Alpaca market data; no stale-data orders, local exits may be blocked"
+                    "message": "Waiting for fresh Alpaca market data; no stale-data orders, local exits may be blocked",
+                    "reason": str(exc),
+                    "since": self.clock(),
+                    "feed": self.kraken.market_data.snapshot(),
                 },
             )
         self.htf_review.cancel()
@@ -627,7 +979,7 @@ class AlpacaEngine(Engine):
     async def place(self, pair, side, volume, price, book, maker=False, **kwargs):
         if not self.paper_armed or not self.kraken.allow_paper or self.mode != "paper":
             raise SafetyError("Alpaca hosted paper is not armed")
-        if self.account_wait:
+        if self.account_wait or self.long_retry:
             raise SafetyError("Account reconciliation pending; orders blocked")
         self.validate_capabilities(self.settings)
         account = await self.reconcile_account()
@@ -658,11 +1010,28 @@ class AlpacaEngine(Engine):
             self.recovery_required = True
             raise
 
-    async def tick(self):
+    async def _tick(self):
         if not self.running:
             return await super().tick()
         try:
             async with self.lock:
+                if self.long_retry:
+                    await self.recover_scheduled()
+                    return
+                run = self.active_run() or {}
+                if (
+                    self.settings["strategy"] == "htf"
+                    and self.settings["htf_policy"] == "multibar-v2"
+                    and self.clock() >= run.get("trial_ends_at", float("inf"))
+                    and self.is_flat()
+                    and not self.orders(active=True)
+                ):
+                    self.running = False
+                    self.event(
+                        "system",
+                        {"message": "14-day trial complete; entries disabled, history retained"},
+                    )
+                    return
                 if self.account_wait:
                     await self.recover_account_reads()
                     self.emit_state()
@@ -677,6 +1046,10 @@ class AlpacaEngine(Engine):
                     return  # Scheduled slots are skipped normally on the next open cycle.
                 if self.market_wait:
                     if time.monotonic() - self.market_wait[1] >= 300:
+                        if self.schedule_retry(
+                            PendingAlpacaData("Market-data recovery deadline exhausted")
+                        ):
+                            return
                         raise SafetyError(
                             "Alpaca data recovery exhausted; explicit Restart required"
                         )
@@ -711,6 +1084,11 @@ class AlpacaEngine(Engine):
                 str(exc) if isinstance(exc, SafetyError) else "Alpaca reconciliation failed"
             )
             self.recovery_required = True
+            if self.long_retry:
+                self.retry_status.update(
+                    status="halted", ended_at=self.clock(), reason=self.last_error
+                )
+                self.long_retry = None
             self.finish_account_recovery("halted")
             self.event("error", {"message": self.last_error, "error_id": error_id})
             try:

@@ -174,7 +174,15 @@ class Store:
             ) SELECT COUNT(signal), SUM(signal), COUNT(qualified), SUM(qualified) FROM checks""",
             (strategy, pair, mode, product, run_id, run_id, product, product, product, product),
         ).fetchone()
+        windows, candidates = self.db.execute(
+            """SELECT COUNT(DISTINCT CASE WHEN kind='htf-observation' THEN json_extract(data,'$.window_end') END),
+                      COUNT(DISTINCT CASE WHEN kind='candidate' THEN json_extract(data,'$.id') END)
+               FROM events WHERE kind IN ('htf-observation','candidate') AND json_extract(data,'$.run_id')=?""",
+            (run_id,),
+        ).fetchone()
         return {
+            "distinct_windows": windows if run_id else None,
+            "distinct_candidates": candidates if run_id else None,
             "entry_checks": {
                 "observed": checks[0],
                 "signals": checks[1],

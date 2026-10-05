@@ -374,7 +374,12 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get("/api/settings-schema")
         self.assertEqual(response.status, 200)
         data = await response.json()
-        self.assertEqual(data, {**json.loads(json.dumps(schema())), "exchange": "kraken"})
+        expected = {**json.loads(json.dumps(schema())), "exchange": "kraken"}
+        expected["fields"]["htf_policy"]["choices"] = {
+            "pullback-v1": "Legacy pullback · experimental"
+        }
+        expected["fields"]["api_auto_recovery"]["products"] = ["unavailable"]
+        self.assertEqual(data, expected)
         self.assertNotIn("test-placeholder", json.dumps(data))
         self.assertNotIn("live_enabled", data)
         self.assertEqual(self.engine.snapshot(), before)

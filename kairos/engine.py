@@ -46,8 +46,12 @@ EXECUTION_REVISION = hashlib.sha256(
             "alpaca_transport",
             "alpaca_engine",
             "exchanges",
+            "multibar",
+            "observations",
+            "operations",
         )
     )
+    + Path(__file__).with_name("trial.json").read_bytes()
 ).hexdigest()[:16]
 
 
@@ -98,7 +102,8 @@ class Engine:
 
     def ensure_run(self):
         run = self.active_run()
-        if run is None:
+        purpose = getattr(self, "execution_purpose", None)
+        if run is None or run.get("purpose") != purpose:
             previous = self.store.get(self.run_key())
             run = {
                 "id": str(uuid.uuid4()),
@@ -114,9 +119,35 @@ class Engine:
                 "opening_equity": self.equity,
                 "opening_exposure": self.exposure,
             }
+            if purpose:
+                run["purpose"] = purpose
             if self.settings["strategy"] == "htf":
                 run["history_policy"] = self.htf_review.policy
                 run["bar_minutes"] = self.settings["candle_minutes"]
+                run["entry_policy"] = self.settings["htf_policy"]
+                if self.settings["htf_policy"] == "multibar-v2":
+                    from kairos.multibar import PROTOCOL_HASH
+
+                    trial = self.store.get("multibar-trial:" + PROTOCOL_HASH)
+                    if trial is None:
+                        trial = {
+                            "id": run["id"],
+                            "started_at": self.clock(),
+                            "ends_at": self.clock() + 14 * 86400,
+                            "settings_id": self.settings_id(),
+                            "execution_revision": EXECUTION_REVISION,
+                        }
+                        self.store.put("multibar-trial:" + PROTOCOL_HASH, trial)
+                    pair = self.resolve(self.settings["pair"])
+                    run.update(
+                        market_rules={
+                            k: str(getattr(pair, k))
+                            for k in ("tick", "lot", "minimum", "cost_minimum")
+                        },
+                        protocol_hash=PROTOCOL_HASH,
+                        trial_id=trial["id"],
+                        trial_ends_at=trial["ends_at"],
+                    )
             self.store.put(self.run_key(), run)
             self.summary_cache = None
             self.event(
@@ -157,7 +188,9 @@ class Engine:
             execution_revision=run["execution_revision"],
             risk_at_submission=self.risk_snapshot(),
         )
-        if self.settings["strategy"] == "htf" and self.latest_decision:
+        if run.get("purpose"):
+            order["reason"] = run["purpose"]
+        elif self.settings["strategy"] == "htf" and self.latest_decision:
             order["reason"] = self.latest_decision["reason"]
 
     def run_summary(self):
@@ -176,8 +209,10 @@ class Engine:
         }
 
     def event(self, kind, data):
-        if kind == "decision":
+        if kind in {"decision", "candidate", "htf-observation"}:
             self.summary_cache = None
+            if kind == "decision" and hasattr(self, "operations"):
+                self.operations.last_evaluation = self.clock()
         run = self.active_run() or {}
         source = run
         if kind == "fill":
@@ -404,6 +439,10 @@ class Engine:
 
     def validate_capabilities(self, values):
         """Additional restrictions for the selected venue, inside the settings lock."""
+        if (values["strategy"] == "htf" and values["htf_policy"] == "multibar-v2") or values[
+            "api_auto_recovery"
+        ]:
+            raise SafetyError("Multi-bar trial and scheduled API recovery require Alpaca paper")
 
     async def configure(self, values):
         async with self.lock:
@@ -764,6 +803,7 @@ class Engine:
                 raise SafetyError("Pause and explicitly confirm engine restart")
             if not self.ready:
                 raise SafetyError("Market catalog is not ready")
+            self.validate_capabilities(self.settings)
             if self.orders(active=True) or self.recovery_required:
                 raise SafetyError("Reconcile outstanding orders/cycle before starting")
             if (
@@ -788,6 +828,7 @@ class Engine:
                 not scalp
                 and self.settings["strategy"] not in programs.STRATEGIES
                 and not self.jev.key
+                and not (trend and self.settings["htf_policy"] == "multibar-v2")
             ):
                 raise SafetyError("JEV_API_KEY is not configured")
             await self.valuation(
