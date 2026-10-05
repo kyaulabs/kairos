@@ -29,6 +29,8 @@ class PaperBroker:
         self.cash, self.holdings = dec(10000), {}
         self.orders, self.activities, self.calls = {}, [], []
         self.open, self.fill = True, True
+        self.charge_crypto_fees = False
+        self.clock = time.time
         self.account_id = "paper-account-one"
         self.client = Alpaca(None, "paper-test-key", "paper-test-secret", allow_paper=True)
         self.client.request = AsyncMock(side_effect=self.request)
@@ -144,11 +146,21 @@ class PaperBroker:
             filled_avg_price=row["limit_price"],
             status="filled" if total == dec(row["qty"]) else "partially_filled",
         )
+        if delta and self.charge_crypto_fees and row["symbol"] == "BTC/USD":
+            from kairos.settlement import rounded
+
+            if row["side"] == "buy":
+                self.holdings[row["symbol"]] -= rounded(
+                    delta * dec(".0015"), self.client.pairs["alpaca:BTC/USD"].lot
+                )
+            else:
+                self.cash -= rounded(delta * dec(row["limit_price"]) * dec(".0025"), dec(".01"))
         if delta:
             self.activities.append(
                 {
                     "id": f"fill-{len(self.activities)}",
                     "activity_type": "FILL",
+                    "transaction_time": iso(self.clock()),
                     "order_id": identifier,
                     "symbol": row["symbol"],
                     "side": row["side"],
@@ -632,6 +644,15 @@ class AlpacaWebTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len((await response.json())["markets"]), 1)
         self.assertFalse(self.broker.orders)
         self.assertFalse(self.engine.running)
+
+    async def test_manual_alpaca_reconcile_action_is_replaced_by_automatic_checks(self):
+        before = self.engine.ledger()
+        response = await self.client.post("/api/reconcile", json={}, headers=self.headers)
+        self.assertEqual(response.status, 409)
+        self.assertIn("automatic", (await response.json())["error"])
+        self.assertEqual(self.engine.ledger(), before)
+        self.assertFalse(self.engine.running or self.engine.paper_armed)
+        self.assertTrue(all(method == "GET" for method, _, _ in self.broker.calls))
 
     async def test_initial_funding_ack_requires_csrf_and_confirmation_without_start(self):
         from tests.test_alpaca_funding import CONFIRM, FUNDING

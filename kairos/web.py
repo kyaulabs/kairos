@@ -362,6 +362,10 @@ async def command(request):
             await engine.reconcile_initial_funding(
                 data["initial_funding_id"], data.get("confirmation")
             )
+        elif isinstance(engine, AlpacaEngine):
+            raise SafetyError(
+                "Alpaca account checks are automatic; manual Reconcile is not required"
+            )
         else:
             await engine.reconcile(data.get("acknowledge") is True)
     elif action == "qualify-paper":

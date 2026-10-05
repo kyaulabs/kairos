@@ -161,14 +161,14 @@ class ScheduledRecoveryTests(unittest.IsolatedAsyncioTestCase):
         cutoff = self.e.htf_review.window_end(self.e.clock())
         self.e.kraken.bars = AsyncMock(return_value=native.bars(cutoff))
         self.case.broker.calls.clear()
-        await self.e.tick()
+        await self.e.observations.sample()
         self.assertFalse(self.e.running)
         self.assertFalse(self.case.broker.calls)
         self.e.kraken.bars.assert_awaited_once()
         obs = [x for x in self.e.store.history() if x["kind"] == "market-observation"]
         self.assertEqual(len(obs), 1)
         self.assertEqual(len(obs[0]["data"]["native_history"]), 30)
-        await self.e.tick()
+        await self.e.observations.sample()
         self.e.kraken.bars.assert_awaited_once()
 
 
@@ -178,6 +178,7 @@ class MultiBarTests(unittest.IsolatedAsyncioTestCase):
         await self.case.asyncSetUp()
         self.addAsyncCleanup(self.case.asyncTearDown)
         self.e = self.case.engine
+        self.case.broker.charge_crypto_fees = True
         await self.e.stop()
         await self.e.configure(
             {**self.e.settings, "htf_policy": "multibar-v2", "reinvest_profits": False}
@@ -286,6 +287,7 @@ class QualificationTests(unittest.IsolatedAsyncioTestCase):
         await self.case.asyncSetUp()
         self.addAsyncCleanup(self.case.asyncTearDown)
         self.e = self.case.engine
+        self.case.broker.charge_crypto_fees = True
         await self.e.configure({**self.e.settings, "strategy": "htf", "order_size": "25"})
         await self.case.start()
         await self.e.stop()
@@ -427,6 +429,7 @@ class QualificationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.e.running or self.e.paper_armed)
 
     async def test_base_fee_residual_is_owned_retained_and_blocks_trial_start(self):
+        self.case.broker.charge_crypto_fees = False
         request = self.case.broker.request
 
         async def fee(method, path, **kwargs):

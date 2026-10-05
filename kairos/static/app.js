@@ -207,7 +207,7 @@
     $('mode-badge').textContent = hosted ? 'ALPACA · PAPER' : state.mode === 'trading' ? 'KRAKEN · LIVE' : `KRAKEN · DRY-RUN · ${state.settings.product.toUpperCase()}`;
     $('exchange').value = state.exchange || 'kraken';
     $('exchange').disabled = busy || state.running || state.recovery_required;
-    const stopAvailable = state.running || (state.paper_qualification_recovery && state.paper_qualification_recovery.status !== 'settled');
+    const stopAvailable = state.running || (hosted && state.orders?.some(order => !['closed','canceled','expired','rejected'].includes(order.status))) || (state.paper_qualification_recovery && state.paper_qualification_recovery.status !== 'settled');
     $('quick-stop').hidden = !stopAvailable;
     $('quick-stop').disabled = busy || !connected;
     $('reset').hidden = hosted;
@@ -217,11 +217,11 @@
     $('pnl').className = Number(state.daily_pnl) < 0 ? 'sell' : 'buy';
     $('exposure').textContent = money(state.exposure);
     $('exposure-cap').textContent = `Effective limit ${money(state.effective_exposure_cap)} USD`;
-    $('valuation-time').textContent = state.valuation_ts ? `Valued ${time(state.valuation_ts)}` : 'Not yet valued';
+    $('valuation-time').textContent = state.valuation_ts ? `Valued ${time(state.valuation_ts)}${Number(state.pending_fee_allowance_usd) > 0 ? ' · provisional fee allowance included' : ''}` : 'Not yet valued';
     if (state.valuation_ts && state.equity != null) equityChart.add(state.valuation_ts, Number(state.equity));
-    $('engine-status').textContent = state.operations ? ({running:'Running',qualifying:'Paper check','waiting-fees':'Waiting fees',paused:'Paused',halted:'Halted · error','waiting-data':'Waiting · data','waiting-account':'Waiting · account','retry-wait':`Retry wait · ${state.scheduled_recovery?.attempts ?? 0}/5`}[state.operations.status] || state.operations.status) : state.running ? (state.fee_recovery ? 'Recovering fees' : state.data_recovery?.attempts ? 'Recovering data' : 'Running') : state.error ? 'Stopped · error' : 'Paused';
+    $('engine-status').textContent = state.operations ? ({running:'Running',qualifying:'Paper check','settling-fees':'Running · fees pending',paused:'Paused',halted:'Halted · error','waiting-data':'Waiting · data','waiting-account':'Waiting · account','retry-wait':`Retry wait · ${state.scheduled_recovery?.attempts ?? 0}/5`}[state.operations.status] || state.operations.status) : state.running ? (state.fee_recovery ? 'Recovering fees' : state.data_recovery?.attempts ? 'Recovering data' : 'Running') : state.error ? 'Stopped · error' : 'Paused';
     $('engine-status').classList.toggle('running', state.operations ? state.operations.status === 'running' : state.running);
-    $('engine-status').classList.toggle('waiting', ['qualifying','waiting-data','waiting-account','waiting-fees','retry-wait'].includes(state.operations?.status));
+    $('engine-status').classList.toggle('waiting', ['qualifying','waiting-data','waiting-account','settling-fees','retry-wait'].includes(state.operations?.status));
     $('engine-status').classList.toggle('halted', state.operations?.status === 'halted');
     $('engine-strategy').textContent = settingsSchema.strategies[state.settings.strategy].label;
     $('engine-error').hidden = !state.error;
@@ -229,6 +229,7 @@
     $('start').hidden = state.running || !!state.error;
     $('restart').hidden = state.running || !state.error;
     $('stop').hidden = !stopAvailable;
+    $('reconcile').hidden = state.exchange === 'alpaca';
     $('start').disabled = busy || !connected || state.running || !state.ready;
     $('restart').disabled = busy || !connected || state.running || !state.ready || state.recovery_required;
     $('settings-fields').disabled = busy || state.running;
