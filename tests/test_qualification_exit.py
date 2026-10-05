@@ -49,6 +49,7 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()),
             self.assertRaisesRegex(SafetyError, "positions differ"),
+            patch("kairos.settlement.supported", return_value=False),  # retained pre-fix failure
         ):
             await self.e.qualify_paper("ONE ADDITIONAL ALPACA PAPER ATTEMPT")
         self.q = self.e.store.get("paper-qualification")
@@ -88,8 +89,11 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         await self.e.initialize()
         self.assertTrue(self.e.recovery_required)
         self.assertIn("settlement pending", self.e.last_error)
-        with self.assertRaisesRegex(SafetyError, "positions differ"):
-            await self.e.reconcile()
+        await self.e.reconcile()
+        self.assertTrue(self.e.fee_settlement_pending)
+        self.assertTrue(self.e.recovery_required)
+        self.assertEqual(self.e.balance("BTC"), 0)
+        self.assertEqual(self.e.ledger()["fees"], self.before["fees"])
         # Only actual later activity clears the financial difference; manual recovery
         # must not be relabeled a successful normal qualification.
         self.broker.activities.append(
@@ -99,6 +103,15 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
                 "symbol": "BTCUSD",
                 "qty": str(-self.debit),
                 "net_amount": "0",
+                "status": "executed",
+            }
+        )
+        self.broker.cash -= dec(".01")
+        self.broker.activities.append(
+            {
+                "id": "posted-sell-fee",
+                "activity_type": "FEE",
+                "net_amount": "-.01",
                 "status": "executed",
             }
         )

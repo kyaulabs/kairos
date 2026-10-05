@@ -40,6 +40,13 @@ class StrategyReview {
       const observed = state.diagnostic_observation;
       readiness.push(['Last read-only native window', `${observed.pair} · ${observed.bar_minutes}m · ${t(observed.window_end)}`], ['Diagnostic bars / required', `${n(observed.consecutive)} / ${n(observed.required)}`], ['Diagnostic record time', t(observed.observed_at)], ['Diagnostic permission', 'History only; does not clear a halt or authorize orders']);
     }
+    if (state.fee_settlement) {
+      const fee = state.fee_settlement;
+      readiness.push(['Crypto fee settlement', fee.status], ['Settlement evidence checked', t(fee.checked_at)], ['Settlement deadline', t(fee.deadline)]);
+      for (const [asset, amount] of Object.entries(fee.debits || {})) readiness.push([`${asset} unclassified debit`, String(amount)]);
+      readiness.push(['Settlement permission', fee.status === 'pending' ? 'New entries blocked. Deterministic owned exits only while running with verified ownership and usable data. Stop overrides exits.' : 'No settlement block; normal checks and qualification still apply.']);
+      readiness.push(['Settlement accounting', 'Portfolio balances are net of observed pending debits. These are not confirmed fees; fee totals include posted activities only.']);
+    }
     if (state.scheduled_recovery) {
       const retry = state.scheduled_recovery;
       readiness.push(['Scheduled recovery', `${retry.status} · ${retry.attempts}/${retry.max_attempts}`], ['Next recovery attempt', t(retry.next_at)], ['Recovery reason', retry.reason]);
@@ -82,7 +89,7 @@ class StrategyReview {
       const account = state.account_reads;
       if (account) {
         const failure = account.last_failure, recovery = account.recovery;
-        readiness.push(['Last full account reconciliation', t(account.last_success_at)]);
+        readiness.push(['Last verified account read', t(account.last_success_at)]);
         readiness.push(['Last execution account-read failure', failure ? `${failure.method} ${failure.endpoint} · ${failure.reason} · ${t(failure.at)}` : 'None recorded this service session']);
         if (recovery) readiness.push(
           ['Account-read recovery', `${recovery.status} · ${n(recovery.attempts)} / ${n(recovery.max_attempts)} recovery attempts · ${n(recovery.timeout_seconds)}s retry deadline`],

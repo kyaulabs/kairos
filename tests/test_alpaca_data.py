@@ -281,6 +281,19 @@ class RequestBudgetTests(unittest.IsolatedAsyncioTestCase):
             await client.request("POST", "/v2/orders", payload=payload)
         self.assertEqual(len(client.session.calls), 1)
 
+    async def test_settlement_filter_runs_at_admission_and_cannot_override_stop(self):
+        client = Alpaca(Session({}), "paper-test-key", "paper-test-secret", allow_paper=True)
+        client.order_guard = lambda: True
+        client.order_filter = lambda *_: False
+        with self.assertRaisesRegex(ExchangeRejected, "Fee settlement pending"):
+            await client.request("POST", "/v2/orders", payload={"side": "buy"})
+        self.assertFalse(client.session.calls)
+        client.order_filter = lambda *_: True
+        client.order_guard = lambda: False
+        with self.assertRaisesRegex(ExchangeRejected, "Stop"):
+            await client.request("POST", "/v2/orders", payload={"side": "sell"})
+        self.assertFalse(client.session.calls)
+
     async def test_stop_and_freshness_guards_run_after_admission_before_http(self):
         client = Alpaca(Session({}), "paper-test-key", "paper-test-secret", allow_paper=True)
         client.order_guard = lambda: False

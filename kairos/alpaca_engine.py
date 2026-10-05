@@ -4,7 +4,7 @@ import asyncio
 import time
 import uuid
 
-from kairos import diagnostics, htf, programs, scalping
+from kairos import diagnostics, htf, programs, scalping, settlement
 from kairos.alpaca import iso
 from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
 from kairos.domain import ZERO, SafetyError, dec, floor
@@ -43,6 +43,7 @@ class AlpacaEngine(Engine):
         self.observations = Observations(self)
         self.observations.enabled = observe
         self.account_read_status = {"last_success_at": None, "last_failure": None, "recovery": None}
+        self.kraken.order_filter = self.settlement_order_allowed
         self.kraken.order_guard = lambda: (
             self.running
             and self.paper_armed
@@ -50,6 +51,45 @@ class AlpacaEngine(Engine):
             and not self.account_wait
             and not self.long_retry
             and not self.recovery_required
+        )
+
+    @property
+    def fee_settlement_pending(self):
+        return settlement.pending(self)
+
+    def settlement_order_allowed(self, path, payload):
+        if not self.fee_settlement_pending:
+            return True
+        if self.kraken.recovery_exit_guard and self.kraken.recovery_exit_guard(path, payload):
+            return True
+        order = next(
+            (
+                o
+                for o in self.orders(active=True)
+                if o["id"] == (payload or {}).get("client_order_id")
+            ),
+            None,
+        )
+        position = htf.snapshot(self).get("position")
+        return bool(
+            order
+            and order["status"] == "submitting"
+            and order.get("exit_only")
+            and position
+            and order.get("htf_id") == position["id"]
+            and path == "/v2/orders"
+            and payload
+            == {
+                "symbol": "BTC/USD",
+                "side": "sell",
+                "qty": order["volume"],
+                "limit_price": order["price"],
+                "type": "limit",
+                "time_in_force": "ioc",
+                "extended_hours": False,
+                "client_order_id": order["id"],
+            }
+            and dec(order["volume"]) <= min(self.balance("BTC"), htf.owned(self, position))
         )
 
     async def initialize(self):
@@ -67,11 +107,15 @@ class AlpacaEngine(Engine):
             bool(self.orders(active=True))
             or failed_qualification
             or bool(recovery and recovery["status"] != "settled")
+            or self.fee_settlement_pending
         )
         if self.recovery_required:
             self.last_error = (
                 "Qualification recovery settlement pending; Reconcile before Start"
-                if failed_qualification or recovery and recovery["status"] != "settled"
+                if failed_qualification
+                or self.fee_settlement_pending
+                or recovery
+                and recovery["status"] != "settled"
                 else "Alpaca paper orders remain after restart; Reconcile before Start"
             )
         await self.refresh_fees(required=False)
@@ -91,6 +135,7 @@ class AlpacaEngine(Engine):
             "scheduled_recovery": self.retry_status,
             "paper_qualification": self.store.get("paper-qualification"),
             "paper_qualification_recovery": self.store.get("paper-qualification-exit"),
+            "fee_settlement": self.store.get(settlement.KEY),
             "diagnostic_observation": self.observations.latest,
             "account_reads": {
                 **self.account_read_status,
@@ -111,15 +156,42 @@ class AlpacaEngine(Engine):
             },
         }
 
-    async def qualify_paper(self, confirmation):
+    async def qualify_paper(self, confirmation, previous_id=None):
         additional = confirmation == "ONE ADDITIONAL ALPACA PAPER ATTEMPT"
-        if confirmation != "ONE ALPACA PAPER ROUND TRIP" and not additional:
+        recheck = confirmation == "ONE POST-FIX PAPER QUALIFICATION"
+        if confirmation != "ONE ALPACA PAPER ROUND TRIP" and not additional and not recheck:
             raise SafetyError("Explicit one-round-trip paper authorization required")
         generation = self.stop_generation
         async with self.lock:
             previous = self.store.get("paper-qualification")
             orders = self.orders()
-            if additional:
+            if recheck:
+                recovery = self.store.get("paper-qualification-exit") or {}
+                if (
+                    not previous
+                    or previous.get("id") != previous_id
+                    or previous.get("status")
+                    != "manual exit recovery; normal qualification incomplete"
+                    or self.store.get("paper-qualification-recheck")
+                    or len(orders) != 3
+                    or recovery.get("qualification_id") != previous_id
+                    or recovery.get("status") != "settled"
+                    or recovery.get("order_status") != "closed"
+                    or dec(recovery.get("filled", 0)) <= 0
+                    or orders[-1]["id"] != recovery.get("order_id")
+                    or orders[-1]["side"] != "sell"
+                    or orders[-1]["status"] != "closed"
+                    or orders[-1]["filled"] != recovery.get("filled")
+                    or orders[1]["run_id"] != previous.get("run_id")
+                    or orders[1]["side"] != "buy"
+                    or orders[1]["status"] != "closed"
+                    or orders[0]["status"] != "canceled"
+                    or dec(orders[0]["filled"]) != 0
+                ):
+                    raise SafetyError(
+                        "One post-fix qualification requires the settled retained recovery and its exact prior ID"
+                    )
+            elif additional:
                 permitted = bool(
                     previous
                     and not previous.get("retry_of")
@@ -153,6 +225,8 @@ class AlpacaEngine(Engine):
                     "Qualification requires a paused, reconciled, unused flat BTC paper run with legacy policy"
                 )
             await self.reconcile_account()
+            if self.fee_settlement_pending:
+                raise SafetyError("Existing actual fees must settle before a new qualification")
             await self.refresh_fees()
             await self.valuation(True)
             if self.stop_generation != generation or self.shutting_down:
@@ -175,6 +249,7 @@ class AlpacaEngine(Engine):
                 "status": "started",
                 "at": self.clock(),
                 "cash_before": str(self.balance("USD")),
+                "posted_fees_before": dict(before["fees"]),
                 "budget": str(budget),
                 "market_rules": {
                     k: str(getattr(pair, k)) for k in ("tick", "lot", "minimum", "cost_minimum")
@@ -182,10 +257,20 @@ class AlpacaEngine(Engine):
             }
             if additional:
                 record["retry_of"] = previous["id"]
+            if recheck:
+                record["after_recovery_of"] = previous["id"]
             # Retain the original failed claim and atomically claim the explicitly authorized retry.
             with self.store.db:
                 if additional:
                     self.store._put("paper-qualification:" + previous["id"], previous)
+                if recheck:
+                    self.store._put(
+                        "paper-qualification-before-recheck:" + previous["id"], previous
+                    )
+                    self.store._put(
+                        "paper-qualification-recheck",
+                        {"id": record["id"], "previous_id": previous_id},
+                    )
                 self.store._put("paper-qualification", record)
             self.running, self.paper_armed = True, True
             try:
@@ -232,7 +317,11 @@ class AlpacaEngine(Engine):
                     raise SafetyError("Qualification canceled by Stop; no exit submitted")
                 held = htf.quantity(self, pair)
                 record["entry_filled"] = str(
-                    sum(dec(o["filled"]) for o in self.orders() if o["side"] == "buy")
+                    sum(
+                        dec(o["filled"])
+                        for o in self.orders()
+                        if o["side"] == "buy" and o.get("run_id") == run["id"]
+                    )
                 )
                 record["entry_owned"] = str(held)
                 if held:
@@ -250,12 +339,24 @@ class AlpacaEngine(Engine):
                     saved["position"] = None
                     self.store.put(htf.key(self), saved)
                 record.update(
-                    status=("complete" if self.is_flat() else "residual retained")
+                    status=(
+                        (
+                            "execution complete; fee settlement pending"
+                            if self.fee_settlement_pending
+                            else "complete"
+                        )
+                        if self.is_flat()
+                        else "residual retained"
+                    )
                     if held
                     else "no entry fill; round trip untested",
                     cash_after=str(self.balance("USD")),
                     ended_at=self.clock(),
                 )
+                record["execution_complete"] = bool(
+                    held and self.is_flat() and not self.orders(active=True)
+                )
+                record["posted_fees_after"] = dict(self.ledger()["fees"])
                 if self.ledger()["initial"] != before["initial"]:
                     raise SafetyError("Qualification allocation baseline changed")
             except (Exception, asyncio.CancelledError):
@@ -270,7 +371,11 @@ class AlpacaEngine(Engine):
             finally:
                 self.execution_purpose = None
                 self.running, self.paper_armed = False, False
-                self.recovery_required = self.recovery_required or bool(self.orders(active=True))
+                self.recovery_required = (
+                    self.recovery_required
+                    or bool(self.orders(active=True))
+                    or self.fee_settlement_pending
+                )
                 self.store.put("paper-qualification", record)
                 self.event(
                     "qualification",
@@ -390,6 +495,8 @@ class AlpacaEngine(Engine):
                 if self.account_wait
                 else "waiting-data"
                 if self.market_wait
+                else "waiting-fees"
+                if self.fee_settlement_pending
                 else "running"
             )
         )
@@ -415,6 +522,10 @@ class AlpacaEngine(Engine):
             )
 
     def validate_capabilities(self, values):
+        if self.fee_settlement_pending and any(
+            values[k] != self.settings[k] for k in ("pair", "strategy", "product")
+        ):
+            raise SafetyError("Settle actual fees before changing the pending portfolio")
         if (
             values["strategy"] == "htf"
             and values["htf_policy"] == "multibar-v2"
@@ -516,6 +627,13 @@ class AlpacaEngine(Engine):
         async with self.lock:
             self.validate_capabilities(self.settings)
             await self.reconcile_account(adopt=True)
+            if (
+                self.settings["strategy"] == "htf"
+                and self.settings["htf_policy"] == "multibar-v2"
+                and self.fee_settlement_pending
+                and not self.store.get("multibar-trial:" + PROTOCOL_HASH)
+            ):
+                raise SafetyError("Actual qualification fees must settle before first trial Start")
             if self.stop_generation != generation:
                 raise SafetyError("Start canceled by Stop")
             self.paper_armed = True
@@ -544,16 +662,42 @@ class AlpacaEngine(Engine):
         self.long_retry = None
         await super().reconcile(acknowledge)
         self.finish_account_recovery("reconciled")
+        if self.is_flat() and not self.fee_settlement_pending:
+            state = htf.snapshot(self)
+            if not htf.owned(self, state.get("position")):
+                state["position"] = None
+                self.store.put(htf.key(self), state)
+            q = self.store.get("paper-qualification") or {}
+            if (
+                q.get("execution_complete")
+                and q.get("status") == "execution complete; fee settlement pending"
+            ):
+                q.update(
+                    status="complete",
+                    settled_at=self.clock(),
+                    cash_after=str(self.balance("USD")),
+                    posted_fees_after=dict(self.ledger()["fees"]),
+                )
+                self.store.put("paper-qualification", q)
+                self.event(
+                    "qualification",
+                    {
+                        "message": "Normal round trip and actual fee settlement complete; still paused",
+                        **q,
+                    },
+                )
         recovery = self.store.get("paper-qualification-exit")
         if recovery and recovery["status"] != "settled":
-            if self.is_flat() and not self.orders(active=True):
+            if self.is_flat() and not self.orders(active=True) and not self.fee_settlement_pending:
                 recovery.update(status="settled", settled_at=self.clock())
                 self.store.put("paper-qualification-exit", recovery)
                 self.event("qualification-recovery", recovery)
             else:
                 self.recovery_required = True
                 self.last_error = (
-                    "Qualification recovery retains holdings; review before another authorization"
+                    "Actual crypto fee records pending; new entries blocked; engine remains paused"
+                    if self.fee_settlement_pending
+                    else "Qualification recovery retains holdings; review before another authorization"
                 )
         self.update_operating_state()
         self.emit_state()
@@ -800,14 +944,19 @@ class AlpacaEngine(Engine):
         if amount > 0 or row.get("currency", currency) != currency:
             raise SafetyError("Unexpected Alpaca fee credit/currency")
         ledger = self.ledger()
-        balance = dec(ledger["balances"].get(currency, 0)) + amount
+        suspense = self.store.get(settlement.KEY)
+        covered = min(-amount, dec((suspense or {}).get("debits", {}).get(currency, 0)))
+        if suspense and covered:
+            suspense["debits"][currency] = str(dec(suspense["debits"][currency]) - covered)
+        balance = dec(ledger["balances"].get(currency, 0)) + amount + covered
         if balance < 0:
             raise SafetyError("Alpaca fee exceeds owned allocation; reconciliation required")
         ledger["balances"][currency] = str(balance)
         ledger["fees"][currency] = str(dec(ledger["fees"].get(currency, 0)) - amount)
         plans = []
         if currency != "USD":
-            # Fee debits reduce owned inventory, not the gross broker fill quantities.
+            # Convert any already observed suspense to actual fees without debiting
+            # owned inventory twice. Gross broker fills remain unchanged.
             for key in (htf.key(self), scalping.key(self)):
                 state = self.store.get(key)
                 if state and self.resolve(self.settings["pair"]).base == currency:
@@ -818,7 +967,7 @@ class AlpacaEngine(Engine):
                     for position in positions:
                         if position:
                             position["inventory_adjustment"] = str(
-                                dec(position.get("inventory_adjustment", 0)) + amount
+                                dec(position.get("inventory_adjustment", 0)) + amount + covered
                             )
                     plans.append((key, state))
         with self.store.db:
@@ -826,6 +975,8 @@ class AlpacaEngine(Engine):
             for key, value in plans:
                 self.store._put(key, value)
             self.store._put(marker, row)
+            if suspense and covered:
+                self.store._put(settlement.KEY, suspense)
         self.event(
             "account-fee",
             {
@@ -964,6 +1115,8 @@ class AlpacaEngine(Engine):
             raise SafetyError(
                 "Alpaca paper account changed; existing ledger must not be reassigned"
             )
+        if settlement.supported(self) and not self.orders(active=True):
+            return await settlement.reconcile(self, identity)
         for order in self.orders(active=True):
             await self.refresh_order(order)
         if self.settings["strategy"] == "htf" and (
@@ -1046,6 +1199,10 @@ class AlpacaEngine(Engine):
             raise SafetyError("Account reconciliation pending; orders blocked")
         self.validate_capabilities(self.settings)
         account = await self.reconcile_account()
+        if self.fee_settlement_pending and not (side == "sell" and kwargs.get("exit_only")):
+            raise SafetyError(
+                "Actual fee settlement pending; only tracked reductions are permitted"
+            )
         if not self.kraken.is_equity(pair) and account.get("crypto_status") != "ACTIVE":
             raise SafetyError("Alpaca crypto trading is not active for this account")
         if volume * price > dec("200000"):
@@ -1064,6 +1221,13 @@ class AlpacaEngine(Engine):
             ):
                 raise SafetyError("Passive Alpaca limit now crosses; skip rather than chase")
             book = current
+        elif kwargs.get("exit_only"):
+            # Full account reads can outlast the planner's quote. Replan only the
+            # owned reduction from a genuinely fresh same-venue book, never its entry.
+            book = await self.kraken.book(pair)
+            book.fresh(self.settings["stale_seconds"])
+            price = limit_price(book, side, self.settings["slippage_bps"])
+            volume = floor(min(volume, self.limits()[0] / price), pair.lot)
         return await super().place(pair, side, volume, price, book, maker, **kwargs)
 
     async def reconcile_portfolio(self):

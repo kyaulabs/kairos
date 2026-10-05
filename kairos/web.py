@@ -367,7 +367,7 @@ async def command(request):
     elif action == "qualify-paper":
         if not isinstance(engine, AlpacaEngine):
             raise SafetyError("Execution qualification is Alpaca paper only")
-        await engine.qualify_paper(data.get("confirmation"))
+        await engine.qualify_paper(data.get("confirmation"), data.get("previous_qualification_id"))
     elif action == "qualify-exit":
         if not isinstance(engine, AlpacaEngine):
             raise SafetyError("Qualification recovery is Alpaca paper only")
