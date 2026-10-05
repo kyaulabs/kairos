@@ -260,6 +260,27 @@ class RequestBudgetTests(unittest.IsolatedAsyncioTestCase):
             await client.request("POST", "/v2/orders", deadline=time.time())
         self.assertEqual(len(session.calls), 2)
 
+    async def test_explicit_recovery_grant_is_payload_scoped_and_keeps_quote_guard(self):
+        client = Alpaca(Session({}), "paper-test-key", "paper-test-secret", allow_paper=True)
+        client.order_guard = lambda: False
+        payload = {"side": "sell", "client_order_id": "one-owned-exit"}
+        client.recovery_exit_guard = lambda path, body: path == "/v2/orders" and body == payload
+        with self.assertRaises(ExchangeRejected):
+            await client.request("POST", "/v2/orders", payload={**payload, "side": "buy"})
+
+        def reject():
+            raise ExchangeRejected("Quote expired")
+
+        with self.assertRaises(ExchangeRejected):
+            await client.request("POST", "/v2/orders", payload=payload, before_send=reject)
+        self.assertFalse(client.session.calls)
+        await client.request("POST", "/v2/orders", payload=payload)
+        self.assertEqual(len(client.session.calls), 1)
+        client.recovery_exit_guard = None
+        with self.assertRaises(ExchangeRejected):
+            await client.request("POST", "/v2/orders", payload=payload)
+        self.assertEqual(len(client.session.calls), 1)
+
     async def test_stop_and_freshness_guards_run_after_admission_before_http(self):
         client = Alpaca(Session({}), "paper-test-key", "paper-test-secret", allow_paper=True)
         client.order_guard = lambda: False

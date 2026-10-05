@@ -368,6 +368,12 @@ async def command(request):
         if not isinstance(engine, AlpacaEngine):
             raise SafetyError("Execution qualification is Alpaca paper only")
         await engine.qualify_paper(data.get("confirmation"))
+    elif action == "qualify-exit":
+        if not isinstance(engine, AlpacaEngine):
+            raise SafetyError("Qualification recovery is Alpaca paper only")
+        from kairos.qualification_exit import recover
+
+        await recover(engine, data.get("qualification_id"), data.get("confirmation"))
     elif action == "paper-order":
         await engine.paper_order_history(
             data["order_id"], data["operation"], data.get("confirmation", "")

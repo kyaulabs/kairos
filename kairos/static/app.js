@@ -207,7 +207,8 @@
     $('mode-badge').textContent = hosted ? 'ALPACA · PAPER' : state.mode === 'trading' ? 'KRAKEN · LIVE' : `KRAKEN · DRY-RUN · ${state.settings.product.toUpperCase()}`;
     $('exchange').value = state.exchange || 'kraken';
     $('exchange').disabled = busy || state.running || state.recovery_required;
-    $('quick-stop').hidden = !state.running;
+    const stopAvailable = state.running || (state.paper_qualification_recovery && state.paper_qualification_recovery.status !== 'settled');
+    $('quick-stop').hidden = !stopAvailable;
     $('quick-stop').disabled = busy || !connected;
     $('reset').hidden = hosted;
     $('mode-badge').classList.toggle('live', state.mode === 'trading');
@@ -227,7 +228,7 @@
     $('engine-error').textContent = state.error || '';
     $('start').hidden = state.running || !!state.error;
     $('restart').hidden = state.running || !state.error;
-    $('stop').hidden = !state.running;
+    $('stop').hidden = !stopAvailable;
     $('start').disabled = busy || !connected || state.running || !state.ready;
     $('restart').disabled = busy || !connected || state.running || !state.ready || state.recovery_required;
     $('settings-fields').disabled = busy || state.running;
