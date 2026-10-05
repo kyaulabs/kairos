@@ -5,6 +5,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import AsyncMock, patch
 
+from kairos import htf
 from kairos.clients import ExchangeRejected
 from kairos.domain import SafetyError, dec
 from kairos.qualification_exit import CONFIRMATION, KEY, recover
@@ -89,7 +90,19 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         await self.e.initialize()
         self.assertTrue(self.e.recovery_required)
         self.assertIn("Automatic account verification pending", self.e.last_error)
+        protection = copy.deepcopy(htf.snapshot(self.e)["position"])
         await self.e.reconcile()
+        closed = [
+            row["data"]["position"]
+            for row in self.e.store.history()
+            if row["kind"] == "htf-position-closed"
+        ]
+        self.assertEqual(len(closed), 1)
+        for key, value in protection.items():
+            if key != "inventory_adjustment":
+                self.assertEqual(closed[0][key], value)
+        self.assertEqual(dec(closed[0]["inventory_adjustment"]), -self.debit)
+        self.assertIsNone(htf.snapshot(self.e)["position"])
         self.assertTrue(self.e.fee_settlement_pending)
         self.assertFalse(self.e.recovery_required)
         self.assertFalse(self.e.qualification_execution_complete)

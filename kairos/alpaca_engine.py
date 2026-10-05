@@ -821,6 +821,14 @@ class AlpacaEngine(Engine):
         if self.is_flat() and not self.orders(active=True):
             state = htf.snapshot(self)
             if not htf.owned(self, state.get("position")):
+                if state.get("position"):
+                    self.event(
+                        "htf-position-closed",
+                        {
+                            "message": "Verified flat; protection retained for audit",
+                            "position": state["position"],
+                        },
+                    )
                 state["position"] = None
                 self.store.put(htf.key(self), state)
         q = self.store.get("paper-qualification") or {}
