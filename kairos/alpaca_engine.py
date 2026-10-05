@@ -157,6 +157,44 @@ class AlpacaEngine(Engine):
         self.event("system", {"message": "Alpaca hosted paper ready; paused, never live"})
         self.emit_state()
 
+    @property
+    def qualification_fee_wait_reason(self):
+        fees = self.store.get(settlement.KEY) or {}
+        if (
+            self.running
+            or not self.recovery_required
+            or self.account_check_status.get("status") != "fees pending"
+            or fees.get("status") != "pending"
+            or self.clock() > fees.get("deadline", 0)
+            or not self.is_flat()
+            or self.orders(active=True)
+            or self.store.get("cycle")
+            or self.last_error
+            not in {
+                None,
+                "Actual crypto fee records pending; new entries blocked; engine remains paused",
+                "Automatic account verification pending; trading remains paused",
+            }
+        ):
+            return None
+        qualification = self.store.get("paper-qualification") or {}
+        recovery = self.store.get("paper-qualification-exit") or {}
+        normal = (
+            qualification.get("execution_complete")
+            and qualification.get("status") == "execution complete; fee settlement pending"
+        )
+        if not normal and (not recovery or recovery.get("status") == "settled"):
+            return None
+        return (
+            "Waiting for Alpaca to post qualification fees. Automatic checks are active; "
+            "Restart cannot resolve missing fee records. "
+            + (
+                "Start remains gated until those fees settle."
+                if normal
+                else "After settlement, the separately authorized post-fix qualification is still required before trial Start."
+            )
+        )
+
     def snapshot(self):
         return {
             **super().snapshot(),
@@ -171,6 +209,7 @@ class AlpacaEngine(Engine):
             "paper_qualification_recovery": self.store.get("paper-qualification-exit"),
             "fee_settlement": self.store.get(settlement.KEY),
             "automatic_account_checks": self.account_check_status,
+            "start_block_reason": self.qualification_fee_wait_reason,
             "pending_fee_allowance_usd": self.pending_fee_allowance_usd,
             "diagnostic_observation": self.observations.latest,
             "account_reads": {
@@ -518,7 +557,13 @@ class AlpacaEngine(Engine):
 
     def update_operating_state(self):
         status = (
-            ("halted" if self.last_error or self.recovery_required else "paused")
+            (
+                "waiting-fees"
+                if self.qualification_fee_wait_reason
+                else "halted"
+                if self.last_error or self.recovery_required
+                else "paused"
+            )
             if not self.running
             else (
                 "qualifying"
@@ -637,7 +682,8 @@ class AlpacaEngine(Engine):
             qualification = self.store.get("paper-qualification") or {}
             if qualification.get("status") != "complete":
                 raise SafetyError(
-                    "Complete the separately authorized paper round trip before trial Start"
+                    self.qualification_fee_wait_reason
+                    or "Complete the separately authorized paper round trip before trial Start"
                 )
 
             trial = self.store.get("multibar-trial:" + PROTOCOL_HASH) or {}
@@ -671,7 +717,8 @@ class AlpacaEngine(Engine):
                 raise SafetyError("Actual qualification fees must settle before first trial Start")
             if self.recovery_required:
                 raise SafetyError(
-                    "Automatic account verification unresolved; inspect Review before Start"
+                    self.qualification_fee_wait_reason
+                    or "Automatic account verification unresolved; inspect Review before Start"
                 )
             if self.stop_generation != generation:
                 raise SafetyError("Start canceled by Stop")

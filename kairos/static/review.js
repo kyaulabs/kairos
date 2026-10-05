@@ -53,6 +53,7 @@ class StrategyReview {
         for (const [asset, cap] of Object.entries(period.caps || {})) readiness.push([`${day} ${asset} observed debit / posted fee / reserve cap`, `${period.observed?.[asset] ?? 'not recorded'} / ${period.posted?.[asset] ?? 'unposted'} / ${cap}`]);
       }
     }
+    if (state.start_block_reason) readiness.push(['Start / Restart unavailable', state.start_block_reason]);
     if (state.automatic_account_checks) {
       const check = state.automatic_account_checks;
       readiness.push(['Automatic account checks', check.status], ['Last automatic check', t(check.checked_at)], ['Next paused check', t(check.next_at)], ['Automatic check issue', check.error || 'None reported'], ['Check authority', 'Broker reads only. Cannot submit/cancel orders, acknowledge transfers or resume trading.']);
