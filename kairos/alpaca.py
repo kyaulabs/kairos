@@ -72,6 +72,7 @@ class Alpaca:
         self.requests = AlpacaRequests()
         self.market_data = AlpacaData(self)
         self.order_guard = None
+        self.recovery_exit_guard = None
         diagnostics.register_secrets(key, secret)
 
     async def request(
@@ -110,7 +111,12 @@ class Alpaca:
         )
         account_read = path if method == "GET" and not data and path in ACCOUNT_READ_PATHS else None
         async with self.requests.slot(priority, bucket, deadline, account_read=account_read):
-            if method == "POST" and self.order_guard and not self.order_guard():
+            if (
+                method == "POST"
+                and self.order_guard
+                and not self.order_guard()
+                and not (self.recovery_exit_guard and self.recovery_exit_guard(path, payload))
+            ):
                 raise ExchangeRejected("Alpaca submission canceled by Stop")
             if before_send:
                 before_send()
