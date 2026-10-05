@@ -70,6 +70,7 @@ test('Review separates unclassified settlement debits from actual fees and entry
   const {view,state,text} = fixture();
   state.fee_settlement = {status:'pending',checked_at:1800000000,deadline:1800172800,debits:{BTC:'4.33E-7',USD:'0.074000458896'},periods:{'2027-01-15':{status:'pending',caps:{BTC:'7.21E-7'},observed:{BTC:'4.33E-7'},posted:{}}}};
   state.automatic_account_checks = {status:'fees pending',checked_at:1800000000,next_at:1800000060};
+  state.start_block_reason = 'Waiting for Alpaca to post qualification fees; automatic checks are active.';
   const before = JSON.stringify(state); view.render(state,true);
   assert.equal(JSON.stringify(state),before);
   assert.match(text('review-readiness'), /BTC unclassified debit 4.33E-7/);
@@ -81,6 +82,7 @@ test('Review separates unclassified settlement debits from actual fees and entry
   assert.match(text('review-readiness'), /Fee period 2027-01-15 pending/);
   assert.match(text('review-readiness'), /4.33E-7 \/ unposted \/ 7.21E-7/);
   assert.match(text('review-readiness'), /Automatic account checks fees pending/);
+  assert.match(text('review-readiness'), /Start \/ Restart unavailable Waiting for Alpaca/);
   assert.match(text('review-readiness'), /Cannot submit\/cancel orders/);
   state.fee_settlement.status = 'settled'; view.render(state,true);
   assert.match(text('review-readiness'), /qualification still apply/);

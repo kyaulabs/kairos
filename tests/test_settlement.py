@@ -454,12 +454,77 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         await self.e.tick()
         self.assertEqual(len(self.b.calls), count)
 
+    async def test_verified_qualification_fee_wait_is_not_a_halt_or_restart_permission(self):
+        await self.round_trip()
+        self.b.calls.clear()
+        await self.e.tick()
+        state = self.e.snapshot()
+        self.assertEqual(state["operations"]["status"], "waiting-fees")
+        self.assertIn("Automatic checks are active", state["start_block_reason"])
+        self.assertTrue(state["recovery_required"])
+        with self.assertRaisesRegex(SafetyError, "Restart cannot resolve missing fee records"):
+            await self.e.start(restart=True, confirmation="RESTART ALPACA PAPER")
+        self.assertFalse(self.e.running or self.e.paper_armed)
+        self.assertTrue(all(method == "GET" for method, _, _ in self.b.calls))
+        self.b.activities.extend(self.fees)
+        self.e.next_account_check = 0
+        await self.e.tick()
+        self.assertIsNone(self.e.snapshot()["start_block_reason"])
+        self.assertEqual(self.e.operations.status, "paused")
+        self.assertFalse(self.e.running or self.e.paper_armed or self.e.recovery_required)
+
+    async def test_fee_wait_cannot_hide_mismatch_loss_expiry_or_uncertain_orders(self):
+        await self.round_trip()
+        await self.e.tick()
+        for error in ("Daily marked-to-market loss limit reached", "Audit/storage failure"):
+            self.e.last_error = error
+            self.e.update_operating_state()
+            self.assertEqual(self.e.operations.status, "halted")
+            self.assertIsNone(self.e.qualification_fee_wait_reason)
+        self.e.last_error = None
+        self.e.account_check_status["status"] = "blocked"
+        self.e.update_operating_state()
+        self.assertEqual(self.e.operations.status, "halted")
+        self.e.account_check_status["status"] = "fees pending"
+        state = self.e.store.get(settlement.KEY)
+        state["deadline"] = self.e.clock() - 1
+        self.e.store.put(settlement.KEY, state)
+        self.e.update_operating_state()
+        self.assertEqual(self.e.operations.status, "halted")
+        state["deadline"] = self.e.clock() + 60
+        self.e.store.put(settlement.KEY, state)
+        order = self.e.orders()[-1]
+        order["status"] = "uncertain"
+        self.e.store.save_order(order)
+        self.e.update_operating_state()
+        self.assertEqual(self.e.operations.status, "halted")
+
+    async def test_historical_recovery_wait_explains_remaining_post_fix_qualification(self):
+        await self.round_trip()
+        q = self.e.store.get("paper-qualification")
+        q.update(
+            status="manual exit recovery; normal qualification incomplete", execution_complete=False
+        )
+        self.e.store.put("paper-qualification", q)
+        self.e.store.put(
+            "paper-qualification-exit", {"status": "exit attempted; reconciliation pending"}
+        )
+        await self.e.tick()
+        self.assertEqual(self.e.operations.status, "waiting-fees")
+        self.assertIn(
+            "post-fix qualification is still required", self.e.snapshot()["start_block_reason"]
+        )
+        self.assertEqual(self.e.store.get("paper-qualification"), q)
+        self.assertIsNone(self.e.store.get("paper-qualification-recheck"))
+        self.assertFalse(self.e.running or self.e.paper_armed)
+
     async def test_automatic_exceptions_and_matches_notify_once_while_already_halted(self):
         from types import SimpleNamespace
         from unittest.mock import Mock
 
         await self.round_trip()
         await self.e.tick()
+        self.e.operations.set("halted", "fixture prior halt")
         alerts = SimpleNamespace(
             send=Mock(), snapshot=lambda: {"configured": True}, close=AsyncMock()
         )
