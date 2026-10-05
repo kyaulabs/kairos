@@ -44,8 +44,18 @@ class StrategyReview {
       const fee = state.fee_settlement;
       readiness.push(['Crypto fee settlement', fee.status], ['Settlement evidence checked', t(fee.checked_at)], ['Settlement deadline', t(fee.deadline)]);
       for (const [asset, amount] of Object.entries(fee.debits || {})) readiness.push([`${asset} unclassified debit`, String(amount)]);
-      readiness.push(['Settlement permission', fee.status === 'pending' ? 'New entries blocked. Deterministic owned exits only while running with verified ownership and usable data. Stop overrides exits.' : 'No settlement block; normal checks and qualification still apply.']);
-      readiness.push(['Settlement accounting', 'Portfolio balances are net of observed pending debits. These are not confirmed fees; fee totals include posted activities only.']);
+      readiness.push(['Settlement permission', fee.status === 'pending' ? 'Normal entry and owned-exit gates apply, with conservative pending-fee reserves. No permission while paused; Stop overrides exits.' : 'No settlement block; normal checks and qualification still apply.']);
+      for (const [asset, amount] of Object.entries(fee.unposted_reserve || {})) readiness.push([`${asset} additional fee allowance`, String(amount)]);
+      readiness.push(['Settlement accounting', 'Balances are net of observed debits, not confirmed fees. Risk equity/P&L additionally reserve possible unposted costs; only posted activities count as actual fees.']);
+      readiness.push(['Daily accounting', 'Native fill and fee dates isolate periods. UTC snapshots do not prove posting; creation/receipt time does not replace the fee date.']);
+      for (const [day, period] of Object.entries(fee.periods || {})) {
+        readiness.push([`Fee period ${day}`, period.status]);
+        for (const [asset, cap] of Object.entries(period.caps || {})) readiness.push([`${day} ${asset} observed debit / posted fee / reserve cap`, `${period.observed?.[asset] ?? 'not recorded'} / ${period.posted?.[asset] ?? 'unposted'} / ${cap}`]);
+      }
+    }
+    if (state.automatic_account_checks) {
+      const check = state.automatic_account_checks;
+      readiness.push(['Automatic account checks', check.status], ['Last automatic check', t(check.checked_at)], ['Next paused check', t(check.next_at)], ['Automatic check issue', check.error || 'None reported'], ['Check authority', 'Broker reads only. Cannot submit/cancel orders, acknowledge transfers or resume trading.']);
     }
     if (state.scheduled_recovery) {
       const retry = state.scheduled_recovery;

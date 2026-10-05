@@ -43,6 +43,9 @@ class AlpacaEngine(Engine):
         self.observations = Observations(self)
         self.observations.enabled = observe
         self.account_read_status = {"last_success_at": None, "last_failure": None, "recovery": None}
+        self.pending_fee_allowance_usd = None
+        self.next_account_check = 0
+        self.account_check_status = {"status": "not checked", "interval_seconds": 60}
         self.kraken.order_filter = self.settlement_order_allowed
         self.kraken.order_guard = lambda: (
             self.running
@@ -70,26 +73,57 @@ class AlpacaEngine(Engine):
             ),
             None,
         )
-        position = htf.snapshot(self).get("position")
+        plan = htf.snapshot(self)
+        position = plan.get("position")
+        attempt = plan.get("entry_attempt") or {}
+        budget = dec(0)
+        if order and not order.get("exit_only"):
+            try:
+                book = self.kraken.market_data.fresh_book(self.resolve(order["pair"]))
+                budget = settlement.entry_budget(self, book.asks[0][0])
+            except SafetyError:
+                return False
         return bool(
             order
             and order["status"] == "submitting"
-            and order.get("exit_only")
-            and position
-            and order.get("htf_id") == position["id"]
+            and (
+                order.get("exit_only")
+                and order["side"] == "sell"
+                and not order["maker"]
+                and position
+                and order.get("htf_id") == position["id"]
+                or order["side"] == "buy"
+                and not order.get("exit_only")
+                and order["maker"]
+                and not position
+                and not self.balance("BTC")
+                and attempt.get("order_id") == order["id"]
+                and attempt.get("position", {}).get("id") == order.get("htf_id")
+            )
             and path == "/v2/orders"
             and payload
             == {
                 "symbol": "BTC/USD",
-                "side": "sell",
+                "side": order["side"],
                 "qty": order["volume"],
                 "limit_price": order["price"],
                 "type": "limit",
-                "time_in_force": "ioc",
+                "time_in_force": "gtc" if order["maker"] else "ioc",
                 "extended_hours": False,
                 "client_order_id": order["id"],
             }
-            and dec(order["volume"]) <= min(self.balance("BTC"), htf.owned(self, position))
+            and (
+                dec(order["volume"])
+                <= min(
+                    self.balance("BTC") - settlement.retained_base(self), htf.owned(self, position)
+                )
+                if order and order.get("exit_only")
+                else order
+                and dec(order["volume"])
+                * dec(order["price"])
+                * (1 + dec(order["planning_fee_bps"]) / 10000)
+                <= budget
+            )
         )
 
     async def initialize(self):
@@ -111,12 +145,12 @@ class AlpacaEngine(Engine):
         )
         if self.recovery_required:
             self.last_error = (
-                "Qualification recovery settlement pending; Reconcile before Start"
+                "Automatic account verification pending; trading remains paused"
                 if failed_qualification
                 or self.fee_settlement_pending
                 or recovery
                 and recovery["status"] != "settled"
-                else "Alpaca paper orders remain after restart; Reconcile before Start"
+                else "Alpaca paper orders remain after restart; automatic verification pending"
             )
         await self.refresh_fees(required=False)
         self.ready = True
@@ -136,6 +170,8 @@ class AlpacaEngine(Engine):
             "paper_qualification": self.store.get("paper-qualification"),
             "paper_qualification_recovery": self.store.get("paper-qualification-exit"),
             "fee_settlement": self.store.get(settlement.KEY),
+            "automatic_account_checks": self.account_check_status,
+            "pending_fee_allowance_usd": self.pending_fee_allowance_usd,
             "diagnostic_observation": self.observations.latest,
             "account_reads": {
                 **self.account_read_status,
@@ -364,9 +400,7 @@ class AlpacaEngine(Engine):
                     status="interrupted; manual reconciliation required", ended_at=self.clock()
                 )
                 self.recovery_required = True
-                self.last_error = (
-                    "Paper qualification interrupted; Reconcile and review the recorded attempt"
-                )
+                self.last_error = "Paper qualification interrupted; automatic checks continue; review the recorded attempt"
                 raise
             finally:
                 self.execution_purpose = None
@@ -461,7 +495,7 @@ class AlpacaEngine(Engine):
             )
             if self.retry_status["attempts"] >= 5:
                 raise SafetyError(
-                    "Five scheduled recovery attempts exhausted; manual Reconcile/Restart required"
+                    "Five scheduled recovery attempts exhausted; verification and explicit Restart required"
                 ) from exc
             self.long_retry = (generation, time.monotonic() + 300)
             self.retry_status["next_at"] = self.clock() + 300
@@ -495,7 +529,7 @@ class AlpacaEngine(Engine):
                 if self.account_wait
                 else "waiting-data"
                 if self.market_wait
-                else "waiting-fees"
+                else "settling-fees"
                 if self.fee_settlement_pending
                 else "running"
             )
@@ -504,6 +538,7 @@ class AlpacaEngine(Engine):
 
     async def tick(self):
         try:
+            await self.check_account_automatically()
             await self._tick()
         finally:
             self.update_operating_state()
@@ -634,6 +669,10 @@ class AlpacaEngine(Engine):
                 and not self.store.get("multibar-trial:" + PROTOCOL_HASH)
             ):
                 raise SafetyError("Actual qualification fees must settle before first trial Start")
+            if self.recovery_required:
+                raise SafetyError(
+                    "Automatic account verification unresolved; inspect Review before Start"
+                )
             if self.stop_generation != generation:
                 raise SafetyError("Start canceled by Stop")
             self.paper_armed = True
@@ -662,6 +701,106 @@ class AlpacaEngine(Engine):
         self.long_retry = None
         await super().reconcile(acknowledge)
         self.finish_account_recovery("reconciled")
+        self.finish_fee_settlement()
+        self.update_operating_state()
+        self.emit_state()
+
+    async def check_account_automatically(self):
+        # Background accounting has no permission to submit/cancel orders or resume.
+        if (
+            self.running
+            or not self.ready
+            or self.shutting_down
+            or self.lock.locked()
+            or not self.store.get("alpaca-account")
+            or self.clock() < self.next_account_check
+        ):
+            return
+        async with self.lock:
+            if self.running or self.shutting_down:
+                return
+            self.next_account_check = self.clock() + 60
+            previous_error = self.account_check_status.get("error")
+            try:
+                async with asyncio.timeout(60):
+                    for order in self.orders(active=True):
+                        await self.refresh_order(order)  # GET only; never replay or cancel.
+                    if self.orders(active=True) or self.store.get("cycle"):
+                        raise SafetyError(
+                            "Orders/cycle unresolved; automatic checks continue, no writes retried"
+                        )
+                    await self.reconcile_account()
+                self.recovery_required = False
+                self.finish_fee_settlement()
+                q = self.store.get("paper-qualification") or {}
+                if (
+                    q.get("status") == "interrupted; manual reconciliation required"
+                    and not self.is_flat()
+                    or q.get("execution_complete")
+                    and self.fee_settlement_pending
+                ):
+                    self.recovery_required = True
+                if not self.recovery_required and (
+                    self.last_error == previous_error
+                    or self.last_error
+                    in {
+                        "Actual crypto fee records pending; new entries blocked; engine remains paused",
+                        "Qualification recovery settlement pending; Reconcile before Start",
+                        "Automatic account verification pending; trading remains paused",
+                    }
+                ):
+                    self.last_error = None
+                status = "fees pending" if self.fee_settlement_pending else "matched"
+                previous_status = self.account_check_status.get("status")
+                changed = previous_status != status
+                self.account_check_status = {
+                    "status": status,
+                    "checked_at": self.clock(),
+                    "next_at": self.next_account_check,
+                    "interval_seconds": 60,
+                }
+                if changed:
+                    self.event(
+                        "automatic-account-check",
+                        {
+                            "message": "Automatic account evidence verified; trading remains paused",
+                            **self.account_check_status,
+                        },
+                    )
+                    if (
+                        status == "matched"
+                        and previous_status in {"fees pending", "blocked"}
+                        and self.operations.alerts
+                    ):
+                        self.operations.alerts.send("account verified; trading remains paused")
+            except Exception as exc:
+                error_id = diagnostics.capture(exc, "automatic-account-check")
+                self.next_account_check = self.clock() + 300
+                error = (
+                    str(exc)
+                    if isinstance(exc, SafetyError)
+                    else "Automatic account read unavailable"
+                )
+                changed = self.account_check_status.get("error") != error
+                self.recovery_required = True
+                self.last_error = error
+                self.account_check_status = {
+                    "status": "blocked",
+                    "error": error,
+                    "checked_at": self.clock(),
+                    "next_at": self.next_account_check,
+                    "interval_seconds": 300,
+                }
+                if changed:
+                    self.event("automatic-account-check", {"message": error, "error_id": error_id})
+                    if self.operations.status == "halted" and self.operations.alerts:
+                        self.operations.alerts.send(
+                            "automatic accounting blocked; investigation required"
+                        )
+            finally:
+                self.paper_armed = False
+
+    def finish_fee_settlement(self):
         if self.is_flat() and not self.fee_settlement_pending:
             state = htf.snapshot(self)
             if not htf.owned(self, state.get("position")):
@@ -699,8 +838,6 @@ class AlpacaEngine(Engine):
                     if self.fee_settlement_pending
                     else "Qualification recovery retains holdings; review before another authorization"
                 )
-        self.update_operating_state()
-        self.emit_state()
 
     def account_recovery_snapshot(self):
         result = self.account_read_status["recovery"]
@@ -731,7 +868,9 @@ class AlpacaEngine(Engine):
         except Exception:
             self.running = False
             self.recovery_required = True
-            self.last_error = "Account-read audit storage failed; Reconcile and Restart required"
+            self.last_error = (
+                "Account-read audit storage failed; investigate before explicit Restart"
+            )
             result = self.account_recovery_snapshot()
             if result:
                 result.update(status="halted", ended_at=self.clock())
@@ -774,7 +913,7 @@ class AlpacaEngine(Engine):
             self.recovery_required = True
             exc.args = (
                 str(exc)
-                + "; automatic read recovery unavailable or exhausted; Reconcile before Start",
+                + "; automatic read recovery unavailable or exhausted; verify before explicit Start",
             )
             self.finish_account_recovery("halted")
             return False
@@ -812,7 +951,9 @@ class AlpacaEngine(Engine):
         ):
             self.finish_account_recovery("scheduled retry")
             return
-        raise SafetyError("Alpaca account-read recovery deadline exhausted; Reconcile before Start")
+        raise SafetyError(
+            "Alpaca account-read recovery deadline exhausted; automatic checks continue paused"
+        )
 
     async def recover_account_reads(self):
         if not self.account_retry_safe():
@@ -1115,10 +1256,12 @@ class AlpacaEngine(Engine):
             raise SafetyError(
                 "Alpaca paper account changed; existing ledger must not be reassigned"
             )
-        if settlement.supported(self) and not self.orders(active=True):
-            return await settlement.reconcile(self, identity)
         for order in self.orders(active=True):
             await self.refresh_order(order)
+        if settlement.supported(self) and not self.orders(active=True):
+            result = await settlement.reconcile(self, identity)
+            self.finish_fee_settlement()
+            return result
         if self.settings["strategy"] == "htf" and (
             htf.snapshot(self).get("entry_attempt", {}).get("order_id")
         ):
@@ -1187,7 +1330,14 @@ class AlpacaEngine(Engine):
         ledger = self.ledger()
         equity = sum(dec(q) * prices[a] for a, q in ledger["balances"].items() if dec(q))
         exposure = equity - self.balance("USD")
-        self.record_valuation(equity, exposure, "day:paper")
+        reserve = dec(0)
+        if self.fee_settlement_pending:
+            book = await self.kraken.book(self.resolve("alpaca:BTC/USD"))
+            book.fresh(self.settings["stale_seconds"])
+            reserve = settlement.reserve_usd(self, book.asks[0][0])
+        # Provisional risk valuation, not an actual fee or another balance debit.
+        self.pending_fee_allowance_usd = str(reserve)
+        self.record_valuation(equity - reserve, exposure, "day:paper")
         if enforce and -dec(self.daily_pnl) >= dec(self.settings["daily_loss"]):
             raise SafetyError("Daily marked-to-market loss limit reached; no further orders")
         return prices, exposure
@@ -1199,10 +1349,22 @@ class AlpacaEngine(Engine):
             raise SafetyError("Account reconciliation pending; orders blocked")
         self.validate_capabilities(self.settings)
         account = await self.reconcile_account()
-        if self.fee_settlement_pending and not (side == "sell" and kwargs.get("exit_only")):
-            raise SafetyError(
-                "Actual fee settlement pending; only tracked reductions are permitted"
+        if self.fee_settlement_pending and side == "buy":
+            if not self.is_flat() or htf.snapshot(self).get("position"):
+                raise SafetyError(
+                    "Pending-fee entries require flat tracked inventory; no pyramiding"
+                )
+            if volume * price * (1 + self.fees.reserve(pair) / 10000) > settlement.entry_budget(
+                self, max(price, book.asks[0][0])
+            ):
+                raise SafetyError("Pending fee reserve leaves insufficient allocated entry funds")
+        if self.fee_settlement_pending and side == "sell" and kwargs.get("exit_only"):
+            volume = floor(
+                min(volume, max(ZERO, self.balance("BTC") - settlement.retained_base(self))),
+                pair.lot,
             )
+            if volume <= 0:
+                raise SafetyError("Native fee allowance awaits verified debit; no sell submitted")
         if not self.kraken.is_equity(pair) and account.get("crypto_status") != "ACTIVE":
             raise SafetyError("Alpaca crypto trading is not active for this account")
         if volume * price > dec("200000"):

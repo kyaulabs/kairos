@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import uuid
+from datetime import UTC, datetime
 from decimal import ROUND_CEILING
 
 from kairos import htf
@@ -26,12 +27,172 @@ def pending(engine):
     return (engine.store.get(KEY) or {}).get("status") == "pending"
 
 
+def reserve_usd(engine, price):
+    state = engine.store.get(KEY) or {}
+    if state.get("status") != "pending":
+        return dec(0)
+    reserve = state.get("unposted_reserve")
+    if reserve is None:
+        raise SafetyError("Automatic fee check required before using pending funds")
+    return dec(reserve.get("USD", 0)) + dec(reserve.get("BTC", 0)) * dec(price)
+
+
+def retained_base(engine):
+    return sum(
+        (
+            dec(v["cap"])
+            for v in (engine.store.get(KEY) or {}).get("unwitnessed", {}).values()
+            if v["asset"] == "BTC"
+        ),
+        dec(0),
+    )
+
+
+def entry_budget(engine, price):
+    state = engine.store.get(KEY) or {}
+    if state.get("status") != "pending":
+        return engine.balance("USD")
+    if engine.clock() > state["deadline"]:
+        raise SafetyError("Crypto fee settlement exceeded 48 hours; investigation required")
+    reserve = reserve_usd(engine, price)
+    outstanding = (
+        reserve
+        + dec(state["debits"].get("USD", 0))
+        + dec(state["debits"].get("BTC", 0)) * dec(price)
+    )
+    limit = min(dec("12.50"), dec(engine.settings["daily_loss"]))
+    if outstanding > limit:
+        raise SafetyError("Outstanding crypto fee allowance exceeds the pending-fee risk limit")
+    # Leave room for both sides' planning costs and native/cash precision, rather
+    # than admitting an entry that immediately exhausts the pending-fee limit.
+    precision = engine.resolve(engine.settings["pair"]).lot * dec(price) + 3 * CENT
+    fee_room = max(dec(0), limit - outstanding - precision)
+    round_trip_budget = fee_room / dec(".005") * dec("1.0025")
+    return max(dec(0), min(engine.balance("USD") - reserve, round_trip_budget))
+
+
 def signature(orders):
     return {o["id"]: [o["filled"], o["cost"]] for o in orders}
 
 
 def rounded(value, step):
     return (value / step).to_integral_value(rounding=ROUND_CEILING) * step
+
+
+def native_day(value):
+    if value is None:
+        return "undated"
+    try:
+        stamp = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        raise SafetyError("Invalid native fee period timestamp") from None
+    if len(value) > 10:
+        if stamp.tzinfo is None:
+            raise SafetyError("Fee period requires an explicit native timezone")
+        stamp = stamp.astimezone(UTC)
+    return stamp.date().isoformat()
+
+
+def period_coverage(e, state, orders, activities, observed, expected, actual, posted):
+    """Do not let a newer period's reserve or debit cover an older fee."""
+    previous = state.get("periods", {})
+    periods, fresh, local_days = {}, {"BTC": set(), "USD": set()}, set()
+    by_txid = {o["txid"]: o for o in orders if o["txid"]}
+    for fill in activities:
+        reserve = state["reserves"].get(fill["id"])
+        if fill["activity_type"] != "FILL" or reserve is None:
+            continue
+        day = native_day(fill.get("transaction_time"))
+        stamp = fill.get("transaction_time")
+        if "transaction_time" in reserve and reserve["transaction_time"] != stamp:
+            raise SafetyError("Recorded fill period was corrected")
+        reserve["transaction_time"] = stamp
+        reserve["period"] = day
+        period = periods.setdefault(
+            day,
+            {
+                "caps": {},
+                "posted": {},
+                "observed": dict(previous.get(day, {}).get("observed", {})),
+                "rounding_bound": dec(0),
+            },
+        )
+        asset = reserve["currency"]
+        period["caps"][asset] = period["caps"].get(asset, dec(0)) + dec(reserve["cap"])
+        period["rounding_bound"] += CENT
+        order = by_txid[fill["order_id"]]
+        local_days.add(datetime.fromtimestamp(order["created"], UTC).date().isoformat())
+        if dec(order["filled"]) > dec(observed.get(order["id"], [0, 0])[0]):
+            fresh[asset].add(day)
+    if "undated" in periods and (len(periods) > 1 or len(local_days) > 1):
+        raise SafetyError("Native fill dates required to isolate overlapping fee periods")
+    baseline = state.get("baseline_fee_ids")
+    if baseline is None:
+        if any(dec(v) for v in state["baseline_fees"].values()):
+            raise SafetyError(
+                "Historical fee baseline lacks period linkage; investigation required"
+            )
+        baseline = state["baseline_fee_ids"] = []
+    for fee in activities:
+        if fee["activity_type"] not in {"FEE", "CFEE"} or fee["id"] in baseline:
+            continue
+        asset = "BTC" if fee["activity_type"] == "CFEE" and dec(fee.get("qty", 0)) else "USD"
+        amount = -dec(fee.get("qty", 0) if asset == "BTC" else fee["net_amount"])
+        eligible = [d for d, p in periods.items() if asset in p["caps"]]
+        day = native_day(fee.get("date"))
+        if eligible == ["undated"] or (day == "undated" and len(eligible) == 1):
+            day = eligible[0]
+        if day not in eligible:
+            raise SafetyError("Posted fee has no unambiguous native settlement period")
+        period = periods[day]
+        period["posted"][asset] = period["posted"].get(asset, dec(0)) + amount
+    for asset in ("BTC", "USD"):
+        eligible = [d for d, p in periods.items() if asset in p["caps"] or asset == "USD"]
+        total = (
+            expected[asset]
+            + dec(state["debits"].get(asset, 0))
+            + posted.get(asset, dec(0))
+            - actual[asset]
+        )
+        prior = sum((dec(p["observed"].get(asset, 0)) for p in periods.values()), dec(0))
+        delta = total - prior
+        if delta:
+            candidates = set(fresh[asset])
+            for day in eligible:
+                paid = periods[day]["posted"].get(asset, dec(0))
+                if paid > dec(previous.get(day, {}).get("posted", {}).get(asset, 0)):
+                    candidates.add(day)
+            if not previous:
+                candidates.update(eligible)
+            # Cash precision can move on a buy, even though its fee is in BTC.
+            if asset == "USD":
+                candidates.update(fresh["BTC"])
+            if len(candidates) != 1:
+                raise SafetyError("Balance debit cannot be isolated to one fee period")
+            day = candidates.pop()
+            if delta < 0 and (asset != "USD" or abs(delta) > periods[day]["rounding_bound"]):
+                raise SafetyError("Unexpected credit exceeds settlement bounds")
+            period = periods[day]
+            period["observed"][asset] = str(dec(period["observed"].get(asset, 0)) + delta)
+    covered = bool(periods)
+    for period in periods.values():
+        complete = True
+        for asset in ("BTC", "USD"):
+            cap = period["caps"].get(asset, dec(0))
+            paid = period["posted"].get(asset, dec(0))
+            debit = dec(period["observed"].get(asset, 0))
+            rounding = period["rounding_bound"] if asset == "USD" else dec(0)
+            if paid > cap or debit > cap + rounding or paid - debit > rounding:
+                raise SafetyError("Fee period exceeds fill-linked settlement bounds")
+            if asset in period["caps"] and (paid <= 0 or abs(debit - paid) > rounding):
+                complete = False
+        period["status"] = "matched" if complete else "pending"
+        covered &= complete
+        period["caps"] = {a: str(v) for a, v in period["caps"].items()}
+        period["posted"] = {a: str(v) for a, v in period["posted"].items()}
+        period["rounding_bound"] = str(period["rounding_bound"])
+    state["periods"] = periods
+    return covered
 
 
 async def read_pass(e, identity, local, pair):
@@ -129,6 +290,24 @@ async def reconcile(e, identity):
         "baseline_fees": {},
         "debits": {},
     }
+    day = datetime.fromtimestamp(e.clock(), UTC).date().isoformat()
+    if state.get("utc_day") and state["utc_day"] != day:
+        e.event(
+            "fee-day",
+            {
+                "message": "UTC accounting snapshot; unresolved fees carried forward, not assumed settled",
+                "utc_day": state["utc_day"],
+                "checked_at": state.get("checked_at"),
+                "debits": state["debits"],
+                "unposted_reserve": state.get("unposted_reserve"),
+                "status": state["status"],
+                "deadline": state.get("deadline"),
+                "posted_fees": state.get("posted_fees"),
+                "periods": state.get("periods"),
+                "settlement_id": state.get("id"),
+            },
+        )
+    state["utc_day"] = day
     checkpoint = state["checkpoint"]
     changed = any(dec(o["filled"]) > dec(checkpoint.get(o["id"], [0, 0])[0]) for o in orders)
     if state["status"] == "settled" and changed:
@@ -145,20 +324,109 @@ async def reconcile(e, identity):
             + MAX_WAIT,
             "debits": {},
             "reserves": {},
+            "periods": {},
+            "baseline_fee_ids": [
+                r["id"]
+                for r in activities
+                if r["activity_type"] in {"FEE", "CFEE"}
+                and (
+                    r["id"] in identity["baseline_activities"]
+                    or e.store.get("alpaca-activity:" + r["id"])
+                )
+            ],
         }
         e.store.put(KEY, state)
         e.htf_review.cancel()
         e.event(
             "fee-settlement",
-            {"message": "Awaiting actual fee activities; entries blocked", **state},
+            {"message": "Awaiting actual fee activities; conservative reserves retained", **state},
         )
+    # A zero debit is not evidence of a zero fee. Track receipts separately from
+    # activity posting, so an old fee cannot release a new fill's reserve.
+    unseen = state.setdefault("unwitnessed", {})
+    first_receipts = "observed" not in state
+    witnessed = state.setdefault("witnessed", [])
+    for order in orders:
+        if (
+            dec(order["filled"]) > dec(checkpoint.get(order["id"], [0, 0])[0])
+            and order["id"] not in witnessed
+            and order["id"] not in unseen
+        ):
+            asset = "BTC" if order["side"] == "buy" else "USD"
+            unseen[order["id"]] = {"asset": asset, "cap": "0"}
+    balances = e.ledger()["balances"]
+    for asset in ("BTC", "USD"):
+        candidates = [k for k, v in unseen.items() if v["asset"] == asset]
+        actual_balance = (
+            positions.get("BTC", dec(0))
+            if asset == "BTC"
+            else dec(account["cash"]) - dec(identity["unallocated_cash"])
+        )
+        delta = dec(balances.get(asset, 0)) - actual_balance
+        # A posted fee can be booked before the broker's balance catches up.
+        # Until a successful period snapshot includes it, keep that known debit
+        # in the receipt comparison; do not require another fee or a manual reset.
+        unrecorded_paid = max(
+            dec(0),
+            dec(e.ledger()["fees"].get(asset, 0))
+            - dec(state["baseline_fees"].get(asset, 0))
+            - sum(
+                (dec(p.get("posted", {}).get(asset, 0)) for p in state.get("periods", {}).values()),
+                dec(0),
+            ),
+        )
+        delta += unrecorded_paid
+        prior_debit = dec(state["debits"].get(asset, 0)) if first_receipts else dec(0)
+        new_actual_fee = any(
+            r["activity_type"] in {"FEE", "CFEE"}
+            and r["id"] not in identity["baseline_activities"]
+            and not e.store.get("alpaca-activity:" + r["id"])
+            and (bool(dec(r.get("qty", 0))) == (asset == "BTC"))
+            for r in activities
+        )
+        threshold = dec(0) if asset == "BTC" or new_actual_fee or unrecorded_paid else CENT
+        if len(candidates) == 1 and delta + prior_debit > threshold:
+            witnessed.append(candidates[0])
+            del unseen[candidates[0]]
+    # Positive fees from an older receipt cannot settle newly observed fills.
+    observed = state.get("observed")
+    if observed is None:
+        # Existing v0.7.3 reserves are already witnessed, not new executions.
+        observed = {
+            o["id"]: [
+                str(
+                    sum(
+                        (
+                            dec(r["qty"])
+                            for r in activities
+                            if r["activity_type"] == "FILL"
+                            and r["order_id"] == o["txid"]
+                            and r["id"] in state.get("reserves", {})
+                        ),
+                        dec(0),
+                    )
+                ),
+                "0",
+            ]
+            for o in orders
+        }
+        observed = {**state["checkpoint"], **{k: v for k, v in observed.items() if dec(v[0])}}
+    floors = state.setdefault("coverage_floor", dict(state["baseline_fees"]))
+    for order in orders:
+        if dec(order["filled"]) > dec(observed.get(order["id"], [0, 0])[0]):
+            asset = "BTC" if order["side"] == "buy" else "USD"
+            floors[asset] = e.ledger()["fees"].get(asset, "0")
+    state["observed"] = signature(orders)
     for row in activities:
         if row["id"] not in identity["baseline_activities"] and row["activity_type"] in {
             "FEE",
             "CFEE",
         }:
             e.apply_fee(row)
-    state = e.store.get(KEY) or state  # apply_fee may have consumed suspense atomically.
+    # Preserve tentative receipt evidence only after validation; fee application
+    # itself may already have consumed durable suspense atomically.
+    state["debits"] = (e.store.get(KEY) or state)["debits"]
+    state["utc_day"] = day
     ledger = e.ledger()
     if any(dec(v) for a, v in ledger["balances"].items() if a not in {"USD", "BTC"}):
         raise SafetyError("Unrelated local inventory blocks BTC settlement")
@@ -172,6 +440,7 @@ async def reconcile(e, identity):
     if state["status"] != "pending":
         if actual != expected:
             raise SafetyError("Alpaca cash/positions differ without a new confirmed fill")
+        state.update(checked_at=e.clock(), posted_fees=dict(ledger["fees"]), unposted_reserve={})
         e.store.put(KEY, state)
         e.account_read_status["last_success_at"] = e.clock()
         return account
@@ -215,6 +484,8 @@ async def reconcile(e, identity):
                 }
                 state["reserves"][fill["id"]] = reserve
             cap += dec(reserve["cap"])
+        if order["id"] in state["unwitnessed"]:
+            state["unwitnessed"][order["id"]]["cap"] = str(cap)
         budgets[currency] = budgets.get(currency, dec(0)) + cap
         rounding_limit += CENT * len(fills)
         currencies.add(currency)
@@ -223,7 +494,18 @@ async def reconcile(e, identity):
     }
     if any(not 0 <= posted[a] <= budgets[a] for a in currencies):
         raise SafetyError("Actual crypto fees exceed the captured settlement reserve")
-    fees_seen = bool(currencies) and all(posted[a] > 0 for a in currencies)
+    periods_covered = period_coverage(
+        e, state, orders, activities, observed, expected, actual, posted
+    )
+    fees_seen = (
+        periods_covered
+        and bool(currencies)
+        and not state["unwitnessed"]
+        and all(
+            dec(ledger["fees"].get(a, 0)) > dec(state["coverage_floor"].get(a, 0))
+            for a in currencies
+        )
+    )
     old_debits = {a: dec(state["debits"].get(a, 0)) for a in expected}
     debits = {a: expected[a] + old_debits[a] - actual[a] for a in expected}
     # A final USD rounding residual is classified only after actual activities cover
@@ -239,7 +521,7 @@ async def reconcile(e, identity):
         if value < 0 or value > allowance:
             raise SafetyError("Alpaca balance difference exceeds fill-linked settlement bounds")
     if (not fees_seen or any(debits.values())) and e.clock() > state["deadline"]:
-        raise SafetyError("Crypto fee settlement exceeded 48 hours; manual reconciliation required")
+        raise SafetyError("Crypto fee settlement exceeded 48 hours; investigation required")
     position_state = htf.snapshot(e)
     position = position_state.get("position")
     adjustment = old_debits["BTC"] - debits["BTC"]
@@ -264,6 +546,22 @@ async def reconcile(e, identity):
     state.update(
         status="settled" if settled else "pending",
         cash_rounding_bound=str(rounding_limit),
+        posted_fees=dict(ledger["fees"]),
+        unposted_reserve={}
+        if settled
+        else {
+            a: str(
+                max(
+                    dec(0),
+                    budgets[a] - posted[a] - debits.get(a, dec(0)),
+                    sum(
+                        (dec(v["cap"]) for v in state["unwitnessed"].values() if v["asset"] == a),
+                        dec(0),
+                    ),
+                )
+            )
+            for a in currencies
+        },
         debits={a: str(v) for a, v in debits.items() if v},
         checked_at=e.clock(),
         evidence_hash=hashlib.sha256(
@@ -290,7 +588,6 @@ async def reconcile(e, identity):
                 **state,
             },
         )
-    if settled:
-        htf.arm(e)  # No pending-fee-era entry candidate may be caught up after settlement.
+    # Routine fee publication does not stop trading or retire otherwise valid signals.
     e.account_read_status["last_success_at"] = e.clock()
     return account
