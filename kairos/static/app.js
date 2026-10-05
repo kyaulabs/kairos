@@ -218,9 +218,9 @@
     $('exposure-cap').textContent = `Effective limit ${money(state.effective_exposure_cap)} USD`;
     $('valuation-time').textContent = state.valuation_ts ? `Valued ${time(state.valuation_ts)}` : 'Not yet valued';
     if (state.valuation_ts && state.equity != null) equityChart.add(state.valuation_ts, Number(state.equity));
-    $('engine-status').textContent = state.operations ? ({running:'Running',paused:'Paused',halted:'Halted · error','waiting-data':'Waiting · data','waiting-account':'Waiting · account','retry-wait':`Retry wait · ${state.scheduled_recovery?.attempts ?? 0}/5`}[state.operations.status] || state.operations.status) : state.running ? (state.fee_recovery ? 'Recovering fees' : state.data_recovery?.attempts ? 'Recovering data' : 'Running') : state.error ? 'Stopped · error' : 'Paused';
+    $('engine-status').textContent = state.operations ? ({running:'Running',qualifying:'Paper check',paused:'Paused',halted:'Halted · error','waiting-data':'Waiting · data','waiting-account':'Waiting · account','retry-wait':`Retry wait · ${state.scheduled_recovery?.attempts ?? 0}/5`}[state.operations.status] || state.operations.status) : state.running ? (state.fee_recovery ? 'Recovering fees' : state.data_recovery?.attempts ? 'Recovering data' : 'Running') : state.error ? 'Stopped · error' : 'Paused';
     $('engine-status').classList.toggle('running', state.operations ? state.operations.status === 'running' : state.running);
-    $('engine-status').classList.toggle('waiting', ['waiting-data','waiting-account','retry-wait'].includes(state.operations?.status));
+    $('engine-status').classList.toggle('waiting', ['qualifying','waiting-data','waiting-account','retry-wait'].includes(state.operations?.status));
     $('engine-status').classList.toggle('halted', state.operations?.status === 'halted');
     $('engine-strategy').textContent = settingsSchema.strategies[state.settings.strategy].label;
     $('engine-error').hidden = !state.error;

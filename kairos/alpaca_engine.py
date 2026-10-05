@@ -97,18 +97,36 @@ class AlpacaEngine(Engine):
         }
 
     async def qualify_paper(self, confirmation):
-        if confirmation != "ONE ALPACA PAPER ROUND TRIP":
+        additional = confirmation == "ONE ADDITIONAL ALPACA PAPER ATTEMPT"
+        if confirmation != "ONE ALPACA PAPER ROUND TRIP" and not additional:
             raise SafetyError("Explicit one-round-trip paper authorization required")
         generation = self.stop_generation
         async with self.lock:
+            previous = self.store.get("paper-qualification")
+            orders = self.orders()
+            if additional:
+                permitted = bool(
+                    previous
+                    and not previous.get("retry_of")
+                    and len(orders) == 1
+                    and orders[0]["run_id"] == previous.get("run_id")
+                    and orders[0]["side"] == "buy"
+                    and orders[0]["maker"]
+                    and orders[0]["status"] == "canceled"
+                    and dec(orders[0]["filled"]) == 0
+                )
+                if not permitted:
+                    raise SafetyError(
+                        "One additional attempt requires the original tracked buy confirmed canceled and unfilled"
+                    )
+            elif previous or orders:
+                raise SafetyError("Qualification already claimed; no automatic repeat")
             if (
                 not self.ready
                 or self.running
                 or self.shutting_down
                 or self.recovery_required
-                or self.orders()
                 or not self.is_flat()
-                or self.store.get("paper-qualification")
                 or htf.snapshot(self).get("position")
                 or htf.snapshot(self).get("entry_attempt")
                 or self.settings["strategy"] != "htf"
@@ -147,12 +165,22 @@ class AlpacaEngine(Engine):
                     k: str(getattr(pair, k)) for k in ("tick", "lot", "minimum", "cost_minimum")
                 },
             }
-            self.store.put("paper-qualification", record)  # Claim once before permission or writes.
+            if additional:
+                record["retry_of"] = previous["id"]
+            # Retain the original failed claim and atomically claim the explicitly authorized retry.
+            with self.store.db:
+                if additional:
+                    self.store._put("paper-qualification:" + previous["id"], previous)
+                self.store._put("paper-qualification", record)
             self.running, self.paper_armed = True, True
             try:
-                self.execution_purpose = "execution-qualification; excluded from strategy trial"
+                self.execution_purpose = (
+                    f"execution-qualification:{record['id']}; excluded from strategy trial"
+                )
                 run = self.ensure_run()
                 record["run_id"] = run["id"]
+                self.update_operating_state()
+                self.emit_state()
                 plan = {
                     "id": record["id"],
                     "side": "buy",
@@ -177,7 +205,11 @@ class AlpacaEngine(Engine):
                             "Qualification canceled by Stop; tracked order needs reconciliation"
                         )
                     await asyncio.sleep(3)
-                    await self.reconcile_account()
+                    # A working order can reserve cash. Poll its confirmed execution,
+                    # not a cross-endpoint account snapshot that assumes settled cash.
+                    for order in self.orders(active=True):
+                        await self.refresh_order(order)
+                    htf.reconcile_entry(self)
                 if self.orders(active=True):
                     await self.cancel_active()
                 await self.reconcile_account()
@@ -216,6 +248,9 @@ class AlpacaEngine(Engine):
                     status="interrupted; manual reconciliation required", ended_at=self.clock()
                 )
                 self.recovery_required = True
+                self.last_error = (
+                    "Paper qualification interrupted; Reconcile and review the recorded attempt"
+                )
                 raise
             finally:
                 self.execution_purpose = None
@@ -332,7 +367,9 @@ class AlpacaEngine(Engine):
             ("halted" if self.last_error or self.recovery_required else "paused")
             if not self.running
             else (
-                "retry-wait"
+                "qualifying"
+                if getattr(self, "execution_purpose", None)
+                else "retry-wait"
                 if self.long_retry
                 else "waiting-account"
                 if self.account_wait

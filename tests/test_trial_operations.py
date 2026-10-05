@@ -312,6 +312,95 @@ class QualificationTests(unittest.IsolatedAsyncioTestCase):
             await self.e.qualify_paper("ONE ALPACA PAPER ROUND TRIP")
         self.assertEqual(len(self.e.orders()), 2)
 
+    async def test_working_cash_reservation_uses_order_reads_before_full_reconciliation(self):
+        self.case.broker.fill = False
+        request = self.case.broker.request
+        reads = 0
+
+        async def reserved(method, path, **kwargs):
+            nonlocal reads
+            if path.startswith("/v2/orders/") and method == "GET":
+                reads += 1
+                row = self.case.broker.orders[path.rsplit("/", 1)[1]]
+                self.assertEqual(self.e.operations.status, "qualifying")
+                qty = dec(row["qty"]) * (dec(".5") if reads == 1 else dec(1))
+                self.case.broker.fill_order(row["id"], qty)
+                if reads == 2:
+                    self.case.broker.fill = True
+            result = await request(method, path, **kwargs)
+            if path == "/v2/account":
+                working = [
+                    o
+                    for o in self.case.broker.orders.values()
+                    if o["status"] in ("new", "partially_filled")
+                ]
+                if working:
+                    result["cash"] = str(
+                        dec(result["cash"])
+                        - sum(
+                            (dec(o["qty"]) - dec(o["filled_qty"])) * dec(o["limit_price"])
+                            for o in working
+                        )
+                    )
+            return result
+
+        self.e.kraken.request.side_effect = reserved
+        with patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()):
+            await self.e.qualify_paper("ONE ALPACA PAPER ROUND TRIP")
+        self.assertEqual(self.e.store.get("paper-qualification")["status"], "complete")
+        self.assertFalse(self.e.running or self.e.paper_armed)
+        self.assertEqual(self.e.balance("BTC"), 0)
+
+    async def test_terminal_cash_mismatch_still_blocks_exit_and_labels_halt(self):
+        request = self.case.broker.request
+
+        async def mismatch(method, path, **kwargs):
+            result = await request(method, path, **kwargs)
+            if method == "POST":
+                self.case.broker.cash -= 1
+            return result
+
+        self.e.kraken.request.side_effect = mismatch
+        with (
+            patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()),
+            self.assertRaisesRegex(SafetyError, "cash differs"),
+        ):
+            await self.e.qualify_paper("ONE ALPACA PAPER ROUND TRIP")
+        self.assertEqual(len(self.e.orders()), 1)
+        self.assertTrue(self.e.recovery_required)
+        self.assertIn("qualification interrupted", self.e.last_error)
+        self.assertEqual(self.e.operations.status, "halted")
+
+    async def test_one_explicit_additional_attempt_preserves_failure_and_cannot_repeat(self):
+        self.case.broker.fill = False
+        original_clock = time.monotonic
+        elapsed = 0
+
+        async def advance(_seconds):
+            nonlocal elapsed
+            elapsed += 61
+
+        with (
+            patch("time.monotonic", side_effect=lambda: original_clock() + elapsed),
+            patch("kairos.alpaca_engine.asyncio.sleep", side_effect=advance),
+        ):
+            await self.e.qualify_paper("ONE ALPACA PAPER ROUND TRIP")
+        original = self.e.store.get("paper-qualification")
+        with self.assertRaises(SafetyError):
+            await self.e.qualify_paper("ONE ALPACA PAPER ROUND TRIP")
+        self.case.broker.fill = True
+        with patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()):
+            await self.e.qualify_paper("ONE ADDITIONAL ALPACA PAPER ATTEMPT")
+        latest = self.e.store.get("paper-qualification")
+        self.assertEqual(latest["retry_of"], original["id"])
+        self.assertEqual(self.e.store.get("paper-qualification:" + original["id"]), original)
+        self.assertNotEqual(latest["run_id"], original["run_id"])
+        self.assertEqual(latest["status"], "complete")
+        self.assertEqual(len(self.e.orders()), 3)
+        with self.assertRaises(SafetyError):
+            await self.e.qualify_paper("ONE ADDITIONAL ALPACA PAPER ATTEMPT")
+        self.assertEqual(len(self.e.orders()), 3)
+
     async def test_unfilled_passive_entry_is_canceled_once_without_fallback(self):
         self.case.broker.fill = False
         monotonic = time.monotonic
