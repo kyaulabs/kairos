@@ -66,6 +66,19 @@ test('Review exposes scheduled recovery, session-only uptime and distinct trial 
   assert.match(text('review-blockers'),/structural gate failed: closed_recovery/);
 });
 
+test('Review separates unclassified settlement debits from actual fees and entry permission', () => {
+  const {view,state,text} = fixture();
+  state.fee_settlement = {status:'pending',checked_at:1800000000,deadline:1800172800,debits:{BTC:'4.33E-7',USD:'0.074000458896'}};
+  const before = JSON.stringify(state); view.render(state,true);
+  assert.equal(JSON.stringify(state),before);
+  assert.match(text('review-readiness'), /BTC unclassified debit 4.33E-7/);
+  assert.match(text('review-readiness'), /New entries blocked/);
+  assert.match(text('review-readiness'), /Stop overrides exits/);
+  assert.match(text('review-readiness'), /not confirmed fees/);
+  state.fee_settlement.status = 'settled'; view.render(state,true);
+  assert.match(text('review-readiness'), /qualification still apply/);
+});
+
 test('Review labels native bar readiness without claiming fabricated minute coverage', () => {
   const {view,state,text} = fixture();
   state.settings.strategy = 'htf';
@@ -86,7 +99,7 @@ test('Review distinguishes account-read recovery from market data and preserves 
   state.account_reads = {last_success_at:null,last_failure:{method:'GET',endpoint:'/v2/orders',reason:'timeout',at:1800000000},recovery:{status:'waiting',since:1800000000,attempts:0,max_attempts:3,timeout_seconds:120,duration_seconds:12,next_retry_at:1800000015}};
   const before = JSON.stringify(state); view.render(state,true);
   assert.equal(JSON.stringify(state), before);
-  assert.match(text('review-readiness'), /Last full account reconciliation Unavailable/);
+  assert.match(text('review-readiness'), /Last verified account read Unavailable/);
   assert.match(text('review-readiness'), /GET \/v2\/orders · timeout/);
   assert.match(text('review-readiness'), /0 \/ 3 recovery attempts/);
   assert.match(text('review-readiness'), /Orders and local exits blocked/);

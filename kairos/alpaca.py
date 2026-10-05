@@ -73,6 +73,7 @@ class Alpaca:
         self.market_data = AlpacaData(self)
         self.order_guard = None
         self.recovery_exit_guard = None
+        self.order_filter = None
         diagnostics.register_secrets(key, secret)
 
     async def request(
@@ -118,6 +119,8 @@ class Alpaca:
                 and not (self.recovery_exit_guard and self.recovery_exit_guard(path, payload))
             ):
                 raise ExchangeRejected("Alpaca submission canceled by Stop")
+            if method == "POST" and self.order_filter and not self.order_filter(path, payload):
+                raise ExchangeRejected("Fee settlement pending; entry submission blocked")
             if before_send:
                 before_send()
             started = time.monotonic()
