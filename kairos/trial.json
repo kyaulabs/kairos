@@ -1,0 +1,19 @@
+{
+  "id": "alpaca-btc-multibar-001",
+  "policy": "multibar-v2",
+  "status": "prospective; no results or profitability claim",
+  "duration_days": 14,
+  "activation": "Explicit user Start after paused deployment; never service startup",
+  "market": "Alpaca US BTC/USD hosted paper, spot, native completed 60-minute bars",
+  "inputs": "30 adjacent completed native bars; source history/hash retained; no synthetic bars or cross-venue substitution",
+  "setup": "8/21 close averages, rising slow average, 14-bar ATR. Most recent of the three preceding closed bars with falling close, low touching its own 8-close average, and 0.5–2 current ATR retracement from its preceding 8-bar high. Latest close must recover 0.1 ATR above that pullback close and stay within 0.5 ATR above the current fast average.",
+  "candidate": "Identified by pullback bar timestamp. Born only on a completed bar after Start/recovery baseline. Expires three hours after confirmation or when the rising trend fails; target and price bounds frozen at creation. Start/recovery retires pending candidates. Never extend expiry, resurrect a consumed candidate, or catch up outage-era signals.",
+  "execution": "Deterministic. Fresh quote must satisfy frozen recovery/anti-chase bounds, current spread/risk/fee checks and net target room >= max(10bps, 0.25 ATR). Passive non-crossing GTC entry, no taker fallback; short-lived order intent. Jev has no execution authority and is not called by this policy.",
+  "protection": "Existing independent stop, target, trend reversal, loss, ownership and bounded exits. Entry price stop 300bps, maximum holding seven days, shortened to trial end. No new entries after day 14; existing protection continues until flat. Stop still overrides protection and never implies liquidation.",
+  "risk_ceiling": {"allocation_usd": "500", "order_usd": "25", "exposure_usd": "100", "daily_loss_usd": "12.50", "stale_seconds": 10, "slippage_bps": "10", "max_spread_bps": "30"},
+  "baseline": "Legacy pullback-v1 recorded as an observation-only control on the same inputs. Cash and BTC holding comparisons must disclose exposure and cost differences; not an exposure-matched alpha claim.",
+  "activity_gate": "At least 10 distinct valid candidates and 5 broker-accepted entry attempts over the fixed 14 calendar days, and at least 95% recorded running time outside data/reconciliation waits. Otherwise operational/activity failure or insufficient evidence, not permission to tune or extend the trial.",
+  "economic_gate": "No profitability conclusion without at least 30 completed owned position lineages. Report net marked equity, closed lineage gains/losses, fees (actual versus reserves), remaining inventory, drawdown, exposure and fill/cancel outcomes. If the fixed trial has fewer lineages, economic result is inconclusive. Paper fills are not live execution evidence.",
+  "accounting": "Retain every candidate, rejection, outage, submission and failed attempt, settings/source/protocol identity. No parameter optimization on this run or reuse of previously consumed research holdouts. Any rule change starts a separately registered study; retain this trial even if it fails.",
+  "qualification": "One separately authorized operational passive GTC paper entry <=25 USD including planning fee reserve, canceled after a 60-second fill window if still working, followed by one bounded IOC exit of confirmed owned quantity. Excluded from this strategy trial. No blind write retry, no dust-clearing buy, and no assumption of complete fills or liquidation. Trial Start requires a completed, flat qualification round trip. No fill, residual holdings or unresolved orders block progression and require a separately authorized operator decision; never erase or reset the qualification."
+}

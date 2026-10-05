@@ -49,15 +49,16 @@ def signal(rows, settings, book, maker_fee, taker_fee):
     # A 0.5–2 ATR retracement to the preceding fast mean, then a 0.1 ATR
     # recovery. Do not chase a quote/close more than 0.5 ATR beyond that mean.
     long_target, short_target = max(highs[-9:-1]), min(lows[-9:-1])
-    long_setup = bool(
-        atr > 0
-        and fast > slow > prior_slow
-        and closes[-2] < closes[-3]
-        and lows[-2] <= prior_fast
-        and dec("0.5") * atr <= long_target - lows[-2] <= 2 * atr
-        and min(closes[-1], book.mid) >= closes[-2] + dec("0.1") * atr
-        and max(closes[-1], book.mid) <= fast + dec("0.5") * atr
-    )
+    gates = {
+        "positive_atr": atr > 0,
+        "rising_trend": fast > slow > prior_slow,
+        "prior_close_falling": closes[-2] < closes[-3],
+        "touch_prior_fast": lows[-2] <= prior_fast,
+        "retracement_0_5_to_2_atr": dec("0.5") * atr <= long_target - lows[-2] <= 2 * atr,
+        "recovery_close_and_quote": min(closes[-1], book.mid) >= closes[-2] + dec("0.1") * atr,
+        "no_chase_close_and_quote": max(closes[-1], book.mid) <= fast + dec("0.5") * atr,
+    }
+    long_setup = all(gates.values())
     short_setup = bool(
         atr > 0
         and fast < slow < prior_slow
@@ -74,6 +75,15 @@ def signal(rows, settings, book, maker_fee, taker_fee):
     buffer = max(dec(10), atr / book.mid * BPS * dec("0.25"))
     view.update(
         entry_policy=POLICY,
+        structural_gates=gates,
+        execution_gates={"net_room": long_room >= buffer},
+        gate_values={
+            "prior_fast": str(prior_fast),
+            "pullback_low": str(lows[-2]),
+            "retracement": str(long_target - lows[-2]),
+            "recovery_floor": str(closes[-2] + dec(".1") * atr),
+            "chase_ceiling": str(fast + dec(".5") * atr),
+        },
         entry_execution="post-only",
         entry_eligible=long_setup and long_room >= buffer,
         short_entry_eligible=short_setup and short_room >= buffer and settings["product"] != "spot",

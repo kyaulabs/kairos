@@ -47,6 +47,15 @@ test('scalping exposes paper rules without editing the saved HTF interval or req
   assert.match(inputs.recover_initial.error, /capital recovery/);
 });
 
+test('multi-bar HTF hides unused model confidence without changing the saved value', () => {
+  const {inputs,view,values} = fixture();
+  inputs.htf_policy.value = 'multibar-v2'; view.update();
+  assert.equal(inputs.min_confidence.disabled,true);
+  assert.equal(values().min_confidence,defaults.min_confidence);
+  inputs.htf_policy.value = 'pullback-v1'; view.update();
+  assert.equal(inputs.min_confidence.disabled,false);
+});
+
 test('market capabilities prevent equity HTF drafts but permit whole-share scheduled strategies', () => {
   const {inputs, view} = fixture();
   inputs.pair.value = 'alpaca:AAPL';

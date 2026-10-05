@@ -48,6 +48,24 @@ test('Review preserves real zero, missing diagnostics, disconnected state and re
   assert.equal(text('review-blockers'), '');
 });
 
+test('Review exposes scheduled recovery, session-only uptime and distinct trial candidates without actions', () => {
+  const {view,state,text} = fixture();
+  state.settings.htf_policy = 'multibar-v2';
+  state.operations = {status:'retry-wait',since:1800000000,last_evaluation_at:null,session_seconds:{running:20,'waiting-data':5},notifications:{configured:false,status:'disabled'}};
+  state.scheduled_recovery = {status:'waiting',attempts:0,max_attempts:5,next_at:1800000300,reason:'source inactive'};
+  state.decision_summary = {distinct_windows:3,distinct_candidates:1,assessments:100};
+  state.decision = {state:{structural_gates:{closed_recovery:false}}};
+  state.paper_qualification = {status:'complete'};
+  const before = JSON.stringify(state); view.render(state,true);
+  assert.equal(JSON.stringify(state),before);
+  assert.match(text('review-readiness'),/waiting · 0\/5/);
+  assert.match(text('review-readiness'),/running · service-session seconds 20/);
+  assert.match(text('review-readiness'),/Discord alerts disabled/);
+  assert.match(text('review-funnel'),/windows \/ v2 candidates 3 \/ 1/);
+  assert.match(text('review-funnel'),/Economics inconclusive below 30/);
+  assert.match(text('review-blockers'),/structural gate failed: closed_recovery/);
+});
+
 test('Review labels native bar readiness without claiming fabricated minute coverage', () => {
   const {view,state,text} = fixture();
   state.settings.strategy = 'htf';
