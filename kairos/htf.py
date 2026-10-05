@@ -191,8 +191,16 @@ def entry_context(engine, pair, view, book):
     ):
         allowed.append(exit_side)
     if getattr(engine, "fee_settlement_pending", False):
-        blockers.append("actual fee settlement pending; deterministic exits only")
-        allowed, pending, ready = ["hold"], None, False
+        from kairos import settlement
+
+        try:
+            cash = settlement.entry_budget(engine, book.asks[0][0])
+            if cash <= 0:
+                raise SafetyError("Pending fee allowances reserve the remaining cash")
+        except SafetyError as exc:
+            blockers.append(str(exc))
+            allowed = [action for action in allowed if action != "buy"]
+            pending, ready = None, False
     return {
         "entry_signal": side,
         "previous_entry_signal": previous,
@@ -312,10 +320,6 @@ async def run(engine):
     state = snapshot(engine)
     position = state["position"]
     held = quantity(engine, pair)
-    if not held and getattr(engine, "fee_settlement_pending", False):
-        engine.htf_review.cancel()
-        report(engine, pair, "hold", "Actual fee settlement pending; new entries blocked", {})
-        return
     client = engine.futures.client if settings["product"] == "futures" else engine.kraken
     book = await client.book(pair)
     book.fresh(settings["stale_seconds"])
@@ -380,9 +384,7 @@ async def run(engine):
         side = context["entry_signal"]
         previous_signal = context["previous_entry_signal"]
         state["pending_signal"] = context["pending_signal"]
-        if settings.get("htf_policy") == "multibar-v2" and not getattr(
-            engine, "fee_settlement_pending", False
-        ):
+        if settings.get("htf_policy") == "multibar-v2":
             old = state.get("candidate")
             candidate = view.get("candidate")
             if old and (not candidate or old["id"] != candidate["id"]):
@@ -559,7 +561,12 @@ async def run(engine):
         divisor += target / dec(engine.equity) * loss_rate
     budget = min(cap, available / divisor)
     if settings["product"] == "spot":
-        budget = min(budget, engine.balance(pair.quote) / (1 + fee / BPS))
+        cash = engine.balance(pair.quote)
+        if getattr(engine, "fee_settlement_pending", False):
+            from kairos import settlement
+
+            cash = min(cash, settlement.entry_budget(engine, book.asks[0][0]))
+        budget = min(budget, cash / (1 + fee / BPS))
     elif settings["product"] == "futures":
         values, exposure = await engine.futures.valuation(True)
         im, _ = engine.futures.margin_rates(pair, exposure + budget)

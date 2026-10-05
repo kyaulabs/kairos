@@ -88,7 +88,7 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
             await recover(self.e, self.q["id"], CONFIRMATION)
         await self.e.initialize()
         self.assertTrue(self.e.recovery_required)
-        self.assertIn("settlement pending", self.e.last_error)
+        self.assertIn("Automatic account verification pending", self.e.last_error)
         await self.e.reconcile()
         self.assertTrue(self.e.fee_settlement_pending)
         self.assertTrue(self.e.recovery_required)

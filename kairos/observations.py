@@ -38,9 +38,7 @@ class Observations:
             },
         )
         cutoff = e.htf_review.window_end(e.clock())
-        if e.running and not (
-            e.market_wait or e.account_wait or e.long_retry or e.fee_settlement_pending
-        ):
+        if e.running and not (e.market_wait or e.account_wait or e.long_retry):
             return  # Normal HTF observations already retain active-strategy input history.
         if self.window == (e.settings_id(), cutoff):
             return

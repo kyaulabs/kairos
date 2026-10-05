@@ -45,8 +45,8 @@ class Operations:
             self.engine.recovery_required = True
             raise
         if self.alerts and (
-            status in {"halted", "retry-wait", "waiting-fees"}
-            or old in {"retry-wait", "waiting-fees"}
+            status in {"halted", "retry-wait", "settling-fees"}
+            or old in {"retry-wait", "settling-fees"}
         ):
             self.alerts.send(status)
 

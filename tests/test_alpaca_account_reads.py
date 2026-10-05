@@ -277,23 +277,37 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.reconcile_account()
         htf.prepare(self.engine)
         position = copy.deepcopy(htf.snapshot(self.engine)["position"])
-        self.case.broker.cash -= dec(".1")
+        self.case.broker.holdings["BTC/USD"] -= dec(".0001")
         self.case.broker.activities.append(
-            {"id": "one-fee", "activity_type": "FEE", "status": "executed", "net_amount": "-.1"}
+            {
+                "id": "one-fee",
+                "activity_type": "CFEE",
+                "status": "executed",
+                "symbol": "BTCUSD",
+                "qty": "-.0001",
+                "net_amount": "0",
+            }
         )
         self.case.broker.calls.clear()
         self.fail_read("/v2/positions")
         await self.engine.tick()
         # No accounting mutation before both matching read passes finish.
-        self.assertEqual(dec(self.engine.ledger()["fees"]["USD"]), 0)
+        self.assertEqual(dec(self.engine.ledger()["fees"].get("BTC", 0)), 0)
         self.restore()
         self.due()
         await self.engine.tick()
+        self.assertIsNone(self.engine.account_wait)
+        self.assertTrue(self.engine.running)
+        self.assertFalse(self.engine.recovery_required)
         after_fee = copy.deepcopy(self.engine.ledger())
-        self.assertEqual(dec(after_fee["fees"]["USD"]), dec(".1"))
+        self.assertEqual(dec(after_fee["fees"]["BTC"]), dec(".0001"))
         await self.engine.reconcile_account()
         self.assertEqual(self.engine.ledger(), after_fee)
+        position["inventory_adjustment"] = str(
+            dec(position.get("inventory_adjustment", 0)) - dec(".0001")
+        )
         self.assertEqual(htf.snapshot(self.engine)["position"], position)
+        self.assertEqual(htf.owned(self.engine, position), self.engine.balance("BTC"))
         self.assertEqual(len(self.engine.orders()), 1)
         self.assert_no_writes()
 
