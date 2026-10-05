@@ -198,7 +198,7 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(self.e.ledger(), ledger)
                 self.assertEqual(self.e.store.get(settlement.KEY), state)
 
-    async def test_restart_expiry_and_closed_epoch_cannot_grant_new_permission(self):
+    async def test_restart_and_overdue_records_warn_without_granting_permission(self):
         await self.round_trip()
         state = self.e.store.get(settlement.KEY)
         await self.e.initialize()
@@ -207,8 +207,23 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         await self.e.reconcile_account()
         self.assertEqual(self.e.store.get(settlement.KEY)["reserves"], state["reserves"])
         self.e.clock = lambda: state["deadline"] + 1
-        with self.assertRaisesRegex(SafetyError, "48 hours"):
-            await self.e.reconcile_account()
+        self.b.calls.clear()
+        await self.e.tick()
+        overdue = self.e.store.get(settlement.KEY)
+        self.assertTrue(overdue["overdue"])
+        self.assertEqual(overdue["deadline"], state["deadline"])
+        self.assertEqual(overdue["reserves"], state["reserves"])
+        self.assertGreater(settlement.entry_budget(self.e, dec(100)), 25)
+        self.assertEqual(self.e.ledger()["fees"], {"USD": "0"})
+        self.assertFalse(self.e.running or self.e.paper_armed or self.e.recovery_required)
+        self.assertTrue(all(method == "GET" for method, _, _ in self.b.calls))
+        await self.e.reconcile_account()
+        reminders = [
+            row
+            for row in self.e.store.history()
+            if row["kind"] == "fee-settlement" and "overdue" in row["data"].get("message", "")
+        ]
+        self.assertEqual(len(reminders), 1)
         self.b.activities.extend(self.fees)
         await self.e.reconcile()  # Actual records, not a timeout reset, settle the epoch.
         self.b.cash -= dec(".001")
@@ -216,65 +231,67 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
             await self.e.reconcile_account()
         self.assertEqual(len(self.e.orders()), 2)
 
-    async def test_post_fix_authorization_is_bound_once_to_settled_historical_recovery(self):
+    async def test_post_fix_authorization_is_bound_once_with_pending_or_settled_recovery(self):
+        from kairos.multibar import PROTOCOL_HASH
         from kairos.qualification_exit import CONFIRMATION, recover
         from tests.test_qualification_exit import RecoveryTests
 
-        old = RecoveryTests()
-        await old.asyncSetUp()
-        self.addAsyncCleanup(old.case.asyncTearDown)
-        e, b = old.e, old.broker
-        await recover(e, old.q["id"], CONFIRMATION)
-        await e.reconcile()
-        with self.assertRaises(SafetyError):
-            await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
-        self.assertIsNone(e.store.get("paper-qualification-recheck"))
-        b.cash -= dec(".01")
-        b.activities.extend(
-            [
-                {
-                    "id": "old-base-fee",
-                    "activity_type": "CFEE",
-                    "symbol": "BTCUSD",
-                    "qty": str(-old.debit),
-                    "net_amount": "0",
-                    "status": "executed",
-                },
-                {
-                    "id": "old-sell-fee",
-                    "activity_type": "FEE",
-                    "net_amount": "-.01",
-                    "status": "executed",
-                },
-            ]
-        )
-        await e.reconcile()
-        archived = copy.deepcopy(e.store.get("paper-qualification:" + old.q["id"]))
-        with self.assertRaises(SafetyError):
-            await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", "wrong-id")
-        e.kraken.request.side_effect = old.request
-        b.charge_crypto_fees = True
-        with patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()):
-            await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
-        new = e.store.get("paper-qualification")
-        self.assertEqual(new["after_recovery_of"], old.q["id"])
-        self.assertNotEqual(new["run_id"], old.q["run_id"])
-        self.assertEqual(new["entry_filled"], e.orders()[-2]["filled"])
-        self.assertEqual(e.store.get("paper-qualification:" + old.q["id"]), archived)
-        self.assertEqual(new["status"], "execution complete; fee settlement pending")
-        self.assertEqual(len(e.orders()), 5)
-        with self.assertRaises(SafetyError):
-            await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
-        self.assertEqual(len(e.orders()), 5)
+        for posted in (False, True):
+            with self.subTest(posted=posted):
+                old = RecoveryTests()
+                await old.asyncSetUp()
+                self.addAsyncCleanup(old.case.asyncTearDown)
+                e, b = old.e, old.broker
+                await recover(e, old.q["id"], CONFIRMATION)
+                b.cash -= dec(".04")
+                if posted:
+                    b.activities.extend(
+                        [
+                            {
+                                "id": "old-base-fee",
+                                "activity_type": "CFEE",
+                                "symbol": "BTCUSD",
+                                "qty": str(-old.debit),
+                                "net_amount": "0",
+                                "status": "executed",
+                            },
+                            {
+                                "id": "old-sell-fee",
+                                "activity_type": "FEE",
+                                "net_amount": "-.04",
+                                "status": "executed",
+                            },
+                        ]
+                    )
+                await e.reconcile()
+                self.assertEqual(e.fee_settlement_pending, not posted)
+                self.assertFalse(e.recovery_required)
+                archived = copy.deepcopy(e.store.get("paper-qualification:" + old.q["id"]))
+                recovery = copy.deepcopy(e.store.get("paper-qualification-exit"))
+                with self.assertRaises(SafetyError):
+                    await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", "wrong-id")
+                self.assertIsNone(e.store.get("paper-qualification-recheck"))
+                e.kraken.request.side_effect = old.request
+                b.charge_crypto_fees = True
+                with patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()):
+                    await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
+                new = e.store.get("paper-qualification")
+                self.assertEqual(new["after_recovery_of"], old.q["id"])
+                self.assertEqual(new["fees_pending_before"], not posted)
+                self.assertNotEqual(new["run_id"], old.q["run_id"])
+                self.assertEqual(new["entry_filled"], e.orders()[-2]["filled"])
+                self.assertEqual(e.store.get("paper-qualification:" + old.q["id"]), archived)
+                self.assertEqual(e.store.get("paper-qualification-exit"), recovery)
+                self.assertEqual(new["status"], "execution complete; fee settlement pending")
+                self.assertTrue(e.qualification_execution_complete)
+                self.assertFalse(e.running or e.paper_armed or e.recovery_required)
+                self.assertIsNone(e.store.get("multibar-trial:" + PROTOCOL_HASH))
+                self.assertEqual(len(e.orders()), 5)
+                with self.assertRaises(SafetyError):
+                    await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
+                self.assertEqual(len(e.orders()), 5)
 
-    async def test_legacy_complete_marker_cannot_start_trial_before_actual_fees_settle(self):
-        from kairos.multibar import PROTOCOL_HASH
-
-        await self.round_trip()
-        q = self.e.store.get("paper-qualification")
-        q["status"] = "complete"  # A pre-fix completion marker is not enough.
-        self.e.store.put("paper-qualification", q)
-        await self.e.reconcile()
+    async def select_multibar(self):
         await self.e.configure(
             {
                 **self.e.settings,
@@ -286,10 +303,39 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
                 "recover_initial": False,
             }
         )
-        with self.assertRaisesRegex(SafetyError, "fees must settle"):
-            await self.e.start(confirmation="START ALPACA PAPER")
+
+    async def test_completed_execution_permits_only_explicit_start_with_unposted_fees(self):
+        from kairos.multibar import PROTOCOL_HASH
+
+        await self.round_trip()
+        q = self.e.store.get("paper-qualification")
+        await self.e.tick()
+        await self.select_multibar()
         self.assertIsNone(self.e.store.get("multibar-trial:" + PROTOCOL_HASH))
-        self.assertFalse(self.e.running or self.e.paper_armed)
+        self.assertFalse(self.e.running or self.e.paper_armed or self.e.recovery_required)
+        self.assertIsNone(self.e.start_block_reason)
+        for status, complete in (
+            ("manual exit recovery; normal qualification incomplete", True),
+            ("residual retained", True),
+            ("no entry fill; round trip untested", False),
+            ("execution complete; fee settlement pending", False),
+        ):
+            self.e.store.put(
+                "paper-qualification", {**q, "status": status, "execution_complete": complete}
+            )
+            with self.assertRaisesRegex(SafetyError, "separately authorized"):
+                await self.e.start(confirmation="START ALPACA PAPER")
+            self.assertIsNone(self.e.store.get("multibar-trial:" + PROTOCOL_HASH))
+        self.e.store.put("paper-qualification", q)
+        with self.assertRaisesRegex(SafetyError, "Explicit START"):
+            await self.e.start()
+        await self.e.start(confirmation="START ALPACA PAPER")
+        self.assertTrue(self.e.running and self.e.paper_armed)
+        self.assertTrue(self.e.fee_settlement_pending)
+        self.assertEqual(self.e.store.get("paper-qualification"), q)
+        self.assertIsNotNone(self.e.store.get("multibar-trial:" + PROTOCOL_HASH))
+        self.assertEqual(len(self.e.orders()), 2)
+        await self.e.stop()
 
     async def test_fee_arrival_between_reads_requires_two_new_matching_snapshots(self):
         await self.round_trip()
@@ -367,7 +413,7 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         await self.round_trip()
         initial = copy.deepcopy(self.e.store.get(settlement.KEY))
         original_fees = list(self.fees)
-        self.e.clock = lambda: initial["since"] + 86400
+        self.e.clock = lambda: initial["since"] + 3 * 86400
         await self.another_round_trip()
         self.assertEqual(len(self.e.orders()), 4)
         self.assertEqual(self.e.store.get(settlement.KEY)["deadline"], initial["deadline"])
@@ -385,6 +431,12 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         await self.e.tick()
         self.assertFalse(self.e.fee_settlement_pending)
         self.assertEqual(self.e.ledger()["balances"], balances)
+        qualification = self.e.store.get("paper-qualification")
+        self.assertNotEqual(qualification["cash_after"], str(self.e.balance("USD")))
+        self.assertEqual(qualification["posted_fees_after"], {"USD": "0"})
+        self.assertEqual(
+            qualification["account_posted_fees_at_settlement"], self.e.ledger()["fees"]
+        )
         self.assertFalse(self.e.running or self.e.paper_armed)
         ledger = self.e.ledger()
         self.e.next_account_check = 0
@@ -454,45 +506,41 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         await self.e.tick()
         self.assertEqual(len(self.b.calls), count)
 
-    async def test_verified_qualification_fee_wait_is_not_a_halt_or_restart_permission(self):
+    async def test_verified_unposted_fees_clear_legacy_latch_without_writes_or_resume(self):
         await self.round_trip()
+        self.e.recovery_required = True
+        self.e.last_error = (
+            "Actual crypto fee records pending; new entries blocked; engine remains paused"
+        )
         self.b.calls.clear()
         await self.e.tick()
         state = self.e.snapshot()
-        self.assertEqual(state["operations"]["status"], "waiting-fees")
-        self.assertIn("Automatic checks are active", state["start_block_reason"])
-        self.assertTrue(state["recovery_required"])
-        with self.assertRaisesRegex(SafetyError, "Restart cannot resolve missing fee records"):
-            await self.e.start(restart=True, confirmation="RESTART ALPACA PAPER")
+        self.assertEqual(state["operations"]["status"], "paused")
+        self.assertIsNone(state["start_block_reason"])
+        self.assertIsNone(self.e.last_error)
+        self.assertFalse(state["recovery_required"])
         self.assertFalse(self.e.running or self.e.paper_armed)
         self.assertTrue(all(method == "GET" for method, _, _ in self.b.calls))
-        self.b.activities.extend(self.fees)
-        self.e.next_account_check = 0
-        await self.e.tick()
-        self.assertIsNone(self.e.snapshot()["start_block_reason"])
-        self.assertEqual(self.e.operations.status, "paused")
-        self.assertFalse(self.e.running or self.e.paper_armed or self.e.recovery_required)
+        self.assertTrue(self.e.fee_settlement_pending)
 
-    async def test_fee_wait_cannot_hide_mismatch_loss_expiry_or_uncertain_orders(self):
+    async def test_unposted_fees_cannot_hide_mismatch_loss_or_uncertain_orders(self):
         await self.round_trip()
         await self.e.tick()
         for error in ("Daily marked-to-market loss limit reached", "Audit/storage failure"):
             self.e.last_error = error
             self.e.update_operating_state()
             self.assertEqual(self.e.operations.status, "halted")
-            self.assertIsNone(self.e.qualification_fee_wait_reason)
+            self.assertIsNone(self.e.start_block_reason)
         self.e.last_error = None
-        self.e.account_check_status["status"] = "blocked"
-        self.e.update_operating_state()
+        self.b.cash -= dec(1)
+        self.e.next_account_check = 0
+        await self.e.tick()
         self.assertEqual(self.e.operations.status, "halted")
-        self.e.account_check_status["status"] = "fees pending"
-        state = self.e.store.get(settlement.KEY)
-        state["deadline"] = self.e.clock() - 1
-        self.e.store.put(settlement.KEY, state)
-        self.e.update_operating_state()
-        self.assertEqual(self.e.operations.status, "halted")
-        state["deadline"] = self.e.clock() + 60
-        self.e.store.put(settlement.KEY, state)
+        self.assertTrue(self.e.recovery_required)
+        self.b.cash += dec(1)
+        self.e.next_account_check = 0
+        await self.e.tick()
+        self.assertEqual(self.e.operations.status, "paused")
         order = self.e.orders()[-1]
         order["status"] = "uncertain"
         self.e.store.save_order(order)
@@ -507,13 +555,18 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         )
         self.e.store.put("paper-qualification", q)
         self.e.store.put(
-            "paper-qualification-exit", {"status": "exit attempted; reconciliation pending"}
+            "paper-qualification-exit",
+            {"status": "exit attempted; reconciliation pending", "qualification_id": q["id"]},
         )
         await self.e.tick()
-        self.assertEqual(self.e.operations.status, "waiting-fees")
+        await self.select_multibar()
+        self.assertEqual(self.e.operations.status, "paused")
         self.assertIn(
-            "post-fix qualification is still required", self.e.snapshot()["start_block_reason"]
+            "separately authorized paper round trip", self.e.snapshot()["start_block_reason"]
         )
+        self.assertIn("do not block qualification", self.e.snapshot()["start_block_reason"])
+        with self.assertRaisesRegex(SafetyError, "separately authorized"):
+            await self.e.start(confirmation="START ALPACA PAPER")
         self.assertEqual(self.e.store.get("paper-qualification"), q)
         self.assertIsNone(self.e.store.get("paper-qualification-recheck"))
         self.assertFalse(self.e.running or self.e.paper_armed)

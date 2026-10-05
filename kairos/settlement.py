@@ -12,7 +12,7 @@ from kairos.domain import SafetyError, dec
 
 KEY = "alpaca-settlement"
 CENT = dec(".01")
-MAX_WAIT = 48 * 3600
+REVIEW_AFTER = 48 * 3600
 
 
 def supported(engine):
@@ -52,8 +52,6 @@ def entry_budget(engine, price):
     state = engine.store.get(KEY) or {}
     if state.get("status") != "pending":
         return engine.balance("USD")
-    if engine.clock() > state["deadline"]:
-        raise SafetyError("Crypto fee settlement exceeded 48 hours; investigation required")
     reserve = reserve_usd(engine, price)
     outstanding = (
         reserve
@@ -321,7 +319,7 @@ async def reconcile(e, identity):
                 for o in orders
                 if dec(o["filled"]) > dec(checkpoint.get(o["id"], [0, 0])[0])
             )
-            + MAX_WAIT,
+            + REVIEW_AFTER,
             "debits": {},
             "reserves": {},
             "periods": {},
@@ -520,8 +518,6 @@ async def reconcile(e, identity):
             allowance += rounding_limit
         if value < 0 or value > allowance:
             raise SafetyError("Alpaca balance difference exceeds fill-linked settlement bounds")
-    if (not fees_seen or any(debits.values())) and e.clock() > state["deadline"]:
-        raise SafetyError("Crypto fee settlement exceeded 48 hours; investigation required")
     position_state = htf.snapshot(e)
     position = position_state.get("position")
     adjustment = old_debits["BTC"] - debits["BTC"]
@@ -543,8 +539,12 @@ async def reconcile(e, identity):
     ledger["broker_rounding"] = str(dec(ledger.get("broker_rounding", 0)) + cash_rounding)
     settled = fees_seen and not any(debits.values())
     before_status = state["status"]
+    before_overdue = state.get("overdue", False)
     state.update(
         status="settled" if settled else "pending",
+        # Retain the original deadline as an investigation reminder, not proof
+        # that the paper broker will ever publish an activity for this debit.
+        overdue=not settled and e.clock() > state["deadline"],
         cash_rounding_bound=str(rounding_limit),
         posted_fees=dict(ledger["fees"]),
         unposted_reserve={}
@@ -588,6 +588,11 @@ async def reconcile(e, identity):
                 **state,
             },
         )
+    if state["overdue"] and not before_overdue:
+        message = "Paper fee records overdue; unclassified debits and bounded reserves retained"
+        e.event("fee-settlement", {"message": message, **state})
+        if e.operations.alerts:
+            e.operations.alerts.send(message)
     # Routine fee publication does not stop trading or retire otherwise valid signals.
     e.account_read_status["last_success_at"] = e.clock()
     return account
