@@ -158,42 +158,28 @@ class AlpacaEngine(Engine):
         self.emit_state()
 
     @property
-    def qualification_fee_wait_reason(self):
-        fees = self.store.get(settlement.KEY) or {}
+    def qualification_execution_complete(self):
+        q = self.store.get("paper-qualification") or {}
+        return q.get("status") == "complete" or bool(
+            q.get("execution_complete")
+            and q.get("status") == "execution complete; fee settlement pending"
+        )
+
+    @property
+    def start_block_reason(self):
         if (
-            self.running
-            or not self.recovery_required
-            or self.account_check_status.get("status") != "fees pending"
-            or fees.get("status") != "pending"
-            or self.clock() > fees.get("deadline", 0)
-            or not self.is_flat()
-            or self.orders(active=True)
-            or self.store.get("cycle")
-            or self.last_error
-            not in {
-                None,
-                "Actual crypto fee records pending; new entries blocked; engine remains paused",
-                "Automatic account verification pending; trading remains paused",
-            }
+            not self.running
+            and not self.last_error
+            and not self.recovery_required
+            and self.settings["strategy"] == "htf"
+            and self.settings["htf_policy"] == "multibar-v2"
+            and not self.qualification_execution_complete
         ):
-            return None
-        qualification = self.store.get("paper-qualification") or {}
-        recovery = self.store.get("paper-qualification-exit") or {}
-        normal = (
-            qualification.get("execution_complete")
-            and qualification.get("status") == "execution complete; fee settlement pending"
-        )
-        if not normal and (not recovery or recovery.get("status") == "settled"):
-            return None
-        return (
-            "Waiting for Alpaca to post qualification fees. Automatic checks are active; "
-            "Restart cannot resolve missing fee records. "
-            + (
-                "Start remains gated until those fees settle."
-                if normal
-                else "After settlement, the separately authorized post-fix qualification is still required before trial Start."
+            return (
+                "Complete the separately authorized paper round trip before trial Start. "
+                "Pending fees are tracked separately and do not block qualification."
             )
-        )
+        return None
 
     def snapshot(self):
         return {
@@ -209,7 +195,7 @@ class AlpacaEngine(Engine):
             "paper_qualification_recovery": self.store.get("paper-qualification-exit"),
             "fee_settlement": self.store.get(settlement.KEY),
             "automatic_account_checks": self.account_check_status,
-            "start_block_reason": self.qualification_fee_wait_reason,
+            "start_block_reason": self.start_block_reason,
             "pending_fee_allowance_usd": self.pending_fee_allowance_usd,
             "diagnostic_observation": self.observations.latest,
             "account_reads": {
@@ -250,7 +236,8 @@ class AlpacaEngine(Engine):
                     or self.store.get("paper-qualification-recheck")
                     or len(orders) != 3
                     or recovery.get("qualification_id") != previous_id
-                    or recovery.get("status") != "settled"
+                    or recovery.get("status")
+                    not in {"settled", "exit attempted; reconciliation pending"}
                     or recovery.get("order_status") != "closed"
                     or dec(recovery.get("filled", 0)) <= 0
                     or orders[-1]["id"] != recovery.get("order_id")
@@ -264,7 +251,7 @@ class AlpacaEngine(Engine):
                     or dec(orders[0]["filled"]) != 0
                 ):
                     raise SafetyError(
-                        "One post-fix qualification requires the settled retained recovery and its exact prior ID"
+                        "One post-fix qualification requires the confirmed retained recovery and its exact prior ID"
                     )
             elif additional:
                 permitted = bool(
@@ -300,8 +287,6 @@ class AlpacaEngine(Engine):
                     "Qualification requires a paused, reconciled, unused flat BTC paper run with legacy policy"
                 )
             await self.reconcile_account()
-            if self.fee_settlement_pending:
-                raise SafetyError("Existing actual fees must settle before a new qualification")
             await self.refresh_fees()
             await self.valuation(True)
             if self.stop_generation != generation or self.shutting_down:
@@ -310,7 +295,7 @@ class AlpacaEngine(Engine):
             book = await self.kraken.book(pair)
             book.fresh(self.settings["stale_seconds"])
             price = pair.price(book.bids[0][0], "buy")
-            budget = min(dec(25), self.limits()[0], self.balance("USD"))
+            budget = min(dec(25), self.limits()[0], settlement.entry_budget(self, book.asks[0][0]))
             volume = floor(budget / (price * (1 + self.fees.reserve(pair) / 10000)), pair.lot)
             if volume < 2 * htf.minimum_volume(pair, price):
                 raise SafetyError(
@@ -326,6 +311,7 @@ class AlpacaEngine(Engine):
                 "cash_before": str(self.balance("USD")),
                 "posted_fees_before": dict(before["fees"]),
                 "budget": str(budget),
+                "fees_pending_before": self.fee_settlement_pending,
                 "market_rules": {
                     k: str(getattr(pair, k)) for k in ("tick", "lot", "minimum", "cost_minimum")
                 },
@@ -445,9 +431,7 @@ class AlpacaEngine(Engine):
                 self.execution_purpose = None
                 self.running, self.paper_armed = False, False
                 self.recovery_required = (
-                    self.recovery_required
-                    or bool(self.orders(active=True))
-                    or self.fee_settlement_pending
+                    self.recovery_required or bool(self.orders(active=True)) or not self.is_flat()
                 )
                 self.store.put("paper-qualification", record)
                 self.event(
@@ -558,10 +542,8 @@ class AlpacaEngine(Engine):
     def update_operating_state(self):
         status = (
             (
-                "waiting-fees"
-                if self.qualification_fee_wait_reason
-                else "halted"
-                if self.last_error or self.recovery_required
+                "halted"
+                if self.last_error or self.recovery_required or self.orders(active=True)
                 else "paused"
             )
             if not self.running
@@ -679,11 +661,9 @@ class AlpacaEngine(Engine):
         if self.settings["strategy"] == "htf" and self.settings["htf_policy"] == "multibar-v2":
             from kairos.multibar import PROTOCOL_HASH
 
-            qualification = self.store.get("paper-qualification") or {}
-            if qualification.get("status") != "complete":
+            if not self.qualification_execution_complete:
                 raise SafetyError(
-                    self.qualification_fee_wait_reason
-                    or "Complete the separately authorized paper round trip before trial Start"
+                    "Complete the separately authorized paper round trip before trial Start"
                 )
 
             trial = self.store.get("multibar-trial:" + PROTOCOL_HASH) or {}
@@ -708,17 +688,9 @@ class AlpacaEngine(Engine):
         async with self.lock:
             self.validate_capabilities(self.settings)
             await self.reconcile_account(adopt=True)
-            if (
-                self.settings["strategy"] == "htf"
-                and self.settings["htf_policy"] == "multibar-v2"
-                and self.fee_settlement_pending
-                and not self.store.get("multibar-trial:" + PROTOCOL_HASH)
-            ):
-                raise SafetyError("Actual qualification fees must settle before first trial Start")
             if self.recovery_required:
                 raise SafetyError(
-                    self.qualification_fee_wait_reason
-                    or "Automatic account verification unresolved; inspect Review before Start"
+                    "Automatic account verification unresolved; inspect Review before Start"
                 )
             if self.stop_generation != generation:
                 raise SafetyError("Start canceled by Stop")
@@ -783,8 +755,6 @@ class AlpacaEngine(Engine):
                 if (
                     q.get("status") == "interrupted; manual reconciliation required"
                     and not self.is_flat()
-                    or q.get("execution_complete")
-                    and self.fee_settlement_pending
                 ):
                     self.recovery_required = True
                 if not self.recovery_required and (
@@ -848,42 +818,42 @@ class AlpacaEngine(Engine):
                 self.paper_armed = False
 
     def finish_fee_settlement(self):
-        if self.is_flat() and not self.fee_settlement_pending:
+        if self.is_flat() and not self.orders(active=True):
             state = htf.snapshot(self)
             if not htf.owned(self, state.get("position")):
                 state["position"] = None
                 self.store.put(htf.key(self), state)
-            q = self.store.get("paper-qualification") or {}
-            if (
-                q.get("execution_complete")
-                and q.get("status") == "execution complete; fee settlement pending"
-            ):
-                q.update(
-                    status="complete",
-                    settled_at=self.clock(),
-                    cash_after=str(self.balance("USD")),
-                    posted_fees_after=dict(self.ledger()["fees"]),
-                )
-                self.store.put("paper-qualification", q)
-                self.event(
-                    "qualification",
-                    {
-                        "message": "Normal round trip and actual fee settlement complete; still paused",
-                        **q,
-                    },
-                )
+        q = self.store.get("paper-qualification") or {}
+        if (
+            not self.fee_settlement_pending
+            and q.get("execution_complete")
+            and q.get("status") == "execution complete; fee settlement pending"
+        ):
+            q.update(
+                status="complete",
+                settled_at=self.clock(),
+                account_posted_fees_at_settlement=dict(self.ledger()["fees"]),
+            )
+            self.store.put("paper-qualification", q)
+            self.event(
+                "qualification",
+                {
+                    "message": "Normal round trip fee accounting settled; execution permission unchanged",
+                    **q,
+                },
+            )
         recovery = self.store.get("paper-qualification-exit")
         if recovery and recovery["status"] != "settled":
             if self.is_flat() and not self.orders(active=True) and not self.fee_settlement_pending:
                 recovery.update(status="settled", settled_at=self.clock())
                 self.store.put("paper-qualification-exit", recovery)
                 self.event("qualification-recovery", recovery)
-            else:
+            elif q.get("id") == recovery.get("qualification_id") and (
+                not self.is_flat() or self.orders(active=True)
+            ):
                 self.recovery_required = True
                 self.last_error = (
-                    "Actual crypto fee records pending; new entries blocked; engine remains paused"
-                    if self.fee_settlement_pending
-                    else "Qualification recovery retains holdings; review before another authorization"
+                    "Qualification recovery retains holdings; review before another authorization"
                 )
 
     def account_recovery_snapshot(self):

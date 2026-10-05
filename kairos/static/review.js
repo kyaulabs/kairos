@@ -42,9 +42,10 @@ class StrategyReview {
     }
     if (state.fee_settlement) {
       const fee = state.fee_settlement;
-      readiness.push(['Crypto fee settlement', fee.status], ['Settlement evidence checked', t(fee.checked_at)], ['Settlement deadline', t(fee.deadline)]);
+      readiness.push(['Crypto fee settlement', fee.status], ['Settlement evidence checked', t(fee.checked_at)], ['Fee investigation reminder', t(fee.deadline)]);
+      if (fee.overdue) readiness.push(['Overdue fee records', 'Investigate missing paper activities. Age alone does not halt execution; unclassified debits, reserves and risk limits remain.']);
       for (const [asset, amount] of Object.entries(fee.debits || {})) readiness.push([`${asset} unclassified debit`, String(amount)]);
-      readiness.push(['Settlement permission', fee.status === 'pending' ? 'Normal entry and owned-exit gates apply, with conservative pending-fee reserves. No permission while paused; Stop overrides exits.' : 'No settlement block; normal checks and qualification still apply.']);
+      readiness.push(['Settlement permission', fee.status === 'pending' ? 'Missing activities alone do not block qualification or explicit trial Start. Normal entry and owned-exit gates apply, with conservative pending-fee reserves. No permission while paused; Stop overrides exits.' : 'No settlement block; normal checks and qualification still apply.']);
       for (const [asset, amount] of Object.entries(fee.unposted_reserve || {})) readiness.push([`${asset} additional fee allowance`, String(amount)]);
       readiness.push(['Settlement accounting', 'Balances are net of observed debits, not confirmed fees. Risk equity/P&L additionally reserve possible unposted costs; only posted activities count as actual fees.']);
       readiness.push(['Daily accounting', 'Native fill and fee dates isolate periods. UTC snapshots do not prove posting; creation/receipt time does not replace the fee date.']);

@@ -91,7 +91,8 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Automatic account verification pending", self.e.last_error)
         await self.e.reconcile()
         self.assertTrue(self.e.fee_settlement_pending)
-        self.assertTrue(self.e.recovery_required)
+        self.assertFalse(self.e.recovery_required)
+        self.assertFalse(self.e.qualification_execution_complete)
         self.assertEqual(self.e.balance("BTC"), 0)
         self.assertEqual(self.e.ledger()["fees"], self.before["fees"])
         # Only actual later activity clears the financial difference; manual recovery
