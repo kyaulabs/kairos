@@ -44,7 +44,10 @@ class Operations:
             self.engine.running = False
             self.engine.recovery_required = True
             raise
-        if self.alerts and (status in {"halted", "retry-wait"} or old == "retry-wait"):
+        if self.alerts and (
+            status in {"halted", "retry-wait", "waiting-fees"}
+            or old in {"retry-wait", "waiting-fees"}
+        ):
             self.alerts.send(status)
 
     def failed(self):

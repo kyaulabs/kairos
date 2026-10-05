@@ -190,6 +190,9 @@ def entry_context(engine, pair, view, book):
         held and not residual and not state.get("entry_attempt") and not engine.orders(active=True)
     ):
         allowed.append(exit_side)
+    if getattr(engine, "fee_settlement_pending", False):
+        blockers.append("actual fee settlement pending; deterministic exits only")
+        allowed, pending, ready = ["hold"], None, False
     return {
         "entry_signal": side,
         "previous_entry_signal": previous,
@@ -305,8 +308,14 @@ async def run(engine):
         state["position"] = position = None
         engine.store.put(key(engine), state)
     values, _ = await engine.valuation(False)
-    # Valuation can liquidate derivative positions; never trade on the pre-valuation size.
+    # Valuation can change ownership through actual fees or observed settlement debits.
+    state = snapshot(engine)
+    position = state["position"]
     held = quantity(engine, pair)
+    if not held and getattr(engine, "fee_settlement_pending", False):
+        engine.htf_review.cancel()
+        report(engine, pair, "hold", "Actual fee settlement pending; new entries blocked", {})
+        return
     client = engine.futures.client if settings["product"] == "futures" else engine.kraken
     book = await client.book(pair)
     book.fresh(settings["stale_seconds"])
@@ -371,7 +380,9 @@ async def run(engine):
         side = context["entry_signal"]
         previous_signal = context["previous_entry_signal"]
         state["pending_signal"] = context["pending_signal"]
-        if settings.get("htf_policy") == "multibar-v2":
+        if settings.get("htf_policy") == "multibar-v2" and not getattr(
+            engine, "fee_settlement_pending", False
+        ):
             old = state.get("candidate")
             candidate = view.get("candidate")
             if old and (not candidate or old["id"] != candidate["id"]):

@@ -144,9 +144,18 @@ class PaperBroker:
             filled_avg_price=row["limit_price"],
             status="filled" if total == dec(row["qty"]) else "partially_filled",
         )
-        self.activities.append(
-            {"id": f"fill-{len(self.activities)}", "activity_type": "FILL", "order_id": identifier}
-        )
+        if delta:
+            self.activities.append(
+                {
+                    "id": f"fill-{len(self.activities)}",
+                    "activity_type": "FILL",
+                    "order_id": identifier,
+                    "symbol": row["symbol"],
+                    "side": row["side"],
+                    "qty": str(delta),
+                    "price": row["limit_price"],
+                }
+            )
 
 
 class AlpacaClientTests(unittest.IsolatedAsyncioTestCase):

@@ -105,7 +105,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.engine.htf_review.refresh = AsyncMock(return_value=None)
         self.failures = []
 
-    def fail(self, path="/v2/orders"):
+    def fail_read(self, path="/v2/orders"):
         async def request(method, endpoint, **kwargs):
             if method == "GET" and endpoint == path:
                 self.failures.append(endpoint)
@@ -126,7 +126,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_full_pass_retry_blocks_orders_and_rebaselines_without_replaying_intent(self):
         before = copy.deepcopy(self.engine.ledger())
         last_success = self.engine.account_read_status["last_success_at"]
-        self.fail()
+        self.fail_read()
         await self.engine.tick()
         self.assertTrue(self.engine.running)
         self.assertFalse(self.engine.recovery_required)
@@ -144,7 +144,8 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.tick()
         self.assertEqual(
             [p for _, p, _ in self.case.broker.calls[before_calls:]],
-            ["/v2/account", "/v2/orders", "/v2/account/activities", "/v2/account", "/v2/positions"],
+            ["/v2/account"]
+            + ["/v2/account", "/v2/positions", "/v2/orders", "/v2/account/activities"] * 2,
         )
         self.assertTrue(self.engine.running)
         self.assertIsNone(self.engine.account_wait)
@@ -162,7 +163,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assert_no_writes()
 
     async def test_three_failed_recovery_passes_exhaust_and_never_resume(self):
-        self.fail()
+        self.fail_read()
         await self.engine.tick()
         for _ in range(3):
             self.due()
@@ -181,7 +182,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         for loss in (False, True):
             self.engine.running = True
             self.engine.recovery_required = False
-            self.fail()
+            self.fail_read()
             await self.engine.tick()
             before = len(self.failures)
             if loss:
@@ -199,7 +200,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
             self.engine.running = True
             self.engine.recovery_required = False
             self.engine.daily_pnl = "0"
-            self.fail()
+            self.fail_read()
             await self.engine.tick()
             self.restore()
             self.due()
@@ -216,7 +217,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assert_no_writes()
 
     async def test_stop_during_recovery_read_and_explicit_reconcile_cannot_auto_start(self):
-        self.fail()
+        self.fail_read()
         await self.engine.tick()
         self.restore()
         self.due()
@@ -281,20 +282,23 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
             {"id": "one-fee", "activity_type": "FEE", "status": "executed", "net_amount": "-.1"}
         )
         self.case.broker.calls.clear()
-        self.fail("/v2/positions")
+        self.fail_read("/v2/positions")
         await self.engine.tick()
-        after_fee = copy.deepcopy(self.engine.ledger())
-        self.assertEqual(dec(after_fee["fees"]["USD"]), dec(".1"))
+        # No accounting mutation before both matching read passes finish.
+        self.assertEqual(dec(self.engine.ledger()["fees"]["USD"]), 0)
         self.restore()
         self.due()
         await self.engine.tick()
+        after_fee = copy.deepcopy(self.engine.ledger())
+        self.assertEqual(dec(after_fee["fees"]["USD"]), dec(".1"))
+        await self.engine.reconcile_account()
         self.assertEqual(self.engine.ledger(), after_fee)
         self.assertEqual(htf.snapshot(self.engine)["position"], position)
         self.assertEqual(len(self.engine.orders()), 1)
         self.assert_no_writes()
 
     async def test_inflight_recovery_deadline_cancels_read_and_stays_halted(self):
-        self.fail()
+        self.fail_read()
         await self.engine.tick()
         self.engine.account_wait = (time.monotonic() - 119.99, 0)
         self.engine.kraken.account = AsyncMock(side_effect=lambda: None)
@@ -311,7 +315,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assert_no_writes()
 
     async def test_manual_reconcile_ends_wait_without_resuming_and_guard_rejects_queued_post(self):
-        self.fail()
+        self.fail_read()
         await self.engine.tick()
         # Use the real final wire gate, with a fixture transport; no order can be sent.
         client = self.engine.kraken
@@ -332,7 +336,7 @@ class AccountRecoveryTests(unittest.IsolatedAsyncioTestCase):
             {**self.engine.settings, "strategy": "dca", "pair": "alpaca:AAPL"}
         )
         await self.case.start()
-        self.fail("/v2/clock")
+        self.fail_read("/v2/clock")
         await self.engine.tick()
         for _ in range(3):
             self.due()

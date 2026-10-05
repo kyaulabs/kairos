@@ -347,7 +347,10 @@ class QualificationTests(unittest.IsolatedAsyncioTestCase):
         self.e.kraken.request.side_effect = reserved
         with patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()):
             await self.e.qualify_paper("ONE ALPACA PAPER ROUND TRIP")
-        self.assertEqual(self.e.store.get("paper-qualification")["status"], "complete")
+        self.assertEqual(
+            self.e.store.get("paper-qualification")["status"],
+            "execution complete; fee settlement pending",
+        )
         self.assertFalse(self.e.running or self.e.paper_armed)
         self.assertEqual(self.e.balance("BTC"), 0)
 
@@ -363,7 +366,7 @@ class QualificationTests(unittest.IsolatedAsyncioTestCase):
         self.e.kraken.request.side_effect = mismatch
         with (
             patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()),
-            self.assertRaisesRegex(SafetyError, "cash differs"),
+            self.assertRaisesRegex(SafetyError, "exceeds fill-linked settlement bounds"),
         ):
             await self.e.qualify_paper("ONE ALPACA PAPER ROUND TRIP")
         self.assertEqual(len(self.e.orders()), 1)
@@ -395,7 +398,7 @@ class QualificationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(latest["retry_of"], original["id"])
         self.assertEqual(self.e.store.get("paper-qualification:" + original["id"]), original)
         self.assertNotEqual(latest["run_id"], original["run_id"])
-        self.assertEqual(latest["status"], "complete")
+        self.assertEqual(latest["status"], "execution complete; fee settlement pending")
         self.assertEqual(len(self.e.orders()), 3)
         with self.assertRaises(SafetyError):
             await self.e.qualify_paper("ONE ADDITIONAL ALPACA PAPER ATTEMPT")
