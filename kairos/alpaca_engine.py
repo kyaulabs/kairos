@@ -57,9 +57,23 @@ class AlpacaEngine(Engine):
         self.resolve(self.settings["pair"])
         if not self.ledger():
             self.reset_ledger(self.mode, self.settings["paper_balance"])
-        self.recovery_required = bool(self.orders(active=True))
+        recovery = self.store.get("paper-qualification-exit")
+        qualification = self.store.get("paper-qualification") or {}
+        failed_qualification = (
+            qualification.get("status") == "interrupted; manual reconciliation required"
+            and not self.is_flat()
+        )
+        self.recovery_required = (
+            bool(self.orders(active=True))
+            or failed_qualification
+            or bool(recovery and recovery["status"] != "settled")
+        )
         if self.recovery_required:
-            self.last_error = "Alpaca paper orders remain after restart; Reconcile before Start"
+            self.last_error = (
+                "Qualification recovery settlement pending; Reconcile before Start"
+                if failed_qualification or recovery and recovery["status"] != "settled"
+                else "Alpaca paper orders remain after restart; Reconcile before Start"
+            )
         await self.refresh_fees(required=False)
         self.ready = True
         self.event("system", {"message": "Alpaca hosted paper ready; paused, never live"})
@@ -529,6 +543,17 @@ class AlpacaEngine(Engine):
         self.long_retry = None
         await super().reconcile(acknowledge)
         self.finish_account_recovery("reconciled")
+        recovery = self.store.get("paper-qualification-exit")
+        if recovery and recovery["status"] != "settled":
+            if self.is_flat() and not self.orders(active=True):
+                recovery.update(status="settled", settled_at=self.clock())
+                self.store.put("paper-qualification-exit", recovery)
+                self.event("qualification-recovery", recovery)
+            else:
+                self.recovery_required = True
+                self.last_error = (
+                    "Qualification recovery retains holdings; review before another authorization"
+                )
         self.update_operating_state()
         self.emit_state()
 

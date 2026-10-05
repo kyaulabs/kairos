@@ -45,6 +45,7 @@ EXECUTION_REVISION = hashlib.sha256(
             "alpaca_data",
             "alpaca_transport",
             "alpaca_engine",
+            "qualification_exit",
             "exchanges",
             "multibar",
             "observations",
