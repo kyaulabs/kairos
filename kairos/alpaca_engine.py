@@ -90,6 +90,7 @@ class AlpacaEngine(Engine):
             "operations": self.operations.snapshot(),
             "scheduled_recovery": self.retry_status,
             "paper_qualification": self.store.get("paper-qualification"),
+            "paper_qualification_recovery": self.store.get("paper-qualification-exit"),
             "diagnostic_observation": self.observations.latest,
             "account_reads": {
                 **self.account_read_status,

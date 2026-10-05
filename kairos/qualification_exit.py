@@ -234,6 +234,8 @@ async def recover(engine, qualification_id, confirmation):
             e.store.save_order(order)
             e.event("qualification-recovery", record)
             e.kraken.recovery_exit_guard = permit
+            e.update_operating_state()
+            e.emit_state()
             try:
                 result = await e.kraken.add(
                     {
