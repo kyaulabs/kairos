@@ -408,6 +408,161 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(any(method == "POST" for method, _, _ in case.b.calls))
                 self.assertFalse(e.running or e.paper_armed)
 
+    async def test_qualification_refreshes_expired_planning_fees_before_its_exit(self):
+        from kairos.fees import FeeUnavailable
+
+        request = self.e.kraken.request.side_effect
+        expired = False
+
+        async def delayed_fill(method, path, **kw):
+            nonlocal expired
+            result = await request(method, path, **kw)
+            if method == "POST" and kw["payload"]["side"] == "buy":
+                pair = self.e.resolve("alpaca:BTC/USD")
+                self.e.fees.rates[pair.id]["received"] -= 61
+                self.e.fees.attempts[pair.id] -= 61
+                with self.assertRaises(FeeUnavailable):
+                    self.e.fees.rate(pair)
+                expired = True
+            return result
+
+        self.e.kraken.request.side_effect = delayed_fill
+        await self.round_trip()
+        self.assertTrue(expired)
+        self.assertTrue(self.e.qualification_execution_complete)
+        self.assertEqual(len(self.e.orders()), 2)
+        self.assertTrue(self.e.orders()[-1]["exit_only"])
+        self.assertEqual(self.e.balance("BTC"), 0)
+        self.assertFalse(self.e.running or self.e.paper_armed)
+        self.assertEqual(self.e.ledger()["fees"], {"USD": "0"})
+
+    async def fee_interrupted_check(self, *, witnessed=True):
+        from kairos.alpaca_transport import PendingAlpacaData
+        from kairos.fees import FeeUnavailable
+        from kairos.qualification_exit import CONFIRMATION, recover
+        from tests.test_qualification_exit import RecoveryTests
+
+        old = RecoveryTests()
+        await old.asyncSetUp()
+        self.addAsyncCleanup(old.case.asyncTearDown)
+        e, b = old.e, old.broker
+        await recover(e, old.q["id"], CONFIRMATION)
+        await e.reconcile()
+        original_recovery = copy.deepcopy(e.store.get("paper-qualification-exit"))
+        e.kraken.request.side_effect = old.request
+        b.charge_crypto_fees = witnessed
+        with patch.object(
+            e, "execution_book", side_effect=PendingAlpacaData("fixture expired quote")
+        ):
+            with self.assertRaises(PendingAlpacaData):
+                await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
+        previous = e.store.get("paper-qualification")
+        await e.tick()
+        place = e.place
+
+        async def fail_exit(pair, side, *args, **kw):
+            if side == "sell":
+                raise FeeUnavailable(
+                    "Alpaca planning fees missing or stale; refresh before trading"
+                )
+            return await place(pair, side, *args, **kw)
+
+        with patch.object(e, "place", side_effect=fail_exit):
+            with self.assertRaises(FeeUnavailable):
+                await e.qualify_paper("ONE NO-SUBMISSION PAPER QUALIFICATION", previous["id"])
+        failed = copy.deepcopy(e.store.get("paper-qualification"))
+        await e.configure({**e.settings, "htf_policy": "multibar-v2", "reinvest_profits": False})
+        return e, b, original_recovery, failed
+
+    async def test_fee_interrupted_recovery_is_one_sell_and_never_starts_or_passes_trial(self):
+        from kairos.multibar import PROTOCOL_HASH
+        from kairos.qualification_exit import FEE_CONFIRMATION, FEE_KEY, recover
+
+        e, b, previous_recovery, failed = await self.fee_interrupted_check()
+        self.assertEqual(len(e.orders()), 4)
+        request = b.request
+
+        async def guarded(method, path, **kw):
+            if method == "POST":
+                self.assertFalse(e.running or e.paper_armed)
+                self.assertTrue(e.kraken.recovery_exit_guard(path, kw["payload"]))
+                self.assertFalse(e.kraken.recovery_exit_guard(path, {**kw["payload"], "qty": "1"}))
+            return await request(method, path, **kw)
+
+        e.kraken.request.side_effect = guarded
+        b.calls.clear()
+        result = await recover(e, failed["id"], FEE_CONFIRMATION)
+        self.assertEqual(sum(m == "POST" for m, _, _ in b.calls), 1)
+        self.assertEqual(result["order_status"], "closed")
+        self.assertEqual(b.holdings["BTC/USD"], 0)
+        self.assertEqual(e.store.get("paper-qualification-exit"), previous_recovery)
+        self.assertEqual(e.store.get("paper-qualification:" + failed["id"]), failed)
+        self.assertIsNotNone(e.store.get(FEE_KEY))
+        self.assertIsNone(e.store.get("multibar-trial:" + PROTOCOL_HASH))
+        e.next_account_check = 0
+        await e.tick()
+        self.assertEqual(e.balance("BTC"), 0)
+        self.assertFalse(e.running or e.paper_armed or e.recovery_required)
+        self.assertFalse(e.qualification_execution_complete)
+        self.assertEqual(e.operations.status, "paused")
+        self.assertIn("separately authorized", e.start_block_reason)
+        self.assertEqual(
+            e.snapshot()["paper_qualification_recovery"]["qualification_id"], failed["id"]
+        )
+        with self.assertRaises(SafetyError):
+            await recover(e, failed["id"], FEE_CONFIRMATION)
+        self.assertEqual(len(e.orders()), 5)
+
+    async def test_fee_recovery_keeps_unwitnessed_native_allowance_unsold(self):
+        from kairos.qualification_exit import FEE_CONFIRMATION, recover
+
+        e, b, _, failed = await self.fee_interrupted_check(witnessed=False)
+        retained = settlement.retained_base(e)
+        self.assertGreater(retained, 0)
+        await recover(e, failed["id"], FEE_CONFIRMATION)
+        self.assertEqual(b.holdings["BTC/USD"], retained)
+        self.assertEqual(e.balance("BTC"), retained)
+        self.assertFalse(e.running or e.paper_armed or e.qualification_execution_complete)
+        self.assertTrue(e.recovery_required)
+
+    async def test_fee_recovery_rejects_wrong_lineage_and_stop_without_another_sell(self):
+        from kairos.clients import ExchangeRejected
+        from kairos.qualification_exit import FEE_CONFIRMATION, FEE_KEY, recover
+
+        e, b, _, failed = await self.fee_interrupted_check()
+        with self.assertRaises(SafetyError):
+            await recover(e, "wrong-id", FEE_CONFIRMATION)
+        e.store.put("paper-qualification", {**failed, "failure_type": "TimeoutError"})
+        with self.assertRaises(SafetyError):
+            await recover(e, failed["id"], FEE_CONFIRMATION)
+        self.assertIsNone(e.store.get(FEE_KEY))
+        e.store.put("paper-qualification", failed)
+        b.holdings["BTC/USD"] -= dec("1e-9")
+        with self.assertRaisesRegex(SafetyError, "Broker evidence"):
+            await recover(e, failed["id"], FEE_CONFIRMATION)
+        b.holdings["BTC/USD"] += dec("1e-9")
+        self.assertIsNone(e.store.get(FEE_KEY))
+        request = b.request
+
+        async def stopped(method, path, **kw):
+            if method == "POST":
+                e.stop_generation += 1
+                self.assertFalse(e.kraken.recovery_exit_guard(path, kw["payload"]))
+                raise ExchangeRejected("Stopped before submission")
+            return await request(method, path, **kw)
+
+        e.kraken.request.side_effect = stopped
+        b.calls.clear()
+        with self.assertRaises(ExchangeRejected):
+            await recover(e, failed["id"], FEE_CONFIRMATION)
+        self.assertFalse(any(m == "POST" for m, _, _ in b.calls))
+        self.assertGreater(e.balance("BTC"), 0)
+        self.assertIsNotNone(e.store.get(FEE_KEY))
+        self.assertFalse(e.running or e.paper_armed)
+        self.assertIsNone(e.kraken.recovery_exit_guard)
+        with self.assertRaises(SafetyError):
+            await recover(e, failed["id"], FEE_CONFIRMATION)
+
     async def select_multibar(self):
         await self.e.configure(
             {
