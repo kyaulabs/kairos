@@ -4,7 +4,7 @@ import asyncio
 import time
 import uuid
 
-from kairos import diagnostics, htf, manual_exit, programs, scalping, settlement
+from kairos import diagnostics, htf, manual_exit, programs, qualification_data, scalping, settlement
 from kairos.alpaca import iso
 from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
 from kairos.domain import TERMINAL, ZERO, SafetyError, dec, floor
@@ -37,6 +37,7 @@ class AlpacaEngine(Engine):
         self.mode, self.paper_armed = "paper", False
         self.market_session = None
         self.market_wait = None
+        self.qualification_data_scope = None
         self.account_wait = None
         self.long_retry = None
         self.retry_status = None
@@ -55,6 +56,7 @@ class AlpacaEngine(Engine):
             and not self.account_wait
             and not self.long_retry
             and not self.recovery_required
+            and qualification_data.allowed(self)
         )
 
     @property
@@ -355,24 +357,37 @@ class AlpacaEngine(Engine):
                 raise SafetyError(
                     "Qualification requires a paused, reconciled, unused flat BTC paper run with legacy policy"
                 )
-            await self.reconcile_account()
-            await self.refresh_fees()
-            await self.valuation(True)
-            if self.stop_generation != generation or self.shutting_down:
-                raise SafetyError("Qualification canceled by Stop")
             pair = self.resolve(self.settings["pair"])
-            book = await self.kraken.book(pair)
-            book.fresh(self.settings["stale_seconds"])
-            price = pair.price(book.bids[0][0], "buy")
-            budget = min(dec(25), self.limits()[0], settlement.entry_budget(self, book.asks[0][0]))
-            # Leave one native quantum for rounding the planned base-currency reserve.
-            volume = floor(
-                (budget / price - pair.lot) / (1 + self.fees.reserve(pair) / 10000), pair.lot
-            )
-            if volume < 2 * htf.minimum_volume(pair, price):
-                raise SafetyError(
-                    "Qualification budget cannot leave a tradeable exit after fees/rounding"
+            entry_deadline = time.monotonic() + qualification_data.WAIT_SECONDS
+
+            async def prepare_entry():
+                await self.reconcile_account()
+                await self.refresh_fees()
+                await self.valuation(True)
+                book = await self.kraken.book(pair)
+                book.fresh(self.settings["stale_seconds"])
+                price = pair.price(book.bids[0][0], "buy")
+                budget = min(
+                    dec(25), self.limits()[0], settlement.entry_budget(self, book.asks[0][0])
                 )
+                # Leave one native quantum for the planned base-currency reserve.
+                volume = floor(
+                    (budget / price - pair.lot) / (1 + self.fees.reserve(pair) / 10000), pair.lot
+                )
+                if volume < 2 * htf.minimum_volume(pair, price):
+                    raise SafetyError(
+                        "Qualification budget cannot leave a tradeable exit after fees/rounding"
+                    )
+                return book, price, budget, volume
+
+            book, price, budget, volume = await qualification_data.run(
+                self,
+                prepare_entry,
+                generation=generation,
+                deadline=entry_deadline,
+                leg="entry preparation",
+                armed=False,
+            )
             if self.stop_generation != generation or self.shutting_down:
                 raise SafetyError("Qualification canceled by Stop")
             before = self.ledger()
@@ -446,7 +461,21 @@ class AlpacaEngine(Engine):
                     "qualification",
                     {"message": "Authorized one paper round trip; not a strategy signal", **record},
                 )
-                await self.place(pair, "buy", volume, price, book, maker=True)
+
+                async def submit_entry():
+                    await self.refresh_fees()
+                    current = await self.kraken.book(pair)
+                    # The claimed passive limit and quantity stay frozen; no chase.
+                    await self.place(pair, "buy", volume, price, current, maker=True)
+
+                await qualification_data.run(
+                    self,
+                    submit_entry,
+                    generation=generation,
+                    deadline=entry_deadline,
+                    leg="entry",
+                    armed=True,
+                )
                 deadline = time.monotonic() + 60
                 while self.orders(active=True) and time.monotonic() < deadline:
                     if self.stop_generation != generation or not self.running or self.shutting_down:
@@ -474,17 +503,31 @@ class AlpacaEngine(Engine):
                 )
                 record["entry_owned"] = str(held)
                 if held:
-                    # The passive fill window can outlive the planning snapshot.
-                    # This is a new exit leg, not permission to refresh an entry intent.
-                    await self.refresh_fees()
-                    book = await self.kraken.book(pair)
-                    price = limit_price(book, "sell", self.settings["slippage_bps"])
-                    volume = floor(min(held, self.limits()[0] / price), pair.lot)
-                    if htf.below_minimum(pair, volume, price):
-                        raise SafetyError(
-                            "Qualification residual cannot be sold; retained, no dust-clearing buy"
-                        )
-                    await self.place(pair, "sell", volume, price, book, exit_only=True)
+
+                    async def submit_exit():
+                        # Re-read ownership and replan only the still-unsubmitted
+                        # reduction. A stale preflight is not a second order attempt.
+                        await self.reconcile_account()
+                        owned = htf.quantity(self, pair)
+                        await self.refresh_fees()
+                        current = await self.kraken.book(pair)
+                        current.fresh(self.settings["stale_seconds"])
+                        limit = limit_price(current, "sell", self.settings["slippage_bps"])
+                        quantity = floor(min(owned, self.limits()[0] / limit), pair.lot)
+                        if htf.below_minimum(pair, quantity, limit):
+                            raise SafetyError(
+                                "Qualification residual cannot be sold; retained, no dust-clearing buy"
+                            )
+                        await self.place(pair, "sell", quantity, limit, current, exit_only=True)
+
+                    await qualification_data.run(
+                        self,
+                        submit_exit,
+                        generation=generation,
+                        deadline=time.monotonic() + qualification_data.WAIT_SECONDS,
+                        leg="exit",
+                        armed=True,
+                    )
                     await self.reconcile_account()
                 if not htf.quantity(self, pair):
                     saved = htf.snapshot(self)
@@ -1492,6 +1535,8 @@ class AlpacaEngine(Engine):
                 side == "sell" and price <= book.bids[0][0]
             ):
                 raise SafetyError("Passive Alpaca limit now crosses; skip rather than chase")
+        if self.qualification_data_scope is not None:
+            qualification_data.guard(self, self.qualification_data_scope)
         return book
 
     async def place(self, pair, side, volume, price, book, maker=False, **kwargs):
