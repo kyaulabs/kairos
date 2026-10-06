@@ -231,7 +231,9 @@
     $('restart').textContent = state.start_block_reason ? 'Qualification required' : 'Restart engine';
     $('restart').title = state.start_block_reason || '';
     $('stop').hidden = !stopAvailable;
-    $('reconcile').hidden = state.exchange === 'alpaca';
+    $('reconcile').hidden = hosted && !state.manual_exit_reconciliation_available;
+    $('reconcile').textContent = hosted ? 'Reconcile manual sale' : 'Reconcile';
+    $('reconcile').disabled = hosted && (busy || !connected || state.running || !state.ready);
     $('start').disabled = busy || !connected || state.running || !state.ready || state.recovery_required || !!state.start_block_reason;
     $('restart').disabled = busy || !connected || state.running || !state.ready || state.recovery_required || !!state.start_block_reason;
     $('settings-fields').disabled = busy || state.running;
@@ -336,9 +338,9 @@
     for (const order of orders) {
       const row = document.createElement('tr');
       const values = [time(order.created), `${order.mode} / ${order.product || 'spot'}`, order.pair, order.side,
-        number(order.price), number(order.volume), number(order.filled), order.fee_reported === false ? 'Account activities' : `${number(order.fee)} ${order.quote}`, `${order.status}${order.archived ? ' · archived' : ''}`];
+        order.externally_executed && order.broker_order_type === 'market' ? 'Market' : number(order.price), number(order.volume), number(order.filled), order.fee_reported === false ? 'Account activities' : `${number(order.fee)} ${order.quote}`, `${order.status}${order.externally_executed ? ' · manual sale' : ''}${order.archived ? ' · archived' : ''}`];
       for (const value of values) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
-      row.title = `Client ID: ${order.id}${order.txid ? ` · Kraken: ${order.txid}` : ''}`;
+      row.title = `Client ID: ${order.id}${order.txid ? ` · ${order.exchange === 'alpaca' ? 'Alpaca' : 'Kraken'}: ${order.txid}` : ''}${order.externally_executed ? ' · Executed outside Kairos; explicitly reconciled' : ''}`;
       const actions = document.createElement('td'); actions.className = 'order-actions';
       if (order.mode === 'dry-run') {
         const archive = order.archived ? 'restore' : 'archive';
@@ -440,7 +442,25 @@
   });
   $('stop').addEventListener('click', () => action('stop'));
   $('quick-stop').addEventListener('click', () => action('stop'));
-  $('reconcile').addEventListener('click', () => {
+  $('reconcile').addEventListener('click', async () => {
+    if (state?.exchange === 'alpaca') {
+      if (busy) return;
+      busy = true; render(state); message('Verifying the existing manual sale…');
+      let body;
+      try {
+        const p = await request('reconcile');
+        if (confirm(`Record the EXISTING manual sale of ${p.quantity} BTC?\nBroker order: ${p.broker_order_id}\nGross proceeds: ${p.gross_proceeds} USD\nVerified allocated cash: ${p.allocated_cash_after} USD\n\nNo order will be placed. Unclassified debits and fee reserves remain tracked. Trading stays paused and the failed qualification remains failed.`)) {
+          body = {external_exit_order_id: p.broker_order_id, qualification_id: p.qualification_id, evidence_hash: p.evidence_hash, confirmation: 'ACKNOWLEDGE MANUAL QUALIFICATION EXIT'};
+        } else message('Manual sale was not imported. Trading remains paused.');
+      } catch (error) { message(error.message); }
+      finally { busy = false; if (state) render(state); }
+      if (body) await action('reconcile', body);
+      if (document.activeElement === document.body) {
+        const target = !$('reconcile').hidden ? $('reconcile') : document.querySelector('[data-settings-tab][aria-selected="true"]');
+        target?.focus({preventScroll: true});
+      }
+      return;
+    }
     const acknowledge = state?.cycle ? confirm('An interrupted arbitrage cycle may have left intermediate holdings. Have you reviewed the order records and balances? Acknowledging retains those holdings; it does not liquidate them.') : false;
     action('reconcile', {acknowledge});
   });
