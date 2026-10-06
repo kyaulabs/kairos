@@ -25,7 +25,10 @@ class ManualExitTests(unittest.IsolatedAsyncioTestCase):
                 raise PendingAlpacaData("fixture stale exit quote")
             return await place(pair, side, *args, **kwargs)
 
-        with patch.object(e, "place", side_effect=fail_exit):
+        with (
+            patch("kairos.qualification_data.WAIT_SECONDS", 0.5),
+            patch.object(e, "place", side_effect=fail_exit),
+        ):
             with self.assertRaises(PendingAlpacaData):
                 await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", previous["id"])
         self.failed = copy.deepcopy(e.store.get("paper-qualification"))
