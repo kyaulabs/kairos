@@ -276,6 +276,70 @@ class ManualExitTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.e.store.get("multibar-trial:" + PROTOCOL_HASH))
         self.assertTrue(all(method == "GET" for method, _, _ in self.b.calls))
 
+    async def test_old_witnessed_fee_publication_does_not_obscure_new_manual_sale_debit(self):
+        # The fixture's first historical recovery had a fixed BTC debit and no
+        # USD fee; subsequent fixture fills use the native rounded fee schedule.
+        fills = list(self.b.activities)
+        counts = {"buy": 0, "sell": 0}
+        for fill in fills:
+            side = fill["side"]
+            counts[side] += 1
+            qty, price = dec(fill["qty"]), dec(fill["price"])
+            if side == "buy":
+                amount = (
+                    dec(".000000433")
+                    if counts[side] == 1
+                    else settlement.rounded(qty * dec(".0015"), dec("1e-9"))
+                )
+                debit = {"symbol": "BTCUSD", "qty": str(-amount), "net_amount": "0"}
+            else:
+                amount = (
+                    dec(0)
+                    if counts[side] == 1
+                    else settlement.rounded(qty * price * dec(".0025"), settlement.CENT)
+                )
+                debit = {"net_amount": str(-amount)}
+            self.b.activities.append(
+                {
+                    "id": "late-" + fill["id"],
+                    "activity_type": "CFEE",
+                    "status": "executed",
+                    "currency": "USD",
+                    "date": settlement.native_day(fill["transaction_time"]),
+                    **debit,
+                }
+            )
+        with patch(
+            "kairos.settlement.period_coverage",
+            side_effect=SafetyError("Balance debit cannot be isolated to one fee period"),
+        ):
+            with self.assertRaises(SafetyError):
+                await self.confirm()
+        paid = copy.deepcopy(self.e.ledger()["fees"])
+        self.assertGreater(dec(paid["USD"]), 0)
+        self.assertGreater(dec(paid["BTC"]), 0)
+        receipt = self.e.store.get(manual_exit.PREFIX + self.row["id"])
+        await self.e.check_account_automatically()
+        self.assertFalse(self.e.recovery_required or self.e.running or self.e.paper_armed)
+        self.assertIsNone(self.e.last_error)
+        self.assertEqual(self.e.balance("USD"), self.b.cash - dec(9500))
+        self.assertEqual(self.e.balance("BTC"), 0)
+        self.assertEqual(self.e.ledger()["fees"], paid)
+        for day, period in self.settlement["periods"].items():
+            self.assertEqual(
+                self.e.store.get(settlement.KEY)["periods"][day]["observed"], period["observed"]
+            )
+        for key in ("id", "since", "deadline"):
+            self.assertEqual(self.e.store.get(settlement.KEY)[key], self.settlement[key])
+        self.assertEqual(self.e.store.get(manual_exit.PREFIX + self.row["id"]), receipt)
+        self.assertEqual(len(self.e.orders()), 7)
+        self.assertFalse(self.e.qualification_execution_complete)
+        self.assertIsNone(self.e.store.get("multibar-trial:" + PROTOCOL_HASH))
+        ledger = self.e.ledger()
+        await self.e.reconcile_account()
+        self.assertEqual(self.e.ledger(), ledger)
+        self.assertTrue(all(method == "GET" for method, _, _ in self.b.calls))
+
     async def test_failed_post_import_read_recovers_without_reimport_or_broker_writes(self):
         with patch.object(
             self.e, "reconcile_account", side_effect=SafetyError("fixture account read failed")
