@@ -1205,6 +1205,7 @@ class AlpacaEngine(Engine):
         if row.get("status") != "executed":
             raise SafetyError("Alpaca fee is not an executed activity")
         currency, amount = "USD", dec(row["net_amount"])
+        reported_currencies = {"USD"}
         if kind == "CFEE" and dec(row.get("qty", 0)):
             symbol = row.get("symbol", "").replace("/", "")
             pair = next(
@@ -1218,7 +1219,10 @@ class AlpacaEngine(Engine):
             if pair is None or self.kraken.is_equity(pair) or amount:
                 raise SafetyError("Unsupported Alpaca crypto fee denomination")
             currency, amount = pair.base, dec(row["qty"])
-        if amount > 0 or row.get("currency", currency) != currency:
+            # The cash component can retain currency=USD even when net_amount=0
+            # and the fee is a native crypto quantity identified by symbol.
+            reported_currencies.add(currency)
+        if amount > 0 or row.get("currency", currency) not in reported_currencies:
             raise SafetyError("Unexpected Alpaca fee credit/currency")
         ledger = self.ledger()
         suspense = self.store.get(settlement.KEY)
