@@ -158,7 +158,13 @@ def period_coverage(e, state, orders, activities, observed, expected, actual, po
             candidates = set(fresh[asset])
             for day in eligible:
                 paid = periods[day]["posted"].get(asset, dec(0))
-                if paid > dec(previous.get(day, {}).get("posted", {}).get(asset, 0)):
+                old = previous.get(day, {})
+                # Publication of an already-witnessed debit is classification,
+                # not evidence of another balance movement in that older period.
+                if paid > max(
+                    dec(old.get("posted", {}).get(asset, 0)),
+                    dec(old.get("observed", {}).get(asset, 0)),
+                ):
                     candidates.add(day)
             if not previous:
                 candidates.update(eligible)
