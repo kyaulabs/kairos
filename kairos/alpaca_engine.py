@@ -4,7 +4,7 @@ import asyncio
 import time
 import uuid
 
-from kairos import diagnostics, htf, programs, scalping, settlement
+from kairos import diagnostics, htf, manual_exit, programs, scalping, settlement
 from kairos.alpaca import iso
 from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
 from kairos.domain import TERMINAL, ZERO, SafetyError, dec, floor
@@ -195,6 +195,7 @@ class AlpacaEngine(Engine):
             "operations": self.operations.snapshot(),
             "scheduled_recovery": self.retry_status,
             "paper_qualification": self.store.get("paper-qualification"),
+            "manual_exit_reconciliation_available": manual_exit.available(self),
             "paper_qualification_recovery": self.store.get("paper-qualification-fee-exit")
             or self.store.get("paper-qualification-exit"),
             "fee_settlement": self.store.get(settlement.KEY),

@@ -105,6 +105,28 @@ class Store:
                 )
                 self._put(key, ledger)
 
+    def import_manual_exit(self, order, ledger, receipt, qualification):
+        # The acknowledgement, historical failure and confirmed gross fill are atomic.
+        # This never submits an order or infers a fee from the cash difference.
+        with self.db:
+            key = "alpaca-manual-exit:" + order["txid"]
+            archive = "paper-qualification:" + qualification["id"]
+            if self.get(key) or self.get(archive) not in (None, qualification):
+                raise SafetyError("Manual exit already recorded or qualification archive conflicts")
+            self.db.execute("INSERT INTO orders VALUES (?, ?)", (order["id"], encode(order)))
+            self.db.execute("INSERT INTO state VALUES (?, ?)", (key, encode(receipt)))
+            self._put(archive, qualification)
+            self._put("ledger:paper", ledger)
+            self._put(
+                "paper-qualification",
+                {
+                    **qualification,
+                    "status": "manual exit recovery; normal qualification incomplete",
+                    "execution_complete": False,
+                    "external_exit_order_id": order["txid"],
+                },
+            )
+
     def event(self, kind, data):
         ts = self.clock()
         with self.db:

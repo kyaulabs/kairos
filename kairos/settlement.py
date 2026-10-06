@@ -211,9 +211,12 @@ async def read_pass(e, identity, local, pair):
             row["client_order_id"] != order["id"]
             or row["symbol"].replace("/", "") != e.kraken.symbol(pair).replace("/", "")
             or row["side"] != order["side"]
-            or row["type"] != "limit"
+            or row["type"]
+            != (order["broker_order_type"] if order.get("externally_executed") else "limit")
+            or row["type"] not in {"limit", "market"}
             or dec(row["qty"]) != dec(order["volume"])
-            or dec(row["limit_price"]) != dec(order["price"])
+            or row["type"] == "limit"
+            and dec(row["limit_price"]) != dec(order["price"])
             or row["status"] not in {"filled", "canceled", "expired", "rejected"}
             or e.kraken.normalize_order(row)["status"] != order["status"]
             or dec(row["filled_qty"]) != dec(order["filled"])
@@ -451,7 +454,11 @@ async def reconcile(e, identity):
         if not qty:
             continue
         currency, step = ("BTC", pair.lot) if order["side"] == "buy" else ("USD", CENT)
-        rate = dec(order["planning_fee_bps"])
+        rate = dec(
+            order["reconciliation_fee_bound_bps"]
+            if order.get("externally_executed")
+            else order["planning_fee_bps"]
+        )
         if not 0 < rate <= 25:
             raise SafetyError("Unsupported captured crypto fee reserve")
         # Each partial fill can incur native-currency rounding; never reuse a settled

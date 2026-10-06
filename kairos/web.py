@@ -331,6 +331,15 @@ async def accounts(request):
         return web.json_response(cache[source][1])
 
 
+async def manual_exit_preview(request):
+    engine = request.app["engine"]
+    if not isinstance(engine, AlpacaEngine):
+        raise SafetyError("Manual qualification liquidation is Alpaca paper only")
+    from kairos import manual_exit
+
+    return web.json_response(await manual_exit.preview(engine))
+
+
 async def command(request):
     data = await request.json()
     action = request.match_info["action"]
@@ -356,6 +365,8 @@ async def command(request):
     elif action == "stop":
         await engine.stop()
     elif action == "reconcile":
+        if "external_exit_order_id" in data and not isinstance(engine, AlpacaEngine):
+            raise SafetyError("Manual qualification liquidation is Alpaca paper only")
         if "initial_funding_id" in data:
             if not isinstance(engine, AlpacaEngine):
                 raise SafetyError("Initial paper funding acknowledgement is Alpaca-only")
@@ -363,8 +374,18 @@ async def command(request):
                 data["initial_funding_id"], data.get("confirmation")
             )
         elif isinstance(engine, AlpacaEngine):
-            raise SafetyError(
-                "Alpaca account checks are automatic; manual Reconcile is not required"
+            if "external_exit_order_id" not in data:
+                raise SafetyError(
+                    "Alpaca account checks are automatic; manual Reconcile is not required"
+                )
+            from kairos import manual_exit
+
+            await manual_exit.reconcile(
+                engine,
+                data.get("qualification_id"),
+                data["external_exit_order_id"],
+                data.get("evidence_hash"),
+                data.get("confirmation"),
             )
         else:
             await engine.reconcile(data.get("acknowledge") is True)
@@ -597,6 +618,7 @@ def create_app(engine=None, origin=None, futures=None):
     app.router.add_get("/api/pairs", catalog)
     app.router.add_get("/api/markets", markets)
     app.router.add_get("/api/history", history)
+    app.router.add_get("/api/reconcile", manual_exit_preview)
     app.router.add_get("/api/accounts/{source}", accounts)
     app.router.add_get("/api/candles", candles)
     app.router.add_get("/api/events", events)

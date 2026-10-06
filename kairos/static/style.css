@@ -217,7 +217,7 @@ th.order-actions { z-index: 2; background: var(--surface-raised); }
 .execution-controls { flex-shrink: 0; padding: 12px; border-bottom: 1px solid var(--line); }
 .execution-mode { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .875rem; color: var(--muted); }
 .execution-mode select { width: auto; max-width: 75%; }
-.engine-actions { display: flex; gap: 6px; margin: 10px 0 6px; }
+.engine-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
 .engine-actions button { font-size: .8125rem; padding: 7px 8px; }
 .engine-actions #reconcile { margin-left: auto; }
 #engine-strategy { font-size: .75rem; }
