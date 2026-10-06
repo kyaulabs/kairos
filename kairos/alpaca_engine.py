@@ -7,7 +7,7 @@ import uuid
 from kairos import diagnostics, htf, programs, scalping, settlement
 from kairos.alpaca import iso
 from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
-from kairos.domain import ZERO, SafetyError, dec, floor
+from kairos.domain import TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.engine import Engine
 from kairos.observations import Observations
 from kairos.operations import Operations
@@ -220,13 +220,46 @@ class AlpacaEngine(Engine):
     async def qualify_paper(self, confirmation, previous_id=None):
         additional = confirmation == "ONE ADDITIONAL ALPACA PAPER ATTEMPT"
         recheck = confirmation == "ONE POST-FIX PAPER QUALIFICATION"
-        if confirmation != "ONE ALPACA PAPER ROUND TRIP" and not additional and not recheck:
+        no_submit = confirmation == "ONE NO-SUBMISSION PAPER QUALIFICATION"
+        if (
+            confirmation != "ONE ALPACA PAPER ROUND TRIP"
+            and not additional
+            and not recheck
+            and not no_submit
+        ):
             raise SafetyError("Explicit one-round-trip paper authorization required")
         generation = self.stop_generation
         async with self.lock:
             previous = self.store.get("paper-qualification")
             orders = self.orders()
-            if recheck:
+            if no_submit:
+                claim = self.store.get("paper-qualification-recheck") or {}
+                attempt = htf.snapshot(self).get("entry_attempt")
+                if (
+                    not previous
+                    or previous.get("id") != previous_id
+                    or previous.get("status") != "interrupted; manual reconciliation required"
+                    or not previous.get("run_id")
+                    or claim.get("id") != previous_id
+                    or not previous.get("after_recovery_of")
+                    or claim.get("previous_id") != previous["after_recovery_of"]
+                    or self.store.get("paper-qualification-no-submit-recheck")
+                    or len(orders) != 3
+                    or any(
+                        o.get("run_id") == previous["run_id"] or o.get("htf_id") == previous_id
+                        for o in orders
+                    )
+                    or any(o["status"] not in TERMINAL for o in orders)
+                    or attempt
+                    and (
+                        attempt.get("order_id") is not None
+                        or attempt.get("position", {}).get("id") != previous_id
+                    )
+                ):
+                    raise SafetyError(
+                        "One no-submission qualification requires the exact failed post-fix claim with no attributed orders"
+                    )
+            elif recheck:
                 recovery = self.store.get("paper-qualification-exit") or {}
                 if (
                     not previous
@@ -275,9 +308,11 @@ class AlpacaEngine(Engine):
                 or self.running
                 or self.shutting_down
                 or self.recovery_required
+                or self.last_error
                 or not self.is_flat()
                 or htf.snapshot(self).get("position")
                 or htf.snapshot(self).get("entry_attempt")
+                and not no_submit
                 or self.settings["strategy"] != "htf"
                 or self.settings["htf_policy"] != "pullback-v1"
                 or self.settings["pair"] != "alpaca:BTC/USD"
@@ -316,14 +351,21 @@ class AlpacaEngine(Engine):
                     k: str(getattr(pair, k)) for k in ("tick", "lot", "minimum", "cost_minimum")
                 },
             }
+            if no_submit:
+                record["no_submission_retry_of"] = previous["id"]
             if additional:
                 record["retry_of"] = previous["id"]
             if recheck:
                 record["after_recovery_of"] = previous["id"]
             # Retain the original failed claim and atomically claim the explicitly authorized retry.
             with self.store.db:
-                if additional:
+                if additional or no_submit:
                     self.store._put("paper-qualification:" + previous["id"], previous)
+                if no_submit:
+                    self.store._put(
+                        "paper-qualification-no-submit-recheck",
+                        {"id": record["id"], "previous_id": previous_id},
+                    )
                 if recheck:
                     self.store._put(
                         "paper-qualification-before-recheck:" + previous["id"], previous
@@ -352,6 +394,15 @@ class AlpacaEngine(Engine):
                     "exit_reason": None,
                 }
                 state = htf.snapshot(self)
+                if no_submit and state.get("entry_attempt"):
+                    self.event(
+                        "qualification",
+                        {
+                            "message": "Unsubmitted prior plan retained for audit",
+                            "previous_id": previous_id,
+                            "entry_attempt": state["entry_attempt"],
+                        },
+                    )
                 state.update(position=None, entry_attempt={"position": plan, "order_id": None})
                 self.store.put(htf.key(self), state)
                 self.event(
@@ -420,12 +471,18 @@ class AlpacaEngine(Engine):
                 record["posted_fees_after"] = dict(self.ledger()["fees"])
                 if self.ledger()["initial"] != before["initial"]:
                     raise SafetyError("Qualification allocation baseline changed")
-            except (Exception, asyncio.CancelledError):
+            except (Exception, asyncio.CancelledError) as exc:
                 record.update(
-                    status="interrupted; manual reconciliation required", ended_at=self.clock()
+                    status="interrupted; manual reconciliation required",
+                    ended_at=self.clock(),
+                    failure_type=type(exc).__name__,
+                    failure_reason=str(exc)
+                    if isinstance(exc, PendingAlpacaData)
+                    else "Qualification interrupted; inspect orders and diagnostics",
                 )
                 self.recovery_required = True
-                self.last_error = "Paper qualification interrupted; automatic checks continue; review the recorded attempt"
+                if self.last_error != "Audit/storage failure; manual recovery required":
+                    self.last_error = "Paper qualification interrupted; automatic checks continue; review the recorded attempt"
                 raise
             finally:
                 self.execution_purpose = None
@@ -765,6 +822,10 @@ class AlpacaEngine(Engine):
                         "Qualification recovery settlement pending; Reconcile before Start",
                         "Automatic account verification pending; trading remains paused",
                     }
+                    or q.get("status") == "interrupted; manual reconciliation required"
+                    and self.is_flat()
+                    and self.last_error
+                    == "Paper qualification interrupted; automatic checks continue; review the recorded attempt"
                 ):
                     self.last_error = None
                 status = "fees pending" if self.fee_settlement_pending else "matched"
@@ -1367,6 +1428,18 @@ class AlpacaEngine(Engine):
             raise SafetyError("Daily marked-to-market loss limit reached; no further orders")
         return prices, exposure
 
+    async def execution_book(self, pair, side, price, book, maker):
+        if maker:
+            # Account/risk reads may outlast the planner's quote. Refresh only
+            # the evidence, never the passive limit, candidate or intent expiry.
+            book = await self.kraken.book(pair)
+            book.fresh(self.settings["stale_seconds"])
+            if (side == "buy" and price >= book.asks[0][0]) or (
+                side == "sell" and price <= book.bids[0][0]
+            ):
+                raise SafetyError("Passive Alpaca limit now crosses; skip rather than chase")
+        return book
+
     async def place(self, pair, side, volume, price, book, maker=False, **kwargs):
         if not self.paper_armed or not self.kraken.allow_paper or self.mode != "paper":
             raise SafetyError("Alpaca hosted paper is not armed")
@@ -1400,15 +1473,7 @@ class AlpacaEngine(Engine):
         )
         if available.get("USD" if side == "buy" else pair.base, ZERO) < required:
             raise SafetyError("Alpaca available funds after holds are insufficient")
-        if maker:
-            current = await self.kraken.book(pair)
-            current.fresh(self.settings["stale_seconds"])
-            if (side == "buy" and price >= current.asks[0][0]) or (
-                side == "sell" and price <= current.bids[0][0]
-            ):
-                raise SafetyError("Passive Alpaca limit now crosses; skip rather than chase")
-            book = current
-        elif kwargs.get("exit_only"):
+        if not maker and kwargs.get("exit_only"):
             # Full account reads can outlast the planner's quote. Replan only the
             # owned reduction from a genuinely fresh same-venue book, never its entry.
             book = await self.kraken.book(pair)
