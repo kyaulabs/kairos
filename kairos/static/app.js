@@ -207,7 +207,7 @@
     $('mode-badge').textContent = hosted ? 'ALPACA · PAPER' : state.mode === 'trading' ? 'KRAKEN · LIVE' : `KRAKEN · DRY-RUN · ${state.settings.product.toUpperCase()}`;
     $('exchange').value = state.exchange || 'kraken';
     $('exchange').disabled = busy || state.running || state.recovery_required;
-    const stopAvailable = state.running || (hosted && state.orders?.some(order => !['closed','canceled','expired','rejected'].includes(order.status))) || (state.paper_qualification_recovery && state.paper_qualification_recovery.status !== 'settled');
+    const stopAvailable = state.running || (hosted && state.orders?.some(order => !['closed','canceled','expired','rejected'].includes(order.status))) || state.paper_qualification_recovery?.status === 'claimed';
     $('quick-stop').hidden = !stopAvailable;
     $('quick-stop').disabled = busy || !connected;
     $('reset').hidden = hosted;

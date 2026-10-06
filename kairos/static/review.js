@@ -120,6 +120,7 @@ class StrategyReview {
       ['Trial end', t(state.execution_run?.trial_ends_at)],
       ['Trial protocol', state.execution_run?.protocol_hash || 'Not a registered multi-bar trial'],
       ['Paper execution qualification', state.paper_qualification?.status || 'Not performed'],
+      ['Last qualification failure', state.paper_qualification?.failure_reason || 'No additional failure detail recorded'],
       ['Trial interpretation', state.settings.htf_policy === 'multibar-v2' ? '14 calendar days; ≥10 candidates, ≥5 accepted entries, ≥95% running availability. Economics inconclusive below 30 completed owned lineages; no automatic extension.' : 'Legacy experiment; no profitability claim'],
       [state.settings.htf_policy === 'multibar-v2' ? 'New closed-bar pattern positive / checks' : 'Raw entry checks positive / observed', `${n(checks?.signals)} / ${n(checks?.observed)}`],
       [state.settings.htf_policy === 'multibar-v2' ? 'Candidate + cost gate passed / checks' : 'Setup + cost checks passed / observed', `${n(checks?.cost_qualified)} / ${n(checks?.cost_observed)}`],

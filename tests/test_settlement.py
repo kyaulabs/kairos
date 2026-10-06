@@ -291,6 +291,123 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
                     await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
                 self.assertEqual(len(e.orders()), 5)
 
+    async def test_unsubmitted_postfix_failure_is_paused_and_new_authorization_is_one_use(self):
+        from kairos.alpaca_transport import PendingAlpacaData
+        from kairos.qualification_exit import CONFIRMATION, recover
+        from tests.test_qualification_exit import RecoveryTests
+
+        old = RecoveryTests()
+        await old.asyncSetUp()
+        self.addAsyncCleanup(old.case.asyncTearDown)
+        e, b = old.e, old.broker
+        await recover(e, old.q["id"], CONFIRMATION)
+        await e.reconcile()
+        e.kraken.request.side_effect = old.request
+        b.charge_crypto_fees = True
+        with patch.object(
+            e,
+            "execution_book",
+            side_effect=PendingAlpacaData("Alpaca market data is stale (11.0s; limit 10s)"),
+        ):
+            with self.assertRaises(PendingAlpacaData):
+                await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
+        failed = copy.deepcopy(e.store.get("paper-qualification"))
+        first_claim = copy.deepcopy(e.store.get("paper-qualification-recheck"))
+        self.assertEqual(len(e.orders()), 3)
+        b.calls.clear()
+        await e.tick()
+        self.assertFalse(e.recovery_required or e.running or e.paper_armed)
+        self.assertIsNone(e.last_error)
+        self.assertTrue(all(method == "GET" for method, _, _ in b.calls))
+        await e.configure({**e.settings, "htf_policy": "multibar-v2", "reinvest_profits": False})
+        self.assertEqual(e.operations.status, "paused")
+        self.assertIn("separately authorized", e.start_block_reason)
+        await e.stop()
+        self.assertIn("separately authorized", e.start_block_reason)
+        with self.assertRaisesRegex(SafetyError, "separately authorized"):
+            await e.start(restart=True, confirmation="RESTART ALPACA PAPER")
+        self.assertEqual(e.store.get("paper-qualification"), failed)
+        self.assertIn("11.0s", failed["failure_reason"])
+        await e.configure({**e.settings, "htf_policy": "pullback-v1"})
+        with self.assertRaises(SafetyError):
+            await e.qualify_paper("ONE NO-SUBMISSION PAPER QUALIFICATION", "wrong-id")
+        order = e.orders()[-1]
+        changed = {**order, "run_id": failed["run_id"]}
+        e.store.save_order(changed)
+        with self.assertRaises(SafetyError):
+            await e.qualify_paper("ONE NO-SUBMISSION PAPER QUALIFICATION", failed["id"])
+        e.store.save_order(order)
+        self.assertIsNone(e.store.get("paper-qualification-no-submit-recheck"))
+        with patch("kairos.alpaca_engine.asyncio.sleep", new=AsyncMock()):
+            await e.qualify_paper("ONE NO-SUBMISSION PAPER QUALIFICATION", failed["id"])
+        self.assertEqual(len(e.orders()), 5)
+        self.assertTrue(e.qualification_execution_complete)
+        self.assertFalse(e.running or e.paper_armed)
+        self.assertEqual(e.store.get("paper-qualification:" + failed["id"]), failed)
+        self.assertEqual(e.store.get("paper-qualification-recheck"), first_claim)
+        with self.assertRaises(SafetyError):
+            await e.qualify_paper("ONE NO-SUBMISSION PAPER QUALIFICATION", failed["id"])
+        self.assertEqual(len(e.orders()), 5)
+
+    async def test_passive_quote_refresh_after_risk_reads_keeps_original_limit(self):
+        valuation = self.e.valuation
+        refreshed = False
+
+        async def age_planner(enforce=False):
+            nonlocal refreshed
+            result = await valuation(enforce)
+            if self.e.running and not self.e.orders() and not refreshed:
+                old = self.e.kraken.market_data.rest_books["alpaca:BTC/USD"]
+                fresh = copy.copy(old)
+                old.received -= 11
+                self.e.kraken.market_data.rest_books["alpaca:BTC/USD"] = fresh
+                refreshed = True
+            return result
+
+        with patch.object(self.e, "valuation", side_effect=age_planner):
+            await self.round_trip()
+        self.assertTrue(refreshed)
+        self.assertTrue(self.e.qualification_execution_complete)
+        self.assertEqual(dec(self.e.orders()[0]["price"]), 100)
+        self.assertEqual(len(self.e.orders()), 2)
+
+    async def test_final_passive_quote_still_rejects_crossing_and_stop(self):
+        for fault in ("crossing", "stop", "stale"):
+            with self.subTest(fault=fault):
+                case = SettlementTests()
+                await case.asyncSetUp()
+                self.addAsyncCleanup(case.case.asyncTearDown)
+                e = case.e
+                valuation = e.valuation
+                changed = False
+
+                async def late_change(enforce=False, valuation=valuation, e=e, fault=fault):
+                    nonlocal changed
+                    result = await valuation(enforce)
+                    if e.running and not e.orders() and not changed:
+                        old = e.kraken.market_data.rest_books["alpaca:BTC/USD"]
+                        fresh = copy.copy(old)
+                        old.received -= 11
+                        if fault == "crossing":
+                            fresh.bids = [[dec("99.8"), dec(100)]]
+                            fresh.asks = [[dec("99.9"), dec(100)]]
+                        elif fault == "stop":
+                            e.running = False
+                            e.stop_generation += 1
+                        else:
+                            fresh.received -= 11
+                        e.kraken.market_data.rest_books["alpaca:BTC/USD"] = fresh
+                        changed = True
+                    return result
+
+                with patch.object(e, "valuation", side_effect=late_change):
+                    with self.assertRaises(SafetyError):
+                        await case.round_trip()
+                self.assertTrue(changed)
+                self.assertFalse(e.orders())
+                self.assertFalse(any(method == "POST" for method, _, _ in case.b.calls))
+                self.assertFalse(e.running or e.paper_armed)
+
     async def select_multibar(self):
         await self.e.configure(
             {

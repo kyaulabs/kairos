@@ -1237,6 +1237,9 @@ class Engine:
         self.event("order", order)
         return order
 
+    async def execution_book(self, pair, side, price, book, maker):
+        return book
+
     async def place(
         self,
         pair,
@@ -1346,6 +1349,7 @@ class Engine:
             balances = await self.kraken.balances()
             if any(balances.get(asset, ZERO) < amount for asset, amount in needed.items()):
                 raise SafetyError("Insufficient exchange funds after holds")
+        book = await self.execution_book(pair, side, price, book, maker)
         book.fresh(self.settings["stale_seconds"])
         if book.spread_bps > dec(self.settings["max_spread_bps"]):
             raise SafetyError("Spread exceeds configured maximum")
