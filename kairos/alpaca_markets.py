@@ -282,6 +282,7 @@ class AlpacaMarkets:
                     "qty",
                     "price",
                     "net_amount",
+                    "currency",
                 ],
             }[source]
             rows = [[str(row.get(k, "—")) for k in columns] for row in raw]

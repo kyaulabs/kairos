@@ -238,6 +238,44 @@ class ManualExitTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.e.qualification_execution_complete)
         self.assertEqual(len(self.e.orders()), 7)
 
+    async def test_usd_labeled_crypto_fee_recovers_after_manual_sale_was_already_imported(self):
+        buys = [f for f in self.b.activities if f.get("side") == "buy"]
+        fee = {
+            "id": "published-quantity-fee",
+            "activity_type": "CFEE",
+            "status": "executed",
+            "currency": "USD",
+            "symbol": "BTCUSD",
+            "qty": self.protection["inventory_adjustment"],
+            "net_amount": "0",
+            "date": settlement.native_day(buys[-1]["transaction_time"]),
+        }
+        self.b.activities.append(fee)
+        with patch.object(
+            self.e, "apply_fee", side_effect=SafetyError("Unexpected Alpaca fee credit/currency")
+        ):
+            with self.assertRaises(SafetyError):
+                await self.confirm()
+            await self.e.check_account_automatically()
+        self.assertEqual(len(self.e.orders()), 7)
+        receipt = copy.deepcopy(self.e.store.get(manual_exit.PREFIX + self.row["id"]))
+        self.assertIsNotNone(receipt)
+        self.assertEqual(self.e.balance("BTC"), 0)
+        self.e.next_account_check = 0
+        await self.e.check_account_automatically()
+        self.assertFalse(self.e.recovery_required or self.e.running or self.e.paper_armed)
+        self.assertEqual(self.e.balance("USD"), self.b.cash - dec(9500))
+        self.assertEqual(dec(self.e.ledger()["fees"]["BTC"]), -dec(fee["qty"]))
+        ledger = self.e.ledger()
+        await self.e.reconcile_account()
+        self.assertEqual(self.e.ledger(), ledger)
+        self.assertEqual(len(self.e.orders()), 7)
+        self.assertEqual(self.e.store.get(manual_exit.PREFIX + self.row["id"]), receipt)
+        self.assertEqual(self.e.store.get("paper-qualification:" + self.failed["id"]), self.failed)
+        self.assertFalse(self.e.qualification_execution_complete)
+        self.assertIsNone(self.e.store.get("multibar-trial:" + PROTOCOL_HASH))
+        self.assertTrue(all(method == "GET" for method, _, _ in self.b.calls))
+
     async def test_failed_post_import_read_recovers_without_reimport_or_broker_writes(self):
         with patch.object(
             self.e, "reconcile_account", side_effect=SafetyError("fixture account read failed")
