@@ -9,6 +9,7 @@ from kairos.alpaca import iso
 from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
 from kairos.domain import TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.engine import Engine
+from kairos.fees import FeeUnavailable
 from kairos.observations import Observations
 from kairos.operations import Operations
 from kairos.settings import DEFAULTS
@@ -131,7 +132,9 @@ class AlpacaEngine(Engine):
         self.resolve(self.settings["pair"])
         if not self.ledger():
             self.reset_ledger(self.mode, self.settings["paper_balance"])
-        recovery = self.store.get("paper-qualification-exit")
+        recovery = self.store.get("paper-qualification-fee-exit") or self.store.get(
+            "paper-qualification-exit"
+        )
         qualification = self.store.get("paper-qualification") or {}
         failed_qualification = (
             qualification.get("status") == "interrupted; manual reconciliation required"
@@ -192,7 +195,8 @@ class AlpacaEngine(Engine):
             "operations": self.operations.snapshot(),
             "scheduled_recovery": self.retry_status,
             "paper_qualification": self.store.get("paper-qualification"),
-            "paper_qualification_recovery": self.store.get("paper-qualification-exit"),
+            "paper_qualification_recovery": self.store.get("paper-qualification-fee-exit")
+            or self.store.get("paper-qualification-exit"),
             "fee_settlement": self.store.get(settlement.KEY),
             "automatic_account_checks": self.account_check_status,
             "start_block_reason": self.start_block_reason,
@@ -437,6 +441,9 @@ class AlpacaEngine(Engine):
                 )
                 record["entry_owned"] = str(held)
                 if held:
+                    # The passive fill window can outlive the planning snapshot.
+                    # This is a new exit leg, not permission to refresh an entry intent.
+                    await self.refresh_fees()
                     book = await self.kraken.book(pair)
                     price = limit_price(book, "sell", self.settings["slippage_bps"])
                     volume = floor(min(held, self.limits()[0] / price), pair.lot)
@@ -477,7 +484,7 @@ class AlpacaEngine(Engine):
                     ended_at=self.clock(),
                     failure_type=type(exc).__name__,
                     failure_reason=str(exc)
-                    if isinstance(exc, PendingAlpacaData)
+                    if isinstance(exc, (PendingAlpacaData, FeeUnavailable))
                     else "Qualification interrupted; inspect orders and diagnostics",
                 )
                 self.recovery_required = True
@@ -822,10 +829,17 @@ class AlpacaEngine(Engine):
                         "Qualification recovery settlement pending; Reconcile before Start",
                         "Automatic account verification pending; trading remains paused",
                     }
-                    or q.get("status") == "interrupted; manual reconciliation required"
-                    and self.is_flat()
+                    or self.is_flat()
                     and self.last_error
-                    == "Paper qualification interrupted; automatic checks continue; review the recorded attempt"
+                    in {
+                        "Paper qualification interrupted; automatic checks continue; review the recorded attempt",
+                        "Sell-only qualification recovery; actual fee reconciliation remains required",
+                    }
+                    and q.get("status")
+                    in {
+                        "interrupted; manual reconciliation required",
+                        "manual exit recovery; normal qualification incomplete",
+                    }
                 ):
                     self.last_error = None
                 status = "fees pending" if self.fee_settlement_pending else "matched"
@@ -911,19 +925,22 @@ class AlpacaEngine(Engine):
                     **q,
                 },
             )
-        recovery = self.store.get("paper-qualification-exit")
-        if recovery and recovery["status"] != "settled":
-            if self.is_flat() and not self.orders(active=True) and not self.fee_settlement_pending:
-                recovery.update(status="settled", settled_at=self.clock())
-                self.store.put("paper-qualification-exit", recovery)
-                self.event("qualification-recovery", recovery)
-            elif q.get("id") == recovery.get("qualification_id") and (
-                not self.is_flat() or self.orders(active=True)
-            ):
-                self.recovery_required = True
-                self.last_error = (
-                    "Qualification recovery retains holdings; review before another authorization"
-                )
+        for key in ("paper-qualification-exit", "paper-qualification-fee-exit"):
+            recovery = self.store.get(key)
+            if recovery and recovery["status"] != "settled":
+                if (
+                    self.is_flat()
+                    and not self.orders(active=True)
+                    and not self.fee_settlement_pending
+                ):
+                    recovery.update(status="settled", settled_at=self.clock())
+                    self.store.put(key, recovery)
+                    self.event("qualification-recovery", recovery)
+                elif q.get("id") == recovery.get("qualification_id") and (
+                    not self.is_flat() or self.orders(active=True)
+                ):
+                    self.recovery_required = True
+                    self.last_error = "Qualification recovery retains holdings; review before another authorization"
 
     def account_recovery_snapshot(self):
         result = self.account_read_status["recovery"]

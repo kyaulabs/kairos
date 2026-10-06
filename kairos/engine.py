@@ -127,7 +127,7 @@ class Engine:
                 run["history_policy"] = self.htf_review.policy
                 run["bar_minutes"] = self.settings["candle_minutes"]
                 run["entry_policy"] = self.settings["htf_policy"]
-                if self.settings["htf_policy"] == "multibar-v2":
+                if self.settings["htf_policy"] == "multibar-v2" and not purpose:
                     from kairos.multibar import PROTOCOL_HASH
 
                     trial = self.store.get("multibar-trial:" + PROTOCOL_HASH)
