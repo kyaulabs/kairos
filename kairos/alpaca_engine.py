@@ -224,11 +224,16 @@ class AlpacaEngine(Engine):
     async def qualify_paper(self, confirmation, previous_id=None):
         additional = confirmation == "ONE ADDITIONAL ALPACA PAPER ATTEMPT"
         recheck = confirmation == "ONE POST-FIX PAPER QUALIFICATION"
+        fee_recheck = confirmation == "ONE FEE-FIX PAPER QUALIFICATION"
+        recheck_key = (
+            "paper-qualification-fee-recheck" if fee_recheck else "paper-qualification-recheck"
+        )
         no_submit = confirmation == "ONE NO-SUBMISSION PAPER QUALIFICATION"
         if (
             confirmation != "ONE ALPACA PAPER ROUND TRIP"
             and not additional
             and not recheck
+            and not fee_recheck
             and not no_submit
         ):
             raise SafetyError("Explicit one-round-trip paper authorization required")
@@ -263,15 +268,38 @@ class AlpacaEngine(Engine):
                     raise SafetyError(
                         "One no-submission qualification requires the exact failed post-fix claim with no attributed orders"
                     )
-            elif recheck:
-                recovery = self.store.get("paper-qualification-exit") or {}
+            elif recheck or fee_recheck:
+                recovery = (
+                    self.store.get(
+                        "paper-qualification-fee-exit"
+                        if fee_recheck
+                        else "paper-qualification-exit"
+                    )
+                    or {}
+                )
+                if fee_recheck:
+                    claim = self.store.get("paper-qualification-no-submit-recheck") or {}
+                    if (
+                        not previous
+                        or previous.get("failure_type") != "FeeUnavailable"
+                        or claim.get("id") != previous_id
+                        or not previous.get("no_submission_retry_of")
+                        or claim.get("previous_id") != previous["no_submission_retry_of"]
+                        or previous.get("recovery_order_id") != recovery.get("order_id")
+                        or dec(recovery.get("filled", 0))
+                        != dec(recovery.get("broker_quantity", -1))
+                    ):
+                        raise SafetyError(
+                            "One fee-fix qualification requires the exact recovered fee-interrupted check"
+                        )
                 if (
                     not previous
                     or previous.get("id") != previous_id
                     or previous.get("status")
                     != "manual exit recovery; normal qualification incomplete"
-                    or self.store.get("paper-qualification-recheck")
-                    or len(orders) != 3
+                    or self.store.get(recheck_key)
+                    or len(orders) != (5 if fee_recheck else 3)
+                    or any(o["status"] not in TERMINAL for o in orders)
                     or recovery.get("qualification_id") != previous_id
                     or recovery.get("status")
                     not in {"settled", "exit attempted; reconciliation pending"}
@@ -281,9 +309,10 @@ class AlpacaEngine(Engine):
                     or orders[-1]["side"] != "sell"
                     or orders[-1]["status"] != "closed"
                     or orders[-1]["filled"] != recovery.get("filled")
-                    or orders[1]["run_id"] != previous.get("run_id")
-                    or orders[1]["side"] != "buy"
-                    or orders[1]["status"] != "closed"
+                    or orders[-2]["run_id"] != previous.get("run_id")
+                    or orders[-2].get("htf_id") != previous_id
+                    or orders[-2]["side"] != "buy"
+                    or orders[-2]["status"] != "closed"
                     or orders[0]["status"] != "canceled"
                     or dec(orders[0]["filled"]) != 0
                 ):
@@ -335,7 +364,10 @@ class AlpacaEngine(Engine):
             book.fresh(self.settings["stale_seconds"])
             price = pair.price(book.bids[0][0], "buy")
             budget = min(dec(25), self.limits()[0], settlement.entry_budget(self, book.asks[0][0]))
-            volume = floor(budget / (price * (1 + self.fees.reserve(pair) / 10000)), pair.lot)
+            # Leave one native quantum for rounding the planned base-currency reserve.
+            volume = floor(
+                (budget / price - pair.lot) / (1 + self.fees.reserve(pair) / 10000), pair.lot
+            )
             if volume < 2 * htf.minimum_volume(pair, price):
                 raise SafetyError(
                     "Qualification budget cannot leave a tradeable exit after fees/rounding"
@@ -359,7 +391,7 @@ class AlpacaEngine(Engine):
                 record["no_submission_retry_of"] = previous["id"]
             if additional:
                 record["retry_of"] = previous["id"]
-            if recheck:
+            if recheck or fee_recheck:
                 record["after_recovery_of"] = previous["id"]
             # Retain the original failed claim and atomically claim the explicitly authorized retry.
             with self.store.db:
@@ -370,14 +402,14 @@ class AlpacaEngine(Engine):
                         "paper-qualification-no-submit-recheck",
                         {"id": record["id"], "previous_id": previous_id},
                     )
-                if recheck:
-                    self.store._put(
-                        "paper-qualification-before-recheck:" + previous["id"], previous
+                if recheck or fee_recheck:
+                    archive = (
+                        "paper-qualification-before-fee-recheck:"
+                        if fee_recheck
+                        else "paper-qualification-before-recheck:"
                     )
-                    self.store._put(
-                        "paper-qualification-recheck",
-                        {"id": record["id"], "previous_id": previous_id},
-                    )
+                    self.store._put(archive + previous["id"], previous)
+                    self.store._put(recheck_key, {"id": record["id"], "previous_id": previous_id})
                 self.store._put("paper-qualification", record)
             self.running, self.paper_armed = True, True
             try:
