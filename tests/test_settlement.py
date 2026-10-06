@@ -513,6 +513,106 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
             await recover(e, failed["id"], FEE_CONFIRMATION)
         self.assertEqual(len(e.orders()), 5)
 
+    async def recovered_fee_check(self):
+        from kairos.qualification_exit import FEE_CONFIRMATION, recover
+
+        e, b, _, failed = await self.fee_interrupted_check()
+        await recover(e, failed["id"], FEE_CONFIRMATION)
+        e.next_account_check = 0
+        await e.tick()
+        await e.configure({**e.settings, "htf_policy": "pullback-v1"})
+        return e, b, failed
+
+    async def test_fee_fix_qualification_is_once_preserves_failures_and_does_not_start_trial(self):
+        from kairos.multibar import PROTOCOL_HASH
+
+        e, b, failed = await self.recovered_fee_check()
+        previous = copy.deepcopy(e.store.get("paper-qualification"))
+        retained = {
+            key: copy.deepcopy(e.store.get(key))
+            for key in (
+                "paper-qualification-exit",
+                "paper-qualification-fee-exit",
+                "paper-qualification-recheck",
+                "paper-qualification-no-submit-recheck",
+                "paper-qualification:" + failed["id"],
+            )
+        }
+        before = e.orders()
+        request = b.request
+        expired = False
+
+        async def delayed_fill(method, path, **kw):
+            nonlocal expired
+            result = await request(method, path, **kw)
+            if method == "POST" and kw["payload"]["side"] == "buy":
+                e.fees.rates["alpaca:BTC/USD"]["received"] -= 61
+                e.fees.attempts["alpaca:BTC/USD"] -= 61
+                expired = True
+            return result
+
+        e.kraken.request.side_effect = delayed_fill
+        await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", failed["id"])
+        q = e.store.get("paper-qualification")
+        self.assertTrue(expired and e.qualification_execution_complete)
+        self.assertEqual(q["status"], "execution complete; fee settlement pending")
+        self.assertEqual(q["after_recovery_of"], failed["id"])
+        self.assertEqual(
+            e.store.get("paper-qualification-fee-recheck"),
+            {"id": q["id"], "previous_id": failed["id"]},
+        )
+        self.assertEqual(
+            e.store.get("paper-qualification-before-fee-recheck:" + failed["id"]), previous
+        )
+        for key, value in retained.items():
+            self.assertEqual(e.store.get(key), value, key)
+        self.assertEqual(e.orders()[:5], before)
+        self.assertEqual(len(e.orders()), 7)
+        buy, sell = e.orders()[-2:]
+        self.assertTrue(buy["maker"] and sell["exit_only"])
+        reserve = next(
+            r
+            for r in e.store.get(settlement.KEY)["reserves"].values()
+            if r["qty"] == buy["filled"] and r["currency"] == "BTC"
+        )
+        self.assertLessEqual(
+            dec(buy["cost"]) + dec(reserve["cap"]) * dec(buy["price"]), dec(q["budget"])
+        )
+        self.assertEqual(e.balance("BTC"), 0)
+        self.assertFalse(e.running or e.paper_armed)
+        await e.configure({**e.settings, "htf_policy": "multibar-v2"})
+        self.assertIsNone(e.start_block_reason)
+        self.assertIsNone(e.store.get("multibar-trial:" + PROTOCOL_HASH))
+        with self.assertRaises(SafetyError):
+            await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", failed["id"])
+        self.assertEqual(len(e.orders()), 7)
+
+    async def test_fee_fix_qualification_rejects_wrong_lineage_and_consumes_interruption(self):
+        from kairos.alpaca_transport import PendingAlpacaData
+
+        e, b, failed = await self.recovered_fee_check()
+        with self.assertRaises(SafetyError):
+            await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", "wrong-id")
+        original = e.store.get("paper-qualification-fee-exit")
+        e.store.put("paper-qualification-fee-exit", {**original, "filled": "0"})
+        with self.assertRaises(SafetyError):
+            await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", failed["id"])
+        self.assertIsNone(e.store.get("paper-qualification-fee-recheck"))
+        e.store.put("paper-qualification-fee-exit", original)
+        b.calls.clear()
+        with patch.object(
+            e, "execution_book", side_effect=PendingAlpacaData("fixture stale quote")
+        ):
+            with self.assertRaises(PendingAlpacaData):
+                await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", failed["id"])
+        self.assertFalse(any(method == "POST" for method, _, _ in b.calls))
+        self.assertIsNotNone(e.store.get("paper-qualification-fee-recheck"))
+        self.assertEqual(e.store.get("paper-qualification:" + failed["id"]), failed)
+        self.assertFalse(e.running or e.paper_armed or e.qualification_execution_complete)
+        with self.assertRaises(SafetyError):
+            await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", failed["id"])
+        self.assertEqual(len(e.orders()), 5)
+
     async def test_fee_recovery_keeps_unwitnessed_native_allowance_unsold(self):
         from kairos.qualification_exit import FEE_CONFIRMATION, recover
 
