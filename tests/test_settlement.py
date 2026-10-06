@@ -105,6 +105,45 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.e.ledger(), ledger)
         self.assertFalse(self.e.running or self.e.paper_armed)
 
+    async def test_usd_currency_metadata_does_not_convert_native_crypto_fee_to_cash(self):
+        await self.round_trip()
+        before = copy.deepcopy(self.e.ledger()["balances"])
+        for fee in self.fees:
+            self.b.activities.append({**fee, "activity_type": "CFEE", "currency": "USD"})
+        self.b.calls.clear()
+        await self.e.reconcile()
+        self.assertEqual(self.e.ledger()["balances"], before)
+        self.assertEqual(dec(self.e.ledger()["fees"]["BTC"]), -dec(self.fees[0]["qty"]))
+        self.assertEqual(dec(self.e.ledger()["fees"]["USD"]), -dec(self.fees[1]["net_amount"]))
+        self.assertFalse(self.e.fee_settlement_pending)
+        ledger = copy.deepcopy(self.e.ledger())
+        await self.e.reconcile_account()
+        self.assertEqual(self.e.ledger(), ledger)
+        self.assertTrue(all(method == "GET" for method, _, _ in self.b.calls))
+        self.assertFalse(self.e.running or self.e.paper_armed)
+
+    async def test_fee_currency_fix_retains_credit_foreign_currency_and_dual_debit_guards(self):
+        await self.round_trip()
+        before = copy.deepcopy(self.e.ledger())
+        suspense = copy.deepcopy(self.e.store.get(settlement.KEY))
+        base = {**self.fees[0], "currency": "USD"}
+        for changes in (
+            {"qty": "0.000000001"},
+            {"currency": "EUR"},
+            {"currency": "BTCUSD"},
+            {"net_amount": "-.01"},
+            {"symbol": "UNKNOWN"},
+            {"status": "pending"},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(SafetyError):
+                self.e.apply_fee({**base, **changes})
+        for changes in ({"net_amount": ".01"}, {"currency": "BTC"}, {"currency": "EUR"}):
+            with self.subTest(changes=changes), self.assertRaises(SafetyError):
+                self.e.apply_fee({**self.fees[1], "activity_type": "CFEE", **changes})
+        self.assertEqual(self.e.ledger(), before)
+        self.assertEqual(self.e.store.get(settlement.KEY), suspense)
+        self.assertIsNone(self.e.store.get("alpaca-activity:" + base["id"]))
+
     async def test_pending_fees_do_not_allow_pyramiding_or_veto_owned_hard_exits(self):
         # Stop the normal check after entry reconciliation, preserving the actual
         # buy and its net ownership; then exercise the ordinary strategy exit path.
