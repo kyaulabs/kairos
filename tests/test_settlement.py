@@ -343,10 +343,13 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         await e.reconcile()
         e.kraken.request.side_effect = old.request
         b.charge_crypto_fees = True
-        with patch.object(
-            e,
-            "execution_book",
-            side_effect=PendingAlpacaData("Alpaca market data is stale (11.0s; limit 10s)"),
+        with (
+            patch("kairos.qualification_data.WAIT_SECONDS", 0.5),
+            patch.object(
+                e,
+                "execution_book",
+                side_effect=PendingAlpacaData("Alpaca market data is stale (11.0s; limit 10s)"),
+            ),
         ):
             with self.assertRaises(PendingAlpacaData):
                 await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
@@ -439,7 +442,10 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
                         changed = True
                     return result
 
-                with patch.object(e, "valuation", side_effect=late_change):
+                with (
+                    patch("kairos.qualification_data.WAIT_SECONDS", 0.5),
+                    patch.object(e, "valuation", side_effect=late_change),
+                ):
                     with self.assertRaises(SafetyError):
                         await case.round_trip()
                 self.assertTrue(changed)
@@ -490,8 +496,11 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         original_recovery = copy.deepcopy(e.store.get("paper-qualification-exit"))
         e.kraken.request.side_effect = old.request
         b.charge_crypto_fees = witnessed
-        with patch.object(
-            e, "execution_book", side_effect=PendingAlpacaData("fixture expired quote")
+        with (
+            patch("kairos.qualification_data.WAIT_SECONDS", 0.5),
+            patch.object(
+                e, "execution_book", side_effect=PendingAlpacaData("fixture expired quote")
+            ),
         ):
             with self.assertRaises(PendingAlpacaData):
                 await e.qualify_paper("ONE POST-FIX PAPER QUALIFICATION", old.q["id"])
@@ -639,8 +648,9 @@ class SettlementTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(e.store.get("paper-qualification-fee-recheck"))
         e.store.put("paper-qualification-fee-exit", original)
         b.calls.clear()
-        with patch.object(
-            e, "execution_book", side_effect=PendingAlpacaData("fixture stale quote")
+        with (
+            patch("kairos.qualification_data.WAIT_SECONDS", 0.5),
+            patch.object(e, "execution_book", side_effect=PendingAlpacaData("fixture stale quote")),
         ):
             with self.assertRaises(PendingAlpacaData):
                 await e.qualify_paper("ONE FEE-FIX PAPER QUALIFICATION", failed["id"])
