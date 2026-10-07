@@ -90,6 +90,7 @@ async def preview(e, values):
         e.store.put("settings", e.settings)
         e.fee_scope = [pair]
         await e.client.market_data.configure([pair], max_age=e.settings["stale_seconds"])
+        e.emit_state()  # Selection persists even if a later read-only preflight gate fails.
         allowance = values.get("demo_fee_allowance_bps")
         allowance = None if allowance in (None, "") else str(dec(allowance))
         if allowance is not None and (kind != "execution_cycle" or e.client.environment != "demo"):

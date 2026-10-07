@@ -38,7 +38,23 @@ class OKXWebTests(unittest.IsolatedAsyncioTestCase):
         response = await self.http.get(
             "/api/candles", params={"pair": self.pair.id, "interval": "60"}
         )
-        self.assertEqual(response.status, 409)
+        self.assertEqual(response.status, 200)
+        chart = await response.json()
+        self.assertEqual(chart["volume_unit"], "base asset")
+        self.assertIn("OKX U.S. demo BTC-USD", chart["source"])
+        self.assertEqual(len(chart["candles"]), 40)
+        self.assertEqual(chart["candles"][0]["volume"], "2")
+        self.assertFalse(chart["candles"][-1]["complete"])
+        selected = dict(self.client.market_data.pairs)
+        generation = self.client.market_data.generation
+        response = await self.http.get(
+            "/api/candles", params={"pair": "okx-demo:BTC-USD:USDG", "interval": "1440"}
+        )
+        self.assertEqual(response.status, 200)
+        self.assertIn("bar=1Dutc", self.venue.calls[-1][1])
+        self.assertEqual(self.client.market_data.pairs, selected)
+        self.assertEqual(self.client.market_data.generation, generation)
+        self.assertEqual(self.engine.settings["pair"], self.pair.id)
         self.assertFalse([call for call in self.venue.calls if call[0] == "POST"])
 
     async def test_command_flow_requires_origin_csrf_exact_preview_and_explicit_confirmation(self):

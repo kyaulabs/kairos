@@ -113,13 +113,16 @@ class OKXData:
         if (
             not self.connected
             or row.get("arg") != self.argument()
-            or row.get("action") != "snapshot"
+            # books5 is snapshot-only and its documented pushes omit action.
+            or row.get("action") not in (None, "snapshot")
         ):
             raise SafetyError("OKX requires a same-environment books5 full snapshot")
         if not isinstance(row.get("data"), list) or len(row["data"]) != 1:
             raise SafetyError("Incomplete OKX book snapshot")
         raw = row["data"][0]
         pair = next(iter(self.pairs.values()))
+        if raw.get("instId", self.argument()["instId"]) != self.argument()["instId"]:
+            raise SafetyError("OKX book payload instrument differs from the subscription")
         stamp = dec(raw["ts"]) / 1000
         if stamp > dec(time.time()) + 2:
             raise SafetyError("OKX source timestamp is in the future")

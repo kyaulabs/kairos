@@ -11,7 +11,7 @@
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
   let tickers = {}, connected = false;
-  let candleGeneration = 0, candleReceived = 0, candleError = '';
+  let candleGeneration = 0, candleReceived = 0, candleError = '', candleSource = '';
   let settingsSchema, settingsForm, settingsHelp;
   let historyRevision, historyGeneration = 0, historyFloor = 0;
   const scheduledStrategy = strategy => settingsSchema.strategies[strategy].scheduled;
@@ -107,6 +107,7 @@
     return parts.join(' ');
   }
   const candlePoller = new VisiblePoller(async signal => {
+    if (!chartPair?.id) return;
     const generation = candleGeneration;
     const pair = chartPair.id, interval = Number($('candle-interval').value);
     try {
@@ -115,15 +116,21 @@
       if (data.pair !== pair || data.interval !== interval) throw new Error('Candle market or interval mismatch');
       priceChart.volumeUnit = data.volume_unit || 'base asset';
       priceChart.setCandles(data.candles);
-      candleReceived = data.received; candleError = '';
+      candleReceived = data.received; candleError = ''; candleSource = data.source || '';
     } catch (error) {
       if (signal.aborted || generation !== candleGeneration || error.name === 'AbortError') return;
-      candleError = 'Candle feed unavailable — retrying';
+      candleError = `Candle feed unavailable: ${error.message} — retrying`;
     }
   }, 5000);
   function restartCandles() {
     candleGeneration++;
-    candleReceived = 0; candleError = '';
+    candleReceived = 0; candleError = ''; candleSource = '';
+    candlePoller.stop();
+    if (!chartPair?.id) {
+      candleError = 'Choose a chart market; this does not select an execution market or authorize trading.';
+      $('candle-status').textContent = candleError;
+      return;
+    }
     $('candle-status').textContent = 'Loading candles…';
     candlePoller.start();
   }
@@ -184,7 +191,8 @@
     if (next.tickers) tickers = next.tickers;
     if (!initialized) { loadForm(); initialized = true; }
     const botPair = pairs.find(pair => pair.id === state.settings.pair) || {id: state.settings.pair, symbol: state.settings.pair};
-    if (!chartPair) chartPair = botPair;
+    if (!chartPair?.id) chartPair = botPair;
+    priceChart.empty.text(chartPair.id ? 'Waiting for candle history' : 'Choose a chart market');
     const selected = symbol();
     marketPicker.setSelected(chartPair);
     $('bot-market').textContent = botPair.symbol;
@@ -261,7 +269,7 @@
     updateFeeStatus();
     strategyReview.render(state, connected);
     const data = state.market_data;
-    $('market-data-status').textContent = native ? `OKX U.S. ${state.environment} execution: ${data?.status || 'unavailable'} · ${data?.books_ready || 0}/${data?.books_total || 0} native books5 snapshots fresh. No live/demo or venue fallback. ${data?.error || ''} Historical chart candles and predictive strategies are unavailable.` : hosted ? `Alpaca execution data: ${data?.status || 'unavailable'} · ${data?.books_ready || 0}/${data?.books_total || 0} books fresh. Crypto: US WebSocket with bounded REST fallback. Equities: IEX only (not consolidated NBBO), regular sessions and whole shares. ${state.market_session && !state.market_session.is_open ? 'Session closed; no equity orders. Elapsed schedule slots are skipped, not queued.' : ''} Passive crypto limits have no post-only guarantee; GTC cancellation requires Kairos online.` : state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
+    $('market-data-status').textContent = native ? `OKX U.S. ${state.environment} execution: ${data?.status || 'unavailable'} · ${data?.books_ready || 0}/${data?.books_total || 0} native books5 snapshots fresh. No live/demo or venue fallback. ${data?.error || ''} Native REST candles are chart-only, not execution inputs. Predictive strategies are unavailable.` : hosted ? `Alpaca execution data: ${data?.status || 'unavailable'} · ${data?.books_ready || 0}/${data?.books_total || 0} books fresh. Crypto: US WebSocket with bounded REST fallback. Equities: IEX only (not consolidated NBBO), regular sessions and whole shares. ${state.market_session && !state.market_session.is_open ? 'Session closed; no equity orders. Elapsed schedule slots are skipped, not queued.' : ''} Passive crypto limits have no post-only guarantee; GTC cancellation requires Kairos online.` : state.settings.product === 'futures' ? 'Execution data: Futures REST (separate adapter).' : data?.books_total ? `Execution data · last engine check: public WS ${data.status}, ${data.books_ready}/${data.books_total} books fresh.${data.candle_minutes ? ` ${data.candle_minutes}m candles; last read ${data.last_candle_source || 'pending'}.` : ''} ${data.error || 'REST bootstrap/recovery enabled.'}` : 'Execution data: REST; public streams not active.';
     $('market-data-status').classList.toggle('warning', state.settings.product !== 'futures' && !!data?.books_total && (data.books_ready < data.books_total || !!data.error));
     const decision = AssessmentView.matches(state.decision, state) ? state.decision : null;
     const definition = settingsSchema.strategies[state.settings.strategy];
@@ -519,7 +527,7 @@
     updateFeeStatus();
     if (OKXOperations.enabled(state)) okx.buttons();
     const candleAge = Math.max(0, Date.now()/1000-candleReceived);
-    $('candle-status').textContent = candleError || (candleReceived ? `${candleAge > 15 ? 'STALE · ' : ''}Candles refreshed ${candleAge.toFixed(0)}s ago · latest candle may be forming` : 'Loading candles…');
+    $('candle-status').textContent = candleError || (candleReceived ? `${candleSource ? candleSource + ' · ' : ''}${candleAge > 15 ? 'STALE · ' : ''}Candles refreshed ${candleAge.toFixed(0)}s ago · latest candle may be forming` : 'Loading candles…');
     marketPicker.updateFreshness();
     const spotTicker = OKXOperations.enabled(state) || ['xstocks', 'futures'].includes(chartPair?.kind) ? null : tickers[symbol()];
     const ticker = [spotTicker, marketPicker.ticker(chartPair?.id)].filter(Boolean).sort((a, b) => b.received-a.received)[0];

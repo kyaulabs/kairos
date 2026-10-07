@@ -232,6 +232,21 @@ class OKXTransportTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(SafetyError, "fee group"):
             await client.fees([usdc])
 
+    async def test_chart_reads_keep_environment_but_send_no_credentials(self):
+        for environment, flag in (("demo", "1"), ("live", "0")):
+            client = self.client(environment)
+            await client.request(
+                "GET",
+                "/api/v5/market/candles",
+                params={"instId": "BTC-USDT", "bar": "1Dutc", "limit": "300"},
+            )
+            (method, url), kwargs = client.session.calls[-1]
+            self.assertEqual(method, "GET")
+            self.assertTrue(str(url).startswith(REST + "/api/v5/market/candles?"))
+            self.assertEqual(kwargs["headers"]["x-simulated-trading"], flag)
+            self.assertFalse(any(k.startswith("OK-ACCESS-") for k in kwargs["headers"]))
+            self.assertFalse(kwargs["allow_redirects"])
+
     async def test_pagination_missing_or_repeated_evidence_is_not_complete(self):
         client = self.client()
         rows = [{"billId": str(i)} for i in range(100)]
@@ -260,7 +275,6 @@ class OKXDataTests(unittest.IsolatedAsyncioTestCase):
     def message(self, **changes):
         return {
             "arg": self.feed.argument(),
-            "action": "snapshot",
             "data": [
                 {
                     "ts": str(int(time.time() * 1000)),
@@ -270,6 +284,14 @@ class OKXDataTests(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         }
+
+    async def test_documented_snapshot_only_books5_omits_action_but_rejects_updates(self):
+        self.feed.message(self.message(instId="BTC-USD", seqId=123))
+        self.assertEqual((await self.client.book(self.pair)).bids[0][0], dec(50000))
+        with self.assertRaisesRegex(SafetyError, "full snapshot"):
+            self.feed.message({**self.message(), "action": "update"})
+        with self.assertRaisesRegex(SafetyError, "payload instrument"):
+            self.feed.message(self.message(instId="ETH-USD"))
 
     async def test_old_source_new_receipt_disconnect_and_foreign_market_stay_blocked(self):
         self.assertIn("wsuspap", PUBLIC_WS[self.client.environment])

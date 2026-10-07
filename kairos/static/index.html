@@ -9,7 +9,7 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/static/brand/favicon.ico">
   <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
-  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="manifest" href="/static/manifest.webmanifest" crossorigin="use-credentials">
   <script src="/static/appearance.js"></script>
   <link rel="stylesheet" href="/static/brand/palette.css">
   <link rel="stylesheet" href="/static/style.css">
@@ -80,7 +80,7 @@
         <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option></select></label><button id="follow" class="small">Follow live</button></div>
         <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
       </div>
-      <div class="chart-stage"><svg id="chart" role="img" tabindex="0" aria-label="Kraken candlestick chart with aligned volume in the selected market's native units. Drag to pan, scroll to zoom; use Follow live to show recent candles."></svg></div>
+      <div class="chart-stage"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlestick chart with aligned volume in the selected market's native units. Drag to pan, scroll to zoom; use Follow live to show recent candles."></svg></div>
       <div class="chart-footer"><div class="market-info"><span id="bid-ask">Waiting for prices</span><span id="market-volume" hidden></span><span id="feed-age">—</span></div><p id="candle-status" class="muted" role="status">Loading candles…</p><span class="chart-help">Drag to pan · scroll to zoom · crosshair to inspect</span></div>
     </section>
 
