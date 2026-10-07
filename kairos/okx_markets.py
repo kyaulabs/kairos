@@ -2,7 +2,7 @@
 
 import time
 
-from kairos.domain import SafetyError
+from kairos.domain import SafetyError, dec
 
 ACCOUNT_SOURCES = {"okx-account": "OKX trading account · native assets, not bot allocation"}
 
@@ -21,6 +21,7 @@ class OKXMarkets:
                 "margin": False,
                 "volume_unit": pair.quote,
                 "chart_volume_unit": "base asset",
+                "candle_source": f"OKX U.S. {self.spot.environment} {self.spot.instruments[key]['instId']} native OHLCV · chart only",
                 "execution_reason": "",
                 "price_label": f"OKX {self.spot.environment} books5",
                 "supported_strategies": ["twap"],
@@ -65,13 +66,57 @@ class OKXMarkets:
             "change_received": None,
             "errors": [],
             "partial": wanted is not None,
-            "note": "Native same-environment books5 for the explicitly selected execution market only. Browsing never retargets that feed. Historical candles, turnover and 24h change are unavailable; no other venue/environment supplies them.",
+            "note": "Native same-environment books5 for the explicitly selected execution market only. Browsing never retargets that feed. Charts use same-environment native REST candles, not execution prices. Turnover and 24h change are unavailable; no other venue/environment supplies them.",
         }
 
     async def candles(self, market, minutes):
-        raise SafetyError(
-            "OKX historical charts are not integrated; native books5 remain the execution source; no cross-environment candle fallback"
+        bars = {1: "1m", 5: "5m", 15: "15m", 30: "30m", 60: "1H", 240: "4H", 1440: "1Dutc"}
+        if minutes not in bars:
+            raise SafetyError("Unsupported OKX chart interval")
+        pair = self.spot.resolve(market["id"])
+        rows = await self.spot.request(
+            "GET",
+            "/api/v5/market/candles",
+            params={
+                "instId": self.spot.instruments[pair.id]["instId"],
+                "bar": bars[minutes],
+                "limit": "300",
+            },
         )
+        if len(rows) > 300:
+            raise SafetyError("OKX candle response exceeds the requested limit")
+        candles, seen = [], set()
+        for row in rows:
+            if not isinstance(row, list) or len(row) != 9 or row[8] not in {"0", "1"}:
+                raise SafetyError("Malformed OKX native candle")
+            stamp = dec(row[0]) / 1000
+            opening, high, low, close, volume = [dec(v) for v in row[1:6]]
+            if (
+                stamp <= 0
+                or stamp > dec(time.time()) + 2
+                or stamp % (minutes * 60)
+                or stamp in seen
+                or min(opening, high, low, close) <= 0
+                or volume < 0
+                or high < max(opening, close)
+                or low > min(opening, close)
+            ):
+                raise SafetyError("Invalid or duplicate OKX native candle; no synthetic repair")
+            seen.add(stamp)
+            candles.append(
+                {
+                    "time": int(stamp),
+                    **dict(
+                        zip(
+                            ("open", "high", "low", "close", "volume"),
+                            map(str, (opening, high, low, close, volume)),
+                            strict=True,
+                        )
+                    ),
+                    "complete": row[8] == "1",
+                }
+            )
+        return sorted(candles, key=lambda row: row["time"])
 
     async def account_snapshot(self, source):
         if source not in ACCOUNT_SOURCES:

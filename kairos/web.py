@@ -176,7 +176,7 @@ async def settings_schema(request):
         contract["account_sources"] = OKX_ACCOUNT_SOURCES
         contract["help"] = {
             "fees": engine.client.fee_note,
-            "data": "Environment-pinned OKX U.S. books5 snapshots. Native timestamps and connection generations gate execution. No other venue/environment fallback; historical chart candles are not integrated.",
+            "data": "Environment-pinned OKX U.S. books5 snapshots. Native timestamps and connection generations gate execution. Same-environment native REST candles are chart-only, never execution inputs. No other venue/environment fallback.",
         }
         for key in ("paper_balance", "live_budget"):
             contract["fields"][key]["help"] = (
@@ -354,6 +354,7 @@ async def candles(request):
                 "interval": minutes,
                 "received": time.time(),
                 "volume_unit": market["chart_volume_unit"],
+                "source": market.get("candle_source", ""),
                 "candles": rows,
             }
             if len(cache) >= 32:

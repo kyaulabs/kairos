@@ -79,6 +79,31 @@ class Venue:
             rows = [instrument()]
         elif path.endswith("/public/time"):
             rows = [{"ts": stamp}]
+        elif path == "/api/v5/market/candles":
+            step = {
+                "1m": 60,
+                "5m": 300,
+                "15m": 900,
+                "30m": 1800,
+                "1H": 3600,
+                "4H": 14400,
+                "1Dutc": 86400,
+            }[query["bar"]]
+            latest = int(time.time()) // step * step
+            rows = [
+                [
+                    str((latest - i * step) * 1000),
+                    "50000",
+                    "50002",
+                    "49999",
+                    "50001",
+                    "2",
+                    "100002",
+                    "100002",
+                    "0" if i == 0 else "1",
+                ]
+                for i in range(40)
+            ]
         elif path.endswith("/price-limit"):
             rows = [
                 {
@@ -218,7 +243,6 @@ class OKXEngineTests(unittest.IsolatedAsyncioTestCase):
         feed.message(
             {
                 "arg": feed.argument(),
-                "action": "snapshot",
                 "data": [
                     {
                         "ts": str(int(time.time() * 1000)),
