@@ -23,7 +23,14 @@ class AccountFees:
         self.rates, self.errors, self.attempts = {}, {}, {}
         self.failures = {}
         self.hosted_paper = getattr(spot, "hosted_paper", False) is True
-        self.name = "Alpaca planning" if self.hosted_paper else "Kraken account"
+        name = getattr(spot, "fee_name", None)
+        self.name = (
+            name
+            if isinstance(name, str)
+            else "Alpaca planning"
+            if self.hosted_paper
+            else "Kraken account"
+        )
 
     async def refresh(self, pairs, *, force=False):
         pairs = list({pair.id: pair for pair in pairs}.values())
@@ -129,10 +136,12 @@ class AccountFees:
             )
         return {
             "source": self.spot.fee_source
-            if self.hosted_paper
+            if isinstance(getattr(self.spot, "fee_source", None), str)
             else "Kraken authenticated TradeVolume",
-            "note": self.spot.fee_note if self.hosted_paper else None,
-            "estimated": self.hosted_paper,
+            "note": self.spot.fee_note
+            if isinstance(getattr(self.spot, "fee_note", None), str)
+            else None,
+            "estimated": self.hosted_paper or getattr(self.spot, "fee_estimates", False) is True,
             "max_age_seconds": MAX_AGE,
             "markets": rows,
         }

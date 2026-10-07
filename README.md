@@ -7,7 +7,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md) &nbsp; [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/kairos?logo=creativecommons)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)  
 [![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/kairos?include_prereleases&logo=semver&sort=semver)](https://semver.org) &nbsp; [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 
-Kairos is an experimental trading bot for Kraken and Alpaca hosted paper, with Jev-assisted strategies and deterministic programs. A browser dashboard shows live prices, model assessments, orders, fills, and portfolio equity. Code enforces sizing and execution limits; Jev does not control those safeguards.
+Kairos is an experimental trading bot for Kraken, Alpaca hosted paper and isolated OKX U.S. demo/live spot, with Jev-assisted strategies and deterministic programs. A browser dashboard shows live prices, model assessments, orders, fills, and portfolio equity. Code enforces sizing and execution limits; Jev does not control those safeguards.
 
 **Start with dry-run.** Live spot execution is implemented but has not been verified with real orders. Neither model confidence nor simulated returns establish profitability, and full-allocation trading can lose the entire allocation.
 
@@ -29,6 +29,7 @@ Kairos is an experimental trading bot for Kraken and Alpaca hosted paper, with J
 - Choose the supplied Kairos dark/light brand palettes and violet, green, or red accents without changing the workspace layout or fonts.
 - Open the expandable left settings sidebar from the KAI logo or its Strategy, Capital and Execution icons. The chart, assessments and bottom record tabs remain independent.
 - Use optional [Alpaca hosted paper](ALPACA.md) for USD crypto and long-only, whole-share US stocks/ETFs, with separate state and free market data. Alpaca live trading is unavailable.
+- Use [OKX U.S. cash spot](OKX.md) for explicitly authorized finite execution cycles and TWAP, with separate demo/live credentials, stores and native-currency accounting. Hosted-demo and live execution remain unverified; mocked tests are not qualification.
 - Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
 - Configure starting capital, order and exposure caps, daily loss limits, and reinvestment; Kraken uses authenticated account fees, while Alpaca clearly labels conservative planning estimates.
 - Persist settings, order intents, fills, and portfolio accounting in SQLite.
@@ -76,7 +77,11 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 | `KRAKEN_API_KEY`, `KRAKEN_PRIVATE_KEY` | Kraken API key and signing secret |
 | `ALPACA_PAPER_API_KEY`, `ALPACA_PAPER_SECRET_KEY` | Dedicated Alpaca paper credentials; never live credentials |
 | `ALLOW_ALPACA_PAPER_TRADING` | Defaults to `false`; hosted orders also require Start confirmation |
-| `KAIROS_EXCHANGE` | Initial exchange, `kraken` or `alpaca`; saved dashboard selection takes precedence |
+| `OKX_DEMO_API_KEY`, `OKX_DEMO_SECRET_KEY`, `OKX_DEMO_PASSPHRASE` | Dedicated OKX hosted-demo credentials; no live-key fallback |
+| `ALLOW_OKX_DEMO_TRADING` | Defaults to `false`; demo writes also require finite-run confirmation |
+| `OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_PASSPHRASE` | Separate OKX real-money credentials |
+| `ALLOW_OKX_TRADING` | Defaults to `false`; live writes also require `ALLOW_LIVE_TRADING` and finite-run confirmation |
+| `KAIROS_EXCHANGE` | Initial `kraken`, `alpaca`, `okx-demo` or `okx`; saved dashboard selection takes precedence |
 | `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Separate Derivatives credentials; read-only for browsing/accounts, order permission only for gated live Futures |
 | `JEV_MODEL` | Defaults to `jev-latest` |
 | `ALLOW_LIVE_TRADING` | Defaults to `false`; leave disabled for dry-run |
@@ -89,7 +94,7 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 uv run kairos
 ```
 
-Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused**: Kraken in Dry-run, or Alpaca in hosted paper. Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
+Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused**: Kraken in Dry-run, Alpaca in hosted paper, or OKX in its isolated selected environment without finite trading permission. Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
 
 ## 🧪 Your first dry-run
 
