@@ -33,6 +33,10 @@ class OKXOperations {
     this.buttons();
   }
   buttons() {
+    const locked = this.pending || Boolean(this.state?.running);
+    for (const input of this.$('inputs').querySelectorAll('input, select')) input.disabled = locked;
+    this.$('confirmation').disabled = locked;
+    this.$('open').disabled = locked || !this.connected;
     const cycle = this.$('kind').value === 'execution_cycle';
     for (const label of this.dialog.querySelectorAll('[data-okx-cycle]')) label.hidden = !cycle;
     this.$('allowance-label').hidden = !cycle || this.state?.environment !== 'demo';
@@ -52,7 +56,7 @@ class OKXOperations {
     this.buttons();
   }
   open(kind) {
-    if (!OKXOperations.enabled(this.state)) return;
+    if (!OKXOperations.enabled(this.state) || this.pending) return;
     this.$('kind').value = kind;
     if (!this.$('pair').value) this.$('pair').value = this.state.settings.pair;
     if (this.state.ledger) this.$('allocation').value = this.state.ledger.initial;
