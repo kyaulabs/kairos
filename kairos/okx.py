@@ -25,6 +25,7 @@ PUBLIC_WS = {
 PRIVATE_WS = {k: v.replace("/public", "/private") for k, v in PUBLIC_WS.items()}
 READS = {
     "/api/v5/public/time": set(),
+    "/api/v5/market/candles": {"instId", "bar", "limit"},
     "/api/v5/public/price-limit": {"instId"},
     "/api/v5/account/config": set(),
     "/api/v5/account/balance": {"ccy"},
@@ -189,7 +190,7 @@ class OKX:
             self.validate_write(path, payload)
         else:
             raise SafetyError("OKX HTTP method prohibited")
-        private = not path.startswith("/api/v5/public/")
+        private = not (path.startswith("/api/v5/public/") or path == "/api/v5/market/candles")
         if private and not self.configured:
             raise SafetyError(
                 f"OKX {self.environment} credentials missing; configure this environment privately"
