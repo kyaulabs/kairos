@@ -21,6 +21,7 @@ function fixture() {
   const state = {exchange:'okx-demo', environment:'demo', settings:{pair:'okx-demo:BTC-USD:USDC'}, credentials_configured:true, write_gate:true, running:false, armed:false};
   const preview = {id:'one-use-id', kind:'execution_cycle', environment:'demo', instrument:'BTC-USD', spending_currency:'USDC', write_gate:true, expires_at:Date.now()/1000 + 60, confirmation:'AUTHORIZE OKX DEMO EXECUTION_CYCLE', budget:'25'};
   const request = async (route, body) => { calls.push({route, body}); return route === 'okx-preview' ? {state, preview} : state; };
+  node('okx-inputs').querySelectorAll = () => ['kind','pair','allocation','budget','buy','sell','exits','duration','allowance'].map(id => node('okx-' + id));
   const controller = new browser.OKXOperations(request, () => {}, () => {});
   controller.render(state, true);
   controller.open('execution_cycle');
@@ -60,6 +61,26 @@ test('OKX expired previews and changed terms require new preflight; Stop stays u
   await node('dialog-stop').events.click();
   assert.equal(calls.at(-1).route, 'stop');
   assert.equal(controller.proposal, null);
+});
+
+test('OKX pending preview locks terms and reopening until its response, without disabling Stop', async () => {
+  const {controller, node, state, preview} = fixture();
+  let resolve;
+  controller.request = () => new Promise(done => { resolve = done; });
+  node('budget').value = '17.123456789';
+  const pending = controller.preview();
+  for (const id of ['kind','pair','allocation','budget','buy','sell','exits','duration','allowance','confirmation','open']) assert.equal(node(id).disabled, true, id);
+  assert.equal(node('dialog-stop').disabled, false);
+  controller.dialog.close();
+  controller.open('twap');
+  assert.equal(node('kind').value, 'execution_cycle');
+  assert.equal(controller.dialog.open, false);
+  resolve({state, preview});
+  await pending;
+  assert.equal(node('budget').disabled, false);
+  assert.equal(node('open').disabled, false);
+  assert.equal(node('budget').value, '17.123456789');
+  assert.equal(node('authorize').disabled, true);
 });
 
 test('OKX displays exact residual evidence without erasing input drafts or claiming mocks are hosted', () => {
