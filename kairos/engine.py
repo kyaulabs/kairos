@@ -45,6 +45,11 @@ EXECUTION_REVISION = hashlib.sha256(
             "alpaca_data",
             "alpaca_transport",
             "alpaca_engine",
+            "okx",
+            "okx_data",
+            "okx_account",
+            "okx_engine",
+            "okx_cycle",
             "qualification_exit",
             "settlement",
             "exchanges",
@@ -1237,6 +1242,40 @@ class Engine:
         self.event("order", order)
         return order
 
+    async def live_spot_check(self, pair, maker, fee_bps, needed):
+        if not self.kraken.allow_live:
+            raise SafetyError("Live writes disabled")
+        status = await self.kraken.request("SystemStatus")
+        if status.get("status") != "online":
+            raise SafetyError("Kraken trading is not online")
+        fee_bps = await self.fees.recheck(pair, maker, fee_bps)
+        balances = await self.kraken.balances()
+        if any(balances.get(asset, ZERO) < amount for asset, amount in needed.items()):
+            raise SafetyError("Insufficient exchange funds after holds")
+        return fee_bps
+
+    async def submit_spot(self, order, *, program=None, review=None):
+        params = {
+            "pair": order["pair"],
+            "type": order["side"],
+            "ordertype": "limit",
+            "volume": order["volume"],
+            "price": order["price"],
+            "cl_ord_id": order["id"],
+            "oflags": "post,fciq" if order["maker"] else "fciq",
+            "timeinforce": "GTD" if order["maker"] else "IOC",
+            "deadline": datetime.fromtimestamp(
+                intent_deadline(time.time() + 5, review), UTC
+            ).isoformat(timespec="milliseconds"),
+        }
+        if program:
+            params["deadline"] = datetime.fromtimestamp(
+                min(time.time() + 5, program["deadline"]), UTC
+            ).isoformat(timespec="milliseconds")
+        if order["maker"]:
+            params["expiretm"] = "+30"
+        return await self.kraken.add(params)
+
     async def execution_book(self, pair, side, price, book, maker):
         return book
 
@@ -1340,15 +1379,7 @@ class Engine:
             if self.balance(asset) < amount:
                 raise SafetyError("Insufficient allocated funds; spot inventory cannot go short")
         if self.mode == "trading":
-            if not self.kraken.allow_live:
-                raise SafetyError("Live writes disabled")
-            status = await self.kraken.request("SystemStatus")
-            if status.get("status") != "online":
-                raise SafetyError("Kraken trading is not online")
-            fee_bps = await self.fees.recheck(pair, maker, fee_bps)
-            balances = await self.kraken.balances()
-            if any(balances.get(asset, ZERO) < amount for asset, amount in needed.items()):
-                raise SafetyError("Insufficient exchange funds after holds")
+            fee_bps = await self.live_spot_check(pair, maker, fee_bps, needed)
         book = await self.execution_book(pair, side, price, book, maker)
         book.fresh(self.settings["stale_seconds"])
         if book.spread_bps > dec(self.settings["max_spread_bps"]):
@@ -1405,27 +1436,8 @@ class Engine:
                     "closed" if filled == volume else "canceled",
                 )
         else:
-            params = {
-                "pair": pair.id,
-                "type": side,
-                "ordertype": "limit",
-                "volume": str(volume),
-                "price": str(price),
-                "cl_ord_id": order["id"],
-                "oflags": "post,fciq" if maker else "fciq",
-                "timeinforce": "GTD" if maker else "IOC",
-                "deadline": datetime.fromtimestamp(
-                    intent_deadline(time.time() + 5, review), UTC
-                ).isoformat(timespec="milliseconds"),
-            }
-            if program:
-                params["deadline"] = datetime.fromtimestamp(
-                    min(time.time() + 5, program["deadline"]), UTC
-                ).isoformat(timespec="milliseconds")
-            if maker:
-                params["expiretm"] = "+30"
             try:
-                result = await self.kraken.add(params)
+                result = await self.submit_spot(order, program=program, review=review)
                 order["txid"] = result["txid"][0]
                 order["status"] = "open"
                 self.store.save_order(order)
@@ -1441,15 +1453,18 @@ class Engine:
                     "Order submission outcome uncertain; reconcile before continuing"
                 ) from None
             if not maker:
-                for _ in range(5):
-                    await self.refresh_order(order)
-                    if order["status"] in TERMINAL:
-                        break
-                    await asyncio.sleep(1)
-                if order["status"] not in TERMINAL:
-                    raise SafetyError("IOC settlement not confirmed; engine stopped")
+                await self.confirm_spot(order)
         self.event("order", order)
         return order
+
+    async def confirm_spot(self, order):
+        for _ in range(5):
+            await self.refresh_order(order)
+            if order["status"] in TERMINAL:
+                break
+            await asyncio.sleep(1)
+        if order["status"] not in TERMINAL:
+            raise SafetyError("IOC settlement not confirmed; engine stopped")
 
     async def decision(self, state):
         decision = await self.jev.decide(state)

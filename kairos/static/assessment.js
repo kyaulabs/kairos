@@ -45,6 +45,16 @@ class AssessmentView {
   render(decision, state, events = [], definition = {}) {
     this.latest = [decision, state, events, definition];
     const root = d3.select(this.element); root.selectAll('*').remove();
+    const operation = state.exchange?.startsWith('okx') && state.execution_cycle?.kind === 'execution_cycle' ? state.execution_cycle : null;
+    if (operation) {
+      root.attr('data-kind', 'execution-cycle');
+      root.append('p').attr('class', 'instrument-caption').text('EXPLICIT EXECUTION CYCLE');
+      root.append('p').attr('class', 'assessment-protection').text(`${operation.status} · ${operation.phase}`);
+      root.append('p').attr('class', 'muted').text(operation.message || 'Buy → confirm ownership → sell → reconcile → stop. Acceptance is not execution.');
+      root.append('p').attr('class', 'assessment-protection').text(`Retained ${operation.base}: ${operation.residual ?? 'pending reconciliation'}`);
+      root.append('p').attr('class', 'muted').text('See finite-run evidence for exact orders and fees. No predictive signal, Jev assessment or profitability claim.');
+      return;
+    }
     const color = action => ({buy: 'var(--success)', sell: 'var(--danger)', hold: 'var(--muted)'}[action] || 'var(--accent)');
     const svg = root.append('svg').attr('viewBox', '0 0 360 214').attr('role', 'img').attr('class', 'assessment-instrument');
     const text = (x, y, value, cls = '', anchor = 'start') => svg.append('text').attr('x', x).attr('y', y).attr('class', cls).attr('text-anchor', anchor).text(value);
@@ -158,7 +168,7 @@ class AssessmentView {
     root.selectAll('.instrument-score').style('font-size', `calc(1.5rem * ${scale})`);
     root.selectAll('.instrument-value').style('font-size', `calc(1rem * ${scale})`);
     if (rules) svg.selectAll('.instrument-score').style('font-size', `calc(1rem * ${scale})`);
-    const metrics=definition.scheduled ? [['ORDERS',state.program?.orders || 0],['MISSED SLOTS',state.program?.skipped_slots || 0],['TURNOVER · USD',state.program?.spent_including_fees || 0]] : rules ? [['WINDOW Z', input.z_score],['TREND ER',input.efficiency],['NET · BPS',input.net_room_bps]] : [['TREND',input.trend],['SPREAD · BPS',input.spread_bps],['INVENTORY',input.inventory]];
+    const metrics=definition.scheduled ? [['ORDERS',state.program?.orders || 0],['MISSED SLOTS',state.program?.skipped_slots || 0],[`TURNOVER · ${state.exchange?.startsWith('okx') ? state.settings.quote : 'USD'}`,state.program?.spent_including_fees || 0]] : rules ? [['WINDOW Z', input.z_score],['TREND ER',input.efficiency],['NET · BPS',input.net_room_bps]] : [['TREND',input.trend],['SPREAD · BPS',input.spread_bps],['INVENTORY',input.inventory]];
     const cells=root.append('div').attr('class','assessment-metrics').selectAll('div').data(metrics).join('div');
     cells.append('span').text(row=>row[0]);
     cells.append('strong').text(row=>row[1]==null?'—':AssessmentView.number(row[1])!=null?Number(row[1]).toLocaleString(undefined,{maximumFractionDigits:3}):String(row[1]));

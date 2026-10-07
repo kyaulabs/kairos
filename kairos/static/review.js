@@ -24,6 +24,7 @@ class StrategyReview {
       this.text('review-blockers', ''); this.text('review-exposure-note', 'Holdings not assessed.'); return;
     }
     const data = report.data, costs = report.costs, entry = report.entry, checks = state.decision_summary?.entry_checks, program = report.program;
+    const native = state.exchange?.startsWith('okx'), quote = native ? state.settings.quote : 'USD';
     const readiness = [
       ['Engine', state.operations ? state.operations.status.replaceAll('-', ' ') : state.running ? 'Running' : 'Paused · not evaluating new entries'],
       ['Last assessment', t(data.assessment_at)],
@@ -81,14 +82,15 @@ class StrategyReview {
     }
     else readiness.push(['Candle readiness', ['dca','twap','rebalance'].includes(state.settings.strategy) ? 'Not required; fresh quotes/risk checks still apply' : 'No separate rolling coverage count recorded']);
     const feed = state.market_data, requests = feed?.requests;
-    if (state.exchange === 'alpaca') {
+    if (state.exchange === 'alpaca' || native) {
+      if (native) readiness.push(['Environment / masked account', `${state.environment} / ${state.account_identity || 'unbound'}`], ['Write gate / finite permission', `${state.write_gate ? 'enabled' : 'disabled'} / ${state.armed ? 'active' : 'unarmed'}`], ['Account last verified', t(state.account_verified_at)]);
       readiness.push(['Execution feed', feed?.status || 'Unavailable'], ['Stream diagnostic', feed?.error || 'None reported']);
       for (const book of feed?.books || []) readiness.push(
         [`${book.pair} source / fresh at snapshot`, `${book.source || 'Unavailable'} / ${book.fresh ? 'yes' : 'no'}`],
         ['Market timestamp / age · seconds', `${t(book.market_at)} / ${n(book.market_age_seconds)}`],
         ['Book received locally', t(book.received_at)],
       );
-      if (requests) {
+      if (requests && !native) {
         readiness.push(['Request admissions / minute budget', `${n(requests.admissions_last_minute)} / ${n(requests.budget_per_minute)} (includes rejected preflights)`], ['Queued requests', n(requests.queued)]);
         const last = requests.last_response;
         readiness.push(['Last HTTP endpoint / status', last ? `${last.method} ${last.endpoint} / ${last.http_status}` : 'Unavailable'], ['Last HTTP latency · seconds', n(last?.latency_seconds)]);
@@ -119,9 +121,9 @@ class StrategyReview {
       ['Distinct recorded windows / v2 candidates', `${n(state.decision_summary?.distinct_windows)} / ${n(state.decision_summary?.distinct_candidates)}`],
       ['Trial end', t(state.execution_run?.trial_ends_at)],
       ['Trial protocol', state.execution_run?.protocol_hash || 'Not a registered multi-bar trial'],
-      ['Paper execution qualification', state.paper_qualification?.status || 'Not performed'],
+      [native ? 'OKX finite execution outcome' : 'Paper execution qualification', native ? state.execution_cycle?.status || 'Not run / authorization required' : state.paper_qualification?.status || 'Not performed'],
       ['Last qualification failure', state.paper_qualification?.failure_reason || 'No additional failure detail recorded'],
-      ['Trial interpretation', state.settings.htf_policy === 'multibar-v2' ? '14 calendar days; ≥10 candidates, ≥5 accepted entries, ≥95% running availability. Economics inconclusive below 30 completed owned lineages; no automatic extension.' : 'Legacy experiment; no profitability claim'],
+      ['Trial interpretation', native ? 'Operational diagnostic only; no predictive signal, Jev veto or profitability claim. Not part of the frozen Alpaca trial.' : state.settings.htf_policy === 'multibar-v2' ? '14 calendar days; ≥10 candidates, ≥5 accepted entries, ≥95% running availability. Economics inconclusive below 30 completed owned lineages; no automatic extension.' : 'Legacy experiment; no profitability claim'],
       [state.settings.htf_policy === 'multibar-v2' ? 'New closed-bar pattern positive / checks' : 'Raw entry checks positive / observed', `${n(checks?.signals)} / ${n(checks?.observed)}`],
       [state.settings.htf_policy === 'multibar-v2' ? 'Candidate + cost gate passed / checks' : 'Setup + cost checks passed / observed', `${n(checks?.cost_qualified)} / ${n(checks?.cost_observed)}`],
       ['Latest entry readiness', entry.entry_ready == null ? 'Unavailable' : entry.entry_ready ? 'Eligible at assessment; execution must recheck' : 'Not ready at assessment'],
@@ -140,8 +142,8 @@ class StrategyReview {
       ['Round-trip cost screen · bps', n(costs.round_trip_cost_bps)],
       ['Long / short net target room · bps', costs.target_net_room_bps ? `${n(costs.target_net_room_bps.buy)} / ${state.settings.product === 'spot' ? 'Not permitted' : n(costs.target_net_room_bps.sell)}` : n(costs.net_room_bps)],
       ['Required net target buffer · bps', n(costs.required_net_room_bps)],
-      ['Effective order / exposure cap · USD', `${n(state.effective_order_cap)} / ${n(state.effective_exposure_cap)}`],
-      ['Daily loss halt · USD', n(state.settings.daily_loss)],
+      [`Effective order / exposure cap · ${quote}`, `${n(state.effective_order_cap)} / ${n(state.effective_exposure_cap)}`],
+      [`Daily loss halt · ${quote}`, n(state.settings.daily_loss)],
       ['Saved stop / target price', report.position ? `${n(report.position.stop)} / ${n(report.position.target)}` : 'No selected-strategy position plan'],
       ['Saved stop distance from entry limit · bps', n(report.stop_distance_bps)],
       ['Saved holding deadline', t(report.position?.deadline)],
@@ -155,7 +157,7 @@ class StrategyReview {
       ['Claimed / elapsed missed slots', `${program.claimed_slots} / ${program.missed_slots}`],
       ['Order records / with fills / partial', `${program.orders.records} / ${program.orders.filled} / ${program.orders.partial}`],
       ['Working / terminal unfilled', `${program.orders.working} / ${program.orders.terminal_unfilled}`],
-      ['Turnover incl. fee reserves · USD', n(program.turnover_with_fee_reserve)],
+      [`Turnover incl. fee reserves · ${quote}`, n(program.turnover_with_fee_reserve)],
     ] : [['Program', 'No saved schedule for this strategy']];
     if (program?.budget != null) execution.push(['DCA budget / unspent allowance · USD', `${n(program.budget)} / ${n(program.unspent_allowance)}`]);
     if (program?.parent_quantity != null) execution.push(['TWAP parent / unfilled native quantity', `${n(program.parent_quantity)} / ${n(program.unfilled_quantity)}`]);
@@ -164,7 +166,7 @@ class StrategyReview {
     const holdings = Object.entries(report.holdings), warning = holdings.length > 0 && !state.running;
     this.root.querySelector('#review-exposure-note').classList.toggle('warning', warning);
     this.text('review-exposure-note', `${warning ? 'Paused or complete does not mean flat. ' : ''}${holdings.length ? 'Assets remain exposed to price changes. ' : 'No non-cash holdings recorded in this product. '}${report.working_orders} working order records in this product. Stop and daily-loss halts do not guarantee liquidation or a maximum loss. Local stops/deadlines run only while started and connected; DCA/TWAP do not create automatic sell plans.`);
-    this.rows('review-holdings', holdings.map(([asset, quantity]) => [asset, n(quantity)]));
+    this.rows('review-holdings', holdings.map(([asset, quantity]) => [asset, native ? String(quantity) : n(quantity)]));
   }
 }
 window.StrategyReview = StrategyReview;

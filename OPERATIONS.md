@@ -1,10 +1,10 @@
 # Kairos
 
-Kairos supports Kraken and optional Alpaca hosted paper. Click the KAI logo to expand the left settings sidebar, or use its Strategy, Capital and Execution icons to open a tab directly. The collapsed rail shows KAI rather than the full KAIROS wordmark. Closing it preserves drafts and never stops the engine; Stop remains available in the running header. On smaller screens the sidebar overlays the workspace, keeps keyboard focus inside, and closes with Escape. Help popovers close before the sidebar.
+Kairos supports Kraken, optional Alpaca hosted paper, and isolated OKX U.S. demo/live cash spot. Click the KAI logo to expand the left settings sidebar, or use its Strategy, Capital and Execution icons to open a tab directly. The collapsed rail shows KAI rather than the full KAIROS wordmark. Closing it preserves drafts and never stops the engine; Stop remains available in the running header. On smaller screens the sidebar overlays the workspace, keeps keyboard focus inside, and closes with Escape. Help popovers close before the sidebar.
 
 The remaining workspace contains the chart, assessment and bottom tabs for Orders, Activity, Portfolio, Exchange accounts and Equity. Long content scrolls inside panels. The header's sun/moon button toggles dark/light appearance. Right-click, Arrow Down, Shift+F10 or touch-and-hold opens the accent chooser. Fonts and appearance preferences remain browser-local; see [branding](BRANDING.md). Fills are detected during reconciliation, not through a private execution stream.
 
-The Exchange selector changes one active venue at a time. Stop, reconcile and close holdings before switching; each exchange retains its own state and the destination remains paused. [Alpaca setup and limitations](ALPACA.md) covers its credentials, hosted orders, free IEX/crypto feeds and restricted equity strategies. The Kraken-specific feeds, fee reads, Dry-run and live procedures below do not describe Alpaca.
+The Exchange selector changes one active venue at a time. Stop, reconcile and close holdings before switching; each exchange retains its own state and the destination remains paused. [Alpaca setup and limitations](ALPACA.md) covers its credentials, hosted orders, free IEX/crypto feeds and restricted equity strategies. [OKX setup and finite-run authorization](OKX.md) covers its separate demo/live credentials, native currencies, execution-cycle diagnostic and TWAP. OKX startup, Stop and restart never grant trading permission; its demo and live execution remain unverified. The Kraken-specific feeds, fee reads, Dry-run and live procedures below do not describe Alpaca or OKX.
 
 Product is the single execution-product selector under Strategy. Capital contains paper/live allocations, risk caps, reinvestment and product-specific leverage. Execution displays read-only Kraken account fees or labeled Alpaca planning estimates and contains spread, slippage and freshness limits. DCA/TWAP controls appear with their strategy; model and margin controls appear only where applicable. Unsupported strategies remain labeled, not silently substituted. A checked spot-only recovery switch stays visible until explicitly turned off before switching products. Hidden fields keep their saved values; an inactive draft is not submitted while saving another product or strategy.
 
@@ -12,7 +12,7 @@ Question-mark icons in Kairos settings explain every editable field, the new-run
 
 The bot-settings contract lives in `kairos/settings.py`. The read-only `/api/settings-schema` endpoint supplies the browser's types, bounds and choices; it contains no credentials or live permissions. Legacy manual `maker_fee_bps` and `taker_fee_bps` settings are discarded on load. Other settings, portfolios, program identities and existing orders' fee snapshots are retained. See the [refactor analysis](REFACTOR-ANALYSIS.md) for duplicate controls removed and safeguards deliberately kept separate. Deploy the backend and static files together; the form stays unavailable if its contract cannot load.
 
-Kraken local Dry-run rows in **Orders** have right-aligned archive and trash icons. Archive hides a completed paper order and its linked fill/order events from the default dashboard while retaining the records used for accounting. **Show archived** reveals archived rows; their restore icon returns them to the default view. Archiving/restoring completed paper records is allowed while running. Live and Alpaca hosted-paper rows have no history actions, and unfinished local paper rows cannot be changed. The table retains its bounded history: up to 100 visible and 100 archived orders.
+Kraken local Dry-run rows in **Orders** have right-aligned archive and trash icons. Archive hides a completed paper order and its linked fill/order events from the default dashboard while retaining the records used for accounting. **Show archived** reveals archived rows; their restore icon returns them to the default view. Archiving/restoring completed paper records is allowed while running. Live, Alpaca hosted-paper and OKX rows have no history actions, and unfinished local paper rows cannot be changed. The table retains its bounded history: up to 100 visible and 100 archived orders.
 
 Permanent deletion requires confirmation, a paused engine in Dry-run, settled paper orders and a flat paper portfolio for that row's product. Saved scalp plans, saved strategy runs and today's rebalance turnover can still require a record; a disabled trash icon explains the restriction. Archive these records instead, or explicitly reset/rearm the relevant paper state where appropriate. Deletion removes the order and its linked paper fill/order events from the active database, not backups or old disk pages. Balances, fees, P&L, independent assessments and live history remain unchanged. This is history management, not a portfolio reset or secure disk erasure. Other open dashboards refresh through the state stream; deletion cannot be undone through the UI. Deploy backend and static files together, then safely restart and reload to enable the controls.
 
@@ -74,7 +74,7 @@ For Futures account views alone, use separately issued, read-only Derivatives cr
 
 Reads share a 30-second server cache. They run only when opening an unloaded view, changing sources, or pressing Refresh. Successful snapshots show their timestamp; failed refreshes retain old rows with an explicit warning. History is the first returned page, not a complete export, and each table is capped at 1,000 rows. The API reads the account available to the configured key; there is no wallet/subaccount selector. See the [coverage and roadmap](RETAIL-ROADMAP.md) for omitted endpoints and planned strategies.
 
-Deploy backend and static changes together. Restart only when safe for the running bot, then reload the browser. A restart leaves the selected engine paused, in Kraken Dry-run or Alpaca hosted paper; resuming requires an explicit Start. No funds are converted, transferred, withdrawn, or assigned to a strategy by activating this feature.
+Deploy backend and static changes together. Restart only when safe for the running bot, then reload the browser. A restart leaves the selected engine paused, in Kraken Dry-run, Alpaca hosted paper or the isolated OKX environment. Kraken/Alpaca resumption requires explicit Start; OKX requires a new finite preview and confirmation. No funds are converted, transferred, withdrawn, or assigned to a strategy by activating this feature.
 
 ## Run locally
 
@@ -118,11 +118,15 @@ The existing variable names are preserved:
 | `KRAKEN_PRIVATE_KEY` | Kraken base64 signing secret |
 | `ALPACA_PAPER_API_KEY`, `ALPACA_PAPER_SECRET_KEY` | Dedicated hosted-paper credentials; live Alpaca is unsupported |
 | `ALLOW_ALPACA_PAPER_TRADING` | Defaults to `false`; authorizes paper orders/cancels, with separate Start confirmation |
-| `KAIROS_EXCHANGE` | Initial `kraken`/`alpaca` selection; the persisted dashboard choice wins |
+| `OKX_DEMO_API_KEY`, `OKX_DEMO_SECRET_KEY`, `OKX_DEMO_PASSPHRASE` | Dedicated OKX demo credentials, never live credentials |
+| `ALLOW_OKX_DEMO_TRADING` | Defaults to `false`; demo orders/cancels require this gate and the applicable explicit permission |
+| `OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_PASSPHRASE` | Separate OKX real-money credentials |
+| `ALLOW_OKX_TRADING` | Defaults to `false`; OKX live also requires `ALLOW_LIVE_TRADING` and explicit finite authorization |
+| `KAIROS_EXCHANGE` | Initial `kraken`/`alpaca`/`okx-demo`/`okx` selection; the persisted dashboard choice wins |
 | `KRAKEN_FUTURES_API_KEY`, `KRAKEN_FUTURES_PRIVATE_KEY` | Separate Derivatives credentials; order permission only for gated live Futures |
 | `JEV_API_KEY` | TypeSafe API key |
 | `JEV_MODEL` | Defaults to `jev-latest`; pin a version for comparable experiments |
-| `ALLOW_LIVE_TRADING` | Defaults to `false`; only `true` permits exchange writes |
+| `ALLOW_LIVE_TRADING` | Defaults to `false`; required for Kraken and OKX live writes, not hosted-demo/paper writes |
 | `ALLOW_FUTURES_TRADING` | Defaults to `false`; Futures require both flags and explicit separate arming |
 | `PUBLIC_ORIGIN` | Exact browser origin, including scheme and nonstandard port |
 | `PORT` | Loopback listener port; defaults to `8000` |

@@ -86,12 +86,20 @@ class Store:
                 totals = self.get(key, {"filled_orders": 0, "paid_fees": {}})
                 if dec(order["filled"]) > 0 and not dec(previous.get("filled", 0)):
                     totals["filled_orders"] += 1
-                delta = dec(order["fee"]) - dec(previous.get("fee", 0))
-                if delta:
-                    currency = order.get("quote", "USD")
-                    totals["paid_fees"][currency] = str(
-                        dec(totals["paid_fees"].get(currency, 0)) + delta
-                    )
+                if "fees" in order:
+                    deltas = {
+                        currency: dec(value) - dec(previous.get("fees", {}).get(currency, 0))
+                        for currency, value in order["fees"].items()
+                    }
+                else:
+                    deltas = {
+                        order.get("quote", "USD"): dec(order["fee"]) - dec(previous.get("fee", 0))
+                    }
+                for currency, delta in deltas.items():
+                    if delta:
+                        totals["paid_fees"][currency] = str(
+                            dec(totals["paid_fees"].get(currency, 0)) + delta
+                        )
                 self._put(key, totals)
             self.db.execute(
                 "INSERT OR REPLACE INTO orders VALUES (?, ?)", (order["id"], encode(order))

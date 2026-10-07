@@ -22,6 +22,10 @@ from kairos.domain import CANDLE_INTERVALS, SafetyError
 from kairos.engine import Engine
 from kairos.exchanges import ExchangeDesk
 from kairos.futures_client import FuturesTrading
+from kairos.okx import OKX
+from kairos.okx_engine import OKXEngine
+from kairos.okx_markets import ACCOUNT_SOURCES as OKX_ACCOUNT_SOURCES
+from kairos.okx_markets import OKXMarkets
 from kairos.operations import DiscordAlerts
 from kairos.retail import RetailMarkets, usd_volume
 from kairos.settings import schema
@@ -135,7 +139,60 @@ async def state(request):
 async def settings_schema(request):
     contract = schema()
     contract["exchange"] = request.app["engine"].exchange
-    if isinstance(request.app["engine"], AlpacaEngine):
+    if isinstance(request.app["engine"], OKXEngine):
+        engine = request.app["engine"]
+        quote = engine.settings["quote"]
+        contract["strategies"] = {
+            name: dict(value) for name, value in contract["strategies"].items()
+        }
+        contract["fields"]["live_budget" if engine.mode == "paper" else "paper_balance"][
+            "products"
+        ] = ["unavailable"]
+        contract["fields"]["product"]["choices"] = {"spot": "Cash crypto spot only"}
+        for name, strategy in contract["strategies"].items():
+            if name != "twap":
+                strategy["products"] = []
+                strategy["help"] = (
+                    "Unavailable on OKX. Use the separate finite execution-cycle diagnostic or finite spot TWAP; no predictive strategy has been ported."
+                )
+        for key in (
+            "recover_initial",
+            "recovery_check_seconds",
+            "reinvest_profits",
+            "api_auto_recovery",
+        ):
+            contract["fields"][key]["products"] = ["unavailable"]
+        contract["field_labels"] = {
+            key: f"{label} · {quote}"
+            for key, label in {
+                "paper_balance": "Hosted demo initial allocation",
+                "live_budget": "Real-money initial allocation",
+                "order_size": "Order cap",
+                "max_exposure": "Exposure cap",
+                "daily_loss": "Daily loss limit",
+                "twap_limit": "Parent limit",
+            }.items()
+        }
+        contract["account_sources"] = OKX_ACCOUNT_SOURCES
+        contract["help"] = {
+            "fees": engine.client.fee_note,
+            "data": "Environment-pinned OKX U.S. books5 snapshots. Native timestamps and connection generations gate execution. No other venue/environment fallback; historical chart candles are not integrated.",
+        }
+        for key in ("paper_balance", "live_budget"):
+            contract["fields"][key]["help"] = (
+                "Explicit initial allocation in the selected spending currency, separate from total account assets. A bound allocation is never resized/reset automatically. No funding, transfers or conversions are implemented. Every finite run still needs a separate preview and authorization."
+            )
+        contract["fields"]["pair"]["help"] = (
+            "Choose an authenticated account-enabled OKX spot instrument and actual spending currency in the execution-cycle preview. USD, USDG, USDC and USDT balances stay distinct. Chart browsing never changes execution selection."
+        )
+        contract["fields"]["twap_limit"]["help"] = (
+            "Enter and save an explicit parent price for finite spot TWAP before requesting its preview. The initial value 1 is an inert configuration placeholder, not a venue quote; preflight requires a currently marketable parent. Each IOC also obeys fresh-book slippage and venue bands."
+        )
+        for key in ("order_size", "max_exposure", "daily_loss"):
+            contract["fields"][key]["help"] = (
+                "Risk limit in the explicitly selected spending currency for the allocated bot ledger, not total exchange assets. Bounds never authorize execution or convert currencies. Stop retains holdings; market losses can continue."
+            )
+    elif isinstance(request.app["engine"], AlpacaEngine):
         contract["exchange"] = "alpaca"
         for name, field in contract["fields"].items():
             field["default"] = AlpacaEngine.defaults[name]
@@ -199,7 +256,7 @@ async def catalog(request):
 async def markets(request):
     # Share a bounded-rate public ticker snapshot across all dashboard tabs.
     async with request.app["market_lock"]:
-        if isinstance(request.app["retail"], AlpacaMarkets):
+        if isinstance(request.app["retail"], (AlpacaMarkets, OKXMarkets)):
             wanted = set(request.query["ids"].split(",")) - {""} if "ids" in request.query else None
             return web.json_response(
                 await request.app["retail"].market_snapshot(
@@ -312,7 +369,8 @@ async def history(request):
 async def accounts(request):
     source = request.match_info["source"]
     alpaca = isinstance(request.app["retail"], AlpacaMarkets)
-    if source not in (ACCOUNT_SOURCES if alpaca else SOURCES):
+    okx = isinstance(request.app["retail"], OKXMarkets)
+    if source not in (OKX_ACCOUNT_SOURCES if okx else ACCOUNT_SOURCES if alpaca else SOURCES):
         raise web.HTTPNotFound()
     async with request.app["account_lock"]:
         cache = request.app["account_cache"]
@@ -321,7 +379,7 @@ async def accounts(request):
             try:
                 data = (
                     await retail.account_snapshot(source)
-                    if alpaca
+                    if alpaca or okx
                     else await account_snapshot(retail.spot, retail.futures, source)
                 )
             except (KeyError, ValueError, TypeError, AttributeError):
@@ -352,7 +410,19 @@ async def command(request):
     if desk and desk.lock.locked() and action != "stop":
         raise SafetyError("Exchange switch in progress; retry after it completes")
     engine = request.app["engine"]
-    if action == "settings":
+    if action in {"okx-preview", "okx-authorize"}:
+        if not isinstance(engine, OKXEngine):
+            raise SafetyError("Select the intended isolated OKX environment first")
+        from kairos import okx_cycle
+
+        if action == "okx-preview":
+            proposal = await okx_cycle.preview(engine, data)
+            request.app["feed_restart"].set()
+            return web.json_response({"preview": proposal, "state": engine.snapshot()})
+        if set(data) != {"preview_id", "confirmation"}:
+            raise SafetyError("Authorize the exact saved OKX preview, not replacement parameters")
+        await okx_cycle.authorize(engine, data["preview_id"], data["confirmation"])
+    elif action == "settings":
         await engine.configure(data)
         request.app["feed_restart"].set()
     elif action == "mode":
@@ -461,7 +531,7 @@ async def feeds(app):
             engine.fee_scope if spot else [], candle, max_age=engine.settings["stale_seconds"]
         )
         symbols = ["BTC/USD", "ETH/USD"]
-        if engine.settings["product"] != "futures":
+        if engine.settings["product"] != "futures" and engine.settings["pair"]:
             symbols = list(
                 dict.fromkeys([engine.resolve(engine.settings["pair"]).symbol, *symbols])
             )
@@ -472,7 +542,7 @@ async def feeds(app):
 
         task = (
             None
-            if isinstance(engine, AlpacaEngine)
+            if isinstance(engine, (AlpacaEngine, OKXEngine))
             else asyncio.create_task(ticker_feed(app["session"], symbols, publish))
         )
         try:
@@ -542,6 +612,21 @@ async def lifecycle(app):
             os.environ.get("ALPACA_PAPER_SECRET_KEY", ""),
             allow_paper=os.environ.get("ALLOW_ALPACA_PAPER_TRADING", "false").lower() == "true",
         )
+        okx_stores = {
+            name: Store(str(data_dir / filename))
+            for name, filename in (("okx", "okx-live.sqlite3"), ("okx-demo", "okx-demo.sqlite3"))
+        }
+        okx_clients = {}
+        for name, prefix, environment in (("okx", "OKX", "live"), ("okx-demo", "OKX_DEMO", "demo")):
+            gate = os.environ.get(f"ALLOW_{prefix}_TRADING", "false").lower() == "true"
+            okx_clients[name] = OKX(
+                session,
+                os.environ.get(prefix + "_API_KEY", ""),
+                os.environ.get(prefix + "_SECRET_KEY", ""),
+                os.environ.get(prefix + "_PASSPHRASE", ""),
+                environment=environment,
+                allow_writes=gate and (environment == "demo" or kraken.allow_live),
+            )
         alerts = DiscordAlerts(session, os.environ.get("KAIROS_DISCORD_WEBHOOK_URL", ""))
 
         def alpaca_engine(publish):
@@ -555,6 +640,12 @@ async def lifecycle(app):
             {
                 "kraken": lambda publish: Engine(store, kraken, jev, publish, futures=futures),
                 "alpaca": alpaca_engine,
+                "okx": lambda publish: OKXEngine(
+                    okx_stores["okx"], okx_clients["okx"], jev, publish
+                ),
+                "okx-demo": lambda publish: OKXEngine(
+                    okx_stores["okx-demo"], okx_clients["okx-demo"], jev, publish
+                ),
             },
             default=os.environ.get("KAIROS_EXCHANGE", "kraken"),
         )
@@ -577,6 +668,8 @@ async def lifecycle(app):
             await alerts.close()
             await kraken.market_data.close()
             alpaca_store.close()
+            for okx_store in okx_stores.values():
+                okx_store.close()
             store.close()
             lock.close()
             diagnostics.logger.removeHandler(diagnostic_handler)
@@ -608,7 +701,9 @@ def create_app(engine=None, origin=None, futures=None):
     else:
         app["engine"] = engine
         app["retail"] = (
-            AlpacaMarkets(engine.kraken)
+            OKXMarkets(engine)
+            if isinstance(engine, OKXEngine)
+            else AlpacaMarkets(engine.kraken)
             if isinstance(engine, AlpacaEngine)
             else RetailMarkets(engine.kraken, futures)
         )

@@ -5,6 +5,7 @@ import contextlib
 
 from kairos.alpaca_markets import AlpacaMarkets
 from kairos.domain import SafetyError, dec
+from kairos.okx_markets import OKXMarkets
 from kairos.retail import RetailMarkets
 
 
@@ -57,9 +58,11 @@ class ExchangeDesk:
         return self.engines[name]
 
     def retail(self, engine):
+        if engine.exchange in {"okx", "okx-demo"}:
+            return OKXMarkets(engine)
         return (
             AlpacaMarkets(engine.kraken)
-            if getattr(engine.kraken, "hosted_paper", False) is True
+            if engine.exchange == "alpaca"
             else RetailMarkets(engine.kraken, engine.futures.client)
         )
 
@@ -99,9 +102,19 @@ class ExchangeDesk:
                     self.active = name
                     self.app["engine"], self.app["retail"] = candidate, self.retail(candidate)
                     candidate.shutting_down = False
-                    candidate.mode = "paper" if name == "alpaca" else "dry-run"
+                    candidate.mode = (
+                        "paper"
+                        if name in {"alpaca", "okx-demo"}
+                        else "trading"
+                        if name == "okx"
+                        else "dry-run"
+                    )
                     if name == "alpaca":
                         candidate.paper_armed = False
+                    elif name in {"okx", "okx-demo"}:
+                        candidate.armed = False
+                        candidate.authorization = None
+                        candidate.authorization_monotonic_deadline = None
                     candidate.running = False
                     for key in (
                         "market_cache",
