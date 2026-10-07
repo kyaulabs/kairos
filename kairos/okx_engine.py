@@ -479,6 +479,14 @@ class OKXEngine(Engine):
         ):
             return False
         order = matches[0]
+        evidence = order.get("venue_limits")
+        if (
+            not evidence
+            or evidence["quantity"] != order["volume"]
+            or evidence["price"] != order["price"]
+        ):
+            raise SafetyError("OKX order lacks matching native limit evidence; nothing submitted")
+        self.client.check_limit_reference(evidence, self.settings["stale_seconds"])
         if any(o["id"] != order["id"] for o in self.orders(active=True)):
             raise SafetyError("OKX permits one unresolved intent at a time")
         pair = self.resolve(scope["pair"])
@@ -592,6 +600,16 @@ class OKXEngine(Engine):
     async def submit_spot(self, order, *, program=None, review=None):
         scope = self.permission()
         deadline = min(scope["deadline"], program["deadline"] if program else scope["deadline"])
+        try:
+            order["venue_limits"] = await self.client.limit_order_check(
+                self.resolve(order["pair"]),
+                dec(order["volume"]),
+                dec(order["price"]),
+                self.settings["stale_seconds"],
+            )
+        except SafetyError as exc:
+            # The durable intent exists, but no HTTP order write has been attempted.
+            raise ExchangeRejected(str(exc)) from None
         order["write_outcome"] = "unknown"
         self.store.save_order(order)
         self.emit_state()
@@ -655,15 +673,6 @@ class OKXEngine(Engine):
                 raise SafetyError(
                     f"OKX {side} price {price} violates native venue band {bound}; no price amendment or submission"
                 )
-        if dec(metadata.get("maxLmtSz", 0)) <= 0 or volume > dec(metadata["maxLmtSz"]):
-            raise SafetyError("OKX quantity exceeds/unavailable native limit-order size cap")
-        if metadata.get("maxLmtAmt") not in (None, "", "0"):
-            if metadata["quoteCcy"] != "USD":
-                raise SafetyError(
-                    "OKX USD order-notional cap cannot be checked for this non-USD book; no silent FX conversion"
-                )
-            if volume * price > dec(metadata["maxLmtAmt"]):
-                raise SafetyError("OKX order exceeds native USD notional cap")
         result = await super().place(pair, side, volume, price, book, **kwargs)
         await self.settle()
         return result
