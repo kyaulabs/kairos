@@ -97,6 +97,11 @@ async def preview(e, values):
             raise SafetyError(
                 "A manual planning allowance is available only for the demo diagnostic, never live/TWAP"
             )
+        await e.client.wait_limit_reference(
+            pair,
+            e.settings["stale_seconds"],
+            lambda: e.stop_generation == generation and not e.shutting_down,
+        )
         fee = await fees(e, pair, allowance)
         proof = await e.probe()
         if binding:
@@ -486,6 +491,7 @@ async def run(e, operation):
             pair = e.resolve(operation["pair"])
             async with asyncio.timeout(max(0.001, operation["deadline"] - e.clock())):
                 e.permission()
+                await e.client.wait_limit_reference(pair, e.settings["stale_seconds"], e.permission)
                 book = await e.client.book(pair)
                 price = limit_price(
                     book, "buy", e.settings["slippage_bps"], parent=dec(operation["buy_ceiling"])
@@ -503,6 +509,9 @@ async def run(e, operation):
                         e.permission()
                         await fees(e, pair, operation["demo_fee_allowance_bps"])
                         await e.settle()
+                        await e.client.wait_limit_reference(
+                            pair, e.settings["stale_seconds"], e.permission
+                        )
                         book = await e.client.book(pair)
                         price = limit_price(
                             book,
