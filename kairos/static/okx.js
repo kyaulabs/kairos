@@ -80,7 +80,7 @@ class OKXOperations {
       const response = await this.request('okx-preview', body);
       this.renderState(response.state);
       this.proposal = response.preview;
-      const keys = ['kind','environment','account','instrument','spending_currency','allocation','budget','quantity','fee_bps','fee_source','buy_ceiling','sell_floor','slippage_bps','attempts','duration_seconds','dust_policy','write_gate','confirmation'];
+      const keys = ['kind','environment','account','instrument','spending_currency','allocation','budget','quantity','fee_bps','fee_source','venue_limit_preview','buy_ceiling','sell_floor','slippage_bps','attempts','duration_seconds','dust_policy','write_gate','confirmation'];
       this.$('preview-data').textContent = JSON.stringify(Object.fromEntries(keys.map(k => [k, this.proposal[k]])), null, 2);
       this.$('confirmation').value = '';
       this.$('confirmation').placeholder = this.proposal.confirmation;

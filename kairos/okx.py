@@ -26,6 +26,7 @@ PRIVATE_WS = {k: v.replace("/public", "/private") for k, v in PUBLIC_WS.items()}
 READS = {
     "/api/v5/public/time": set(),
     "/api/v5/market/candles": {"instId", "bar", "limit"},
+    "/api/v5/market/index-tickers": {"instId"},
     "/api/v5/public/price-limit": {"instId"},
     "/api/v5/account/config": set(),
     "/api/v5/account/balance": {"ccy"},
@@ -129,6 +130,68 @@ class OKX:
     def configured(self):
         return bool(self.key and self.secret and self.passphrase)
 
+    def check_limit_reference(self, evidence, max_age):
+        if evidence.get("environment") != self.environment:
+            raise SafetyError(
+                "OKX limit evidence belongs to another environment; nothing submitted"
+            )
+        reference = evidence.get("usd_reference")
+        if reference is not None:
+            age = dec(time.time()) - dec(reference["source_time"])
+            if not -2 <= age <= max_age:
+                raise PendingOKX(
+                    f"OKX USD limit reference age {age}s exceeds the freshness bound; nothing submitted"
+                )
+
+    async def limit_order_check(self, pair, volume, price, max_age):
+        """Value only the venue's USD cap; never convert funds or price execution."""
+        metadata = self.instruments[pair.id]
+        maximum = dec(metadata.get("maxLmtSz", 0))
+        if maximum <= 0 or volume > maximum:
+            raise SafetyError("OKX quantity exceeds/unavailable native limit-order size cap")
+        evidence = {
+            "environment": self.environment,
+            "instrument": metadata["instId"],
+            "price_currency": metadata["quoteCcy"],
+            "quantity": str(volume),
+            "price": str(price),
+            "maximum_quantity": str(maximum),
+            "maximum_usd_notional": None,
+            "usd_notional": None,
+            "usd_reference": None,
+        }
+        if metadata.get("maxLmtAmt") in (None, "", "0"):
+            return evidence
+        cap, rate = dec(metadata["maxLmtAmt"]), dec(1)
+        if metadata["quoteCcy"] != "USD":
+            index = metadata["quoteCcy"] + "-USD"
+            rows = await self.request(
+                "GET", "/api/v5/market/index-tickers", params={"instId": index}
+            )
+            if len(rows) != 1 or not isinstance(rows[0], dict) or rows[0].get("instId") != index:
+                raise SafetyError(
+                    "OKX native USD limit reference unavailable or mismatched; nothing submitted"
+                )
+            rate = dec(rows[0].get("idxPx", ""))
+            if rate <= 0:
+                raise SafetyError(
+                    "OKX native USD limit reference must be positive; nothing submitted"
+                )
+            evidence["usd_reference"] = {
+                "instrument": index,
+                "rate": str(rate),
+                "source_time": str(dec(rows[0].get("ts", "")) / 1000),
+                "source": "OKX U.S. same-environment index; venue-cap valuation only, not execution or fund conversion",
+            }
+            self.check_limit_reference(evidence, max_age)
+        notional = volume * price * rate
+        if cap <= 0 or notional > cap:
+            raise SafetyError(
+                f"OKX order USD notional {notional} exceeds native cap {cap}; nothing submitted"
+            )
+        evidence.update(maximum_usd_notional=str(cap), usd_notional=str(notional))
+        return evidence
+
     def validate_write(self, path, payload):
         try:
             self._validate_write(path, payload)
@@ -190,7 +253,10 @@ class OKX:
             self.validate_write(path, payload)
         else:
             raise SafetyError("OKX HTTP method prohibited")
-        private = not (path.startswith("/api/v5/public/") or path == "/api/v5/market/candles")
+        private = not (
+            path.startswith("/api/v5/public/")
+            or path in {"/api/v5/market/candles", "/api/v5/market/index-tickers"}
+        )
         if private and not self.configured:
             raise SafetyError(
                 f"OKX {self.environment} credentials missing; configure this environment privately"

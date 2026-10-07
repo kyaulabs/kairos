@@ -20,9 +20,13 @@ class VenueResponse(OKXResponse):
 class Venue:
     """Deterministic native REST evidence, not a production execution/simulation path."""
 
-    def __init__(self):
+    def __init__(self, market=None):
+        self.instrument = market or instrument()
         self.orders, self.fills, self.calls = {}, [], []
         self.cash = {"USDC": dec(10000), "BTC": dec(1), "USD": dec(10)}
+        self.cash.setdefault(self.instrument["quoteCcy"], dec(10000))
+        self.initial_cash = dict(self.cash)
+        self.usd_rate, self.index_age = "0.99952", 0
         self.client = OKX(
             self,
             "offline-fixture-key",
@@ -76,7 +80,15 @@ class Venue:
         code = "0"
         stamp = str(int(time.time() * 1000))
         if path.endswith("/instruments"):
-            rows = [instrument()]
+            rows = [self.instrument]
+        elif path.endswith("/index-tickers"):
+            rows = [
+                {
+                    "instId": query["instId"],
+                    "idxPx": self.usd_rate,
+                    "ts": str(int((time.time() - self.index_age) * 1000)),
+                }
+            ]
         elif path.endswith("/public/time"):
             rows = [{"ts": stamp}]
         elif path == "/api/v5/market/candles":
@@ -107,7 +119,7 @@ class Venue:
         elif path.endswith("/price-limit"):
             rows = [
                 {
-                    "instId": "BTC-USD",
+                    "instId": self.instrument["instId"],
                     "instType": "SPOT",
                     "enabled": True,
                     "buyLmt": "60000",
@@ -128,7 +140,7 @@ class Venue:
             ]
         elif path.endswith("/balance"):
             cash = (
-                {"USDC": dec(10000), "BTC": dec(1), "USD": dec(10)}
+                self.initial_cash
                 if self.report_lag or self.fills and self.lag_reads > 0
                 else self.cash
             )

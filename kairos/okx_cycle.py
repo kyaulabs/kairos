@@ -247,6 +247,15 @@ async def preview(e, values):
             if duration > 86400:
                 raise SafetyError("Initial OKX TWAP authorization is limited to one day")
             terms = programs.configuration(e.settings)
+        limit_quantity, reference_price = quantity, buy_ceiling
+        if kind == "twap":
+            slices = e.settings["twap_slices"]
+            per_slice = floor(quantity / slices, pair.lot)
+            limit_quantity = floor(quantity - per_slice * (slices - 1), pair.lot)
+            reference_price = parent
+        venue_limits = await e.client.limit_order_check(
+            pair, limit_quantity, reference_price, e.settings["stale_seconds"]
+        )
         if e.stop_generation != generation or e.shutting_down:
             raise SafetyError("OKX preview canceled by Stop")
         proposal = {
@@ -266,6 +275,7 @@ async def preview(e, values):
             "quantity": str(quantity),
             "fee_bps": str(fee),
             "fee_source": e.planning_source,
+            "venue_limit_preview": venue_limits,
             "demo_fee_allowance_bps": allowance,
             "buy_ceiling": str(buy_ceiling),
             "sell_floor": str(sell_floor),
@@ -450,6 +460,7 @@ async def report(e, operation, outcome, message):
                 "side": o["side"],
                 "status": o["status"],
                 "write_outcome": o.get("write_outcome"),
+                "venue_limits": o.get("venue_limits"),
                 "filled": o["filled"],
                 "executions": o.get("executions", []),
             }
