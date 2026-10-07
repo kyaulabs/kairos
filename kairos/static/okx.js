@@ -75,7 +75,7 @@ class OKXOperations {
     const body = {kind: cycle ? 'execution_cycle' : 'twap', pair: this.$('pair').value, allocation: this.$('allocation').value};
     if (cycle) Object.assign(body, {budget: this.$('budget').value, buy_ceiling: this.$('buy').value, sell_floor: this.$('sell').value, max_exit_attempts: Number(this.$('exits').value), duration_seconds: Number(this.$('duration').value), demo_fee_allowance_bps: this.state.environment === 'demo' ? this.$('allowance').value : null});
     this.pending = true; this.proposal = null; this.buttons();
-    this.$('status').textContent = 'Read-only native account, instrument, fee and data preflight. No orders are authorized.';
+    this.$('status').textContent = 'Read-only preflight; a fresh USD reference may take up to 75 seconds. Stop cancels the wait. No orders are authorized.';
     try {
       const response = await this.request('okx-preview', body);
       this.renderState(response.state);

@@ -628,6 +628,18 @@ class OKXEngine(Engine):
         if maker or kwargs.get("exit_only") or kwargs.get("review") is not None:
             raise SafetyError("OKX accepts finite cash IOC intents only")
         self.check_scope(side, volume, price)
+
+        # Wait before account/band/book checks and before creating a durable intent.
+        # No waiting or replay is permitted once submit_spot owns that intent.
+        def wait_guard():
+            self.permission()
+            program = kwargs.get("program")
+            if program and self.clock() >= program["deadline"]:
+                raise SafetyError(
+                    "OKX TWAP slot expired during data wait; no new intent or catch-up submission"
+                )
+
+        await self.client.wait_limit_reference(pair, self.settings["stale_seconds"], wait_guard)
         await self.settle()
         self.permission()
         if not self.account_info["can_trade"] or self.account_info["fee_type"] not in {"0", "1"}:

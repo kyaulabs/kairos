@@ -18,6 +18,7 @@ from kairos import diagnostics
 from kairos.domain import BPS, ZERO, Pair, SafetyError, dec
 
 REST = "https://us.okx.com"
+REFERENCE_WAIT_SECONDS = 75
 PUBLIC_WS = {
     "live": "wss://wsus.okx.com:8443/ws/v5/public",
     "demo": "wss://wsuspap.okx.com:8443/ws/v5/public",
@@ -114,6 +115,7 @@ class OKX:
         self.last_request = None
         self.blocked_until, self.next_request = 0, 0
         self.request_lock = asyncio.Lock()
+        self.usd_references = {}
         from kairos.okx_data import OKXData
 
         self.market_data = OKXData(self)
@@ -138,10 +140,79 @@ class OKX:
         reference = evidence.get("usd_reference")
         if reference is not None:
             age = dec(time.time()) - dec(reference["source_time"])
-            if not -2 <= age <= max_age:
-                raise PendingOKX(
-                    f"OKX USD limit reference age {age}s exceeds the freshness bound; nothing submitted"
+            if age < -2:
+                raise SafetyError(
+                    f"OKX USD limit reference is {-age}s in the future (limit 2s); nothing submitted; inspect clock/source"
                 )
+            if age > max_age:
+                raise PendingOKX(
+                    f"OKX USD limit reference age {age}s exceeds the {max_age}s freshness bound; nothing submitted"
+                )
+
+    async def limit_reference(self, pair, max_age):
+        metadata = self.instruments[pair.id]
+        if metadata.get("maxLmtAmt") in (None, "", "0") or metadata["quoteCcy"] == "USD":
+            return None
+        index = metadata["quoteCcy"] + "-USD"
+        reference = self.usd_references.get(index)
+        if reference is not None:
+            try:
+                self.check_limit_reference(
+                    {"environment": self.environment, "usd_reference": reference}, max_age
+                )
+                return dict(reference)
+            except PendingOKX:
+                del self.usd_references[index]
+        rows = await self.request("GET", "/api/v5/market/index-tickers", params={"instId": index})
+        if len(rows) != 1 or not isinstance(rows[0], dict) or rows[0].get("instId") != index:
+            raise SafetyError(
+                "OKX native USD limit reference unavailable or mismatched; nothing submitted"
+            )
+        rate = dec(rows[0].get("idxPx", ""))
+        if rate <= 0:
+            raise SafetyError("OKX native USD limit reference must be positive; nothing submitted")
+        reference = {
+            "instrument": index,
+            "rate": str(rate),
+            "source_time": str(dec(rows[0].get("ts", "")) / 1000),
+            "source": "OKX U.S. same-environment index; venue-cap valuation only, not execution or fund conversion",
+        }
+        self.check_limit_reference(
+            {"environment": self.environment, "usd_reference": reference}, max_age
+        )
+        self.usd_references[index] = reference
+        return dict(reference)
+
+    async def wait_limit_reference(self, pair, max_age, guard):
+        """Only retry reads, before an intent; source timestamps never change locally."""
+
+        def check():
+            if guard() is False:
+                raise SafetyError("OKX USD reference wait canceled by Stop; nothing submitted")
+
+        reason = "no fresh native reference received"
+        try:
+            async with asyncio.timeout(REFERENCE_WAIT_SECONDS):
+                while True:
+                    check()
+                    read = asyncio.create_task(self.limit_reference(pair, max_age))
+                    try:
+                        while not read.done():
+                            await asyncio.wait({read}, timeout=0.25)
+                            check()
+                        return read.result()
+                    except PendingOKX as exc:
+                        reason = str(exc)
+                    finally:
+                        read.cancel()
+                        await asyncio.gather(read, return_exceptions=True)
+                    for _ in range(4):
+                        await asyncio.sleep(0.25)
+                        check()
+        except TimeoutError:
+            raise PendingOKX(
+                f"OKX USD reference wait exhausted after {REFERENCE_WAIT_SECONDS}s: {reason}; no order intent retried; inspect native index availability/server clock before another preview"
+            ) from None
 
     async def limit_order_check(self, pair, volume, price, max_age):
         """Value only the venue's USD cap; never convert funds or price execution."""
@@ -164,25 +235,8 @@ class OKX:
             return evidence
         cap, rate = dec(metadata["maxLmtAmt"]), dec(1)
         if metadata["quoteCcy"] != "USD":
-            index = metadata["quoteCcy"] + "-USD"
-            rows = await self.request(
-                "GET", "/api/v5/market/index-tickers", params={"instId": index}
-            )
-            if len(rows) != 1 or not isinstance(rows[0], dict) or rows[0].get("instId") != index:
-                raise SafetyError(
-                    "OKX native USD limit reference unavailable or mismatched; nothing submitted"
-                )
-            rate = dec(rows[0].get("idxPx", ""))
-            if rate <= 0:
-                raise SafetyError(
-                    "OKX native USD limit reference must be positive; nothing submitted"
-                )
-            evidence["usd_reference"] = {
-                "instrument": index,
-                "rate": str(rate),
-                "source_time": str(dec(rows[0].get("ts", "")) / 1000),
-                "source": "OKX U.S. same-environment index; venue-cap valuation only, not execution or fund conversion",
-            }
+            evidence["usd_reference"] = await self.limit_reference(pair, max_age)
+            rate = dec(evidence["usd_reference"]["rate"])
             self.check_limit_reference(evidence, max_age)
         notional = volume * price * rate
         if cap <= 0 or notional > cap:
