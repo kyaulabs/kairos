@@ -21,6 +21,14 @@ concurrency:
 env:
   ALLOW_LIVE_TRADING: "false"
   ALLOW_ALPACA_PAPER_TRADING: "false"
+  ALLOW_OKX_TRADING: "false"
+  ALLOW_OKX_DEMO_TRADING: "false"
+  OKX_API_KEY: ""
+  OKX_SECRET_KEY: ""
+  OKX_PASSPHRASE: ""
+  OKX_DEMO_API_KEY: ""
+  OKX_DEMO_SECRET_KEY: ""
+  OKX_DEMO_PASSPHRASE: ""
   ALPACA_PAPER_API_KEY: ""
   ALPACA_PAPER_SECRET_KEY: ""
   KAIROS_EXCHANGE: "kraken"
@@ -83,6 +91,7 @@ jobs:
           node --check kairos/static/markets.js
           node --check kairos/static/strategy-market.js
           node --check kairos/static/accounts.js
+          node --check kairos/static/okx.js
           node --check kairos/static/appearance.js
       - name: Test dashboard components
         run: node --test tests/*.test.cjs

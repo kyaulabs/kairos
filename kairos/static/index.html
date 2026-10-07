@@ -25,6 +25,7 @@
   <script defer src="/static/assessment.js"></script>
   <script defer src="/static/sidebar.js"></script>
   <script defer src="/static/review.js"></script>
+  <script defer src="/static/okx.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -45,9 +46,9 @@
   <button id="market-open" class="market-heading" type="button" aria-haspopup="dialog" aria-controls="market-dialog" title="Choose chart market; does not change the bot"><span class="market-symbol"><span id="market-icons" aria-hidden="true"></span><strong id="market-title">BTC/USD</strong></span><span class="eyebrow">CHART MARKET <span class="icon icon-chevron" aria-hidden="true">▾</span></span></button>
   <div class="metric market-price"><span>Mid price</span><strong id="price" title="Live bid/ask midpoint">—</strong></div>
   <div class="account-metrics" aria-label="Bot portfolio summary">
-    <div class="metric"><span>Equity · USD</span><strong id="equity" aria-describedby="valuation-time">—</strong></div>
-    <div class="metric"><span>Day P&amp;L · USD</span><strong id="pnl" title="Marked to market · UTC day">—</strong></div>
-    <div class="metric"><span>Exposure · USD</span><strong id="exposure" aria-describedby="exposure-cap">—</strong></div>
+    <div class="metric"><span id="equity-label">Equity · USD</span><strong id="equity" aria-describedby="valuation-time">—</strong></div>
+    <div class="metric"><span id="pnl-label">Day P&amp;L · USD</span><strong id="pnl" title="Marked to market · UTC day">—</strong></div>
+    <div class="metric"><span id="exposure-label">Exposure · USD</span><strong id="exposure" aria-describedby="exposure-cap">—</strong></div>
   </div>
   <div class="header-controls">
     <span id="connection" class="connection" role="status">Connecting</span>
@@ -131,17 +132,18 @@
         <div class="table-wrap" tabindex="0" role="region" aria-label="Read-only exchange account records"><table><thead id="account-head"></thead><tbody id="account-rows"></tbody></table></div>
         <p class="panel-note">Exchange wallet snapshots, not bot allocations. Values retain venue/currency units; no pooled equity. Margin collateral overlaps the spot wallet. No conversions, transfers, withdrawals, or staking actions.</p>
       </div>
-      <div id="equity-view" class="dock-view" role="tabpanel" aria-labelledby="equity-tab" hidden><div class="chart-stage"><svg id="equity-chart" role="img" tabindex="0" aria-label="Bot equity over time"></svg></div><p class="panel-note">Session equity · USD · Includes trading fees · Marks updated each cycle</p></div>
+      <div id="equity-view" class="dock-view" role="tabpanel" aria-labelledby="equity-tab" hidden><div class="chart-stage"><svg id="equity-chart" role="img" tabindex="0" aria-label="Bot equity over time"></svg></div><p id="equity-note" class="panel-note">Session equity · USD · Includes trading fees · Marks updated each cycle</p></div>
     </section>
 
     <section id="settings-panel" class="panel settings-panel" aria-labelledby="settings-title" hidden>
       <div class="panel-head"><h2 id="settings-title"><span class="icon icon-settings" aria-hidden="true">☷</span> <span id="settings-section-title">Strategy</span></h2><strong id="engine-status" class="engine-status">Paused</strong></div>
       <div class="execution-controls" aria-label="Trading controls">
-        <label class="execution-mode exchange-choice">Exchange<select id="exchange" aria-label="Trading exchange" disabled><option value="kraken">Kraken</option><option value="alpaca">Alpaca · hosted paper</option></select></label>
+        <label class="execution-mode exchange-choice">Exchange<select id="exchange" aria-label="Trading exchange" disabled><option value="kraken">Kraken</option><option value="alpaca">Alpaca · hosted paper</option><option value="okx-demo">OKX Demo — virtual funds</option><option value="okx">OKX Live — real funds</option></select></label>
         <label class="execution-mode">Execution<select id="mode"><option value="dry-run">Dry-run</option><option value="trading">Trading — real funds</option></select></label>
-        <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="restart" hidden disabled>Restart engine</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
+        <div class="engine-actions"><button id="start" class="primary" disabled>Start</button><button id="okx-open" type="button" hidden>Execution cycle…</button><button id="restart" hidden disabled>Restart engine</button><button id="stop" class="danger" hidden>Stop &amp; cancel orders</button><button id="reconcile" class="small">Reconcile</button></div>
         <span id="engine-strategy" class="muted">—</span>
       </div>
+      <details id="okx-evidence" class="okx-evidence" hidden><summary>OKX finite-run evidence</summary><pre id="okx-result">Not run / authorization required</pre></details>
       <form id="settings">
         <fieldset id="settings-fields" disabled>
           <div class="settings-scroll">
@@ -258,6 +260,27 @@
   <div id="watchlist" class="watchlist" role="region" aria-label="Favorite market prices" tabindex="0"><span class="muted">Star markets to watch their prices here.</span></div>
   <details class="safety-info"><summary>Safety notes</summary><div class="safety-popover">Stop cancels tracked orders; it does not sell holdings or close Futures positions. Loss limits stop new trading, not market losses. Never expose the backend port publicly.</div></details>
 </footer>
+<dialog id="okx-dialog" class="okx-dialog" aria-labelledby="okx-title" aria-describedby="okx-notice">
+  <div class="market-dialog-head"><h2 id="okx-title">OKX finite execution</h2><button id="okx-dialog-stop" type="button" class="danger" title="Revoke permission; cancel only owned working orders; retain holdings">Stop</button><button id="okx-close" type="button" aria-label="Close OKX authorization">×</button></div>
+  <p id="okx-notice" class="muted">No trading permission until a completed preview is explicitly authorized.</p>
+  <div id="okx-inputs" class="fields">
+    <label>Operation<select id="okx-kind"><option value="execution_cycle">Execution cycle · buy, sell, reconcile, stop</option><option value="twap">Finite TWAP · saved strategy settings</option></select></label>
+    <label>Instrument / actual spending currency<select id="okx-pair"><option value="">Choose an account-enabled instrument…</option></select></label>
+    <label>Initial allocation · selected currency<input id="okx-allocation" type="number" min="0.01" step="any" value="500"></label>
+    <label data-okx-cycle>Entry budget incl. fee allowance<input id="okx-budget" type="number" min="0.01" step="any" value="25"></label>
+    <label data-okx-cycle>Absolute buy ceiling · optional<input id="okx-buy" type="number" min="0.00000001" step="any" placeholder="Propose from fresh native book"></label>
+    <label data-okx-cycle>Absolute sell floor · optional<input id="okx-sell" type="number" min="0.00000001" step="any" placeholder="Propose from fresh native book"></label>
+    <label data-okx-cycle>Maximum exit attempts<input id="okx-exits" type="number" min="1" max="3" step="1" value="1"></label>
+    <label data-okx-cycle>Maximum run duration · seconds<input id="okx-duration" type="number" min="30" max="900" step="1" value="180"></label>
+    <label id="okx-allowance-label">Demo-only fallback planning allowance · bps<input id="okx-allowance" type="number" min="0.01" max="1000" step="any" placeholder="Blank: authenticated fee rates required"></label>
+  </div>
+  <p class="muted">One entry attempt per cycle. Only owned inventory may be sold. Partial fills and dust remain visible; no extra purchases, transfers, model calls, or automatic rearming. TWAP uses saved settings and the existing scheduler. Stop retains holdings.</p>
+  <button id="okx-preview" type="button">Run read-only preflight / preview</button>
+  <p id="okx-status" role="status" class="muted"></p>
+  <pre id="okx-preview-data" class="okx-preview-data" tabindex="0"></pre>
+  <label>Type the confirmation shown in the preview<input id="okx-confirmation" type="text" autocomplete="off" spellcheck="false"></label>
+  <div class="form-actions"><button id="okx-authorize" type="button" class="primary" disabled>Authorize this finite run</button></div>
+</dialog>
 <dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title" aria-describedby="market-dialog-note">
   <div class="market-dialog-head"><div><h2 id="market-dialog-title">Choose a chart market</h2><p id="market-dialog-note">Browse without changing the bot’s trading market.</p></div><button id="market-close" type="button" aria-label="Close market picker"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
   <label class="market-search"><span class="icon icon-search" aria-hidden="true">⌕</span><span class="sr-only">Search exchange markets</span><input id="market-search" type="search" placeholder="Search BTC, AAPLx or PF_XBTUSD" autocomplete="off" spellcheck="false"></label>

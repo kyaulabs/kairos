@@ -38,6 +38,18 @@ test('exchange favorites stay isolated without replacing the existing Kraken wat
   assert.deepEqual(Array.from(picker.favorites), ['XBTUSD']);
 });
 
+test('OKX demo/live favorites and currency variants cannot borrow another venue watchlist', () => {
+  const {picker, values} = fixture('["XBTUSD"]');
+  picker.setExchange('okx-demo');
+  picker.toggleFavorite('okx-demo:BTC-USD:USDC');
+  picker.setExchange('okx');
+  assert.deepEqual(Array.from(picker.favorites), []);
+  picker.toggleFavorite('okx:BTC-USD:USD');
+  picker.setExchange('okx-demo');
+  assert.deepEqual(Array.from(picker.favorites), ['okx-demo:BTC-USD:USDC']);
+  assert.equal(values.get('kairos:favorites'), '["XBTUSD"]');
+});
+
 test('Alpaca stocks are scheduled-only rather than tokenized xStocks or HTF markets', () => {
   const {browser} = fixture();
   const pair = {id: 'alpaca:AAPL', symbol: 'AAPL/USD', quote: 'USD', kind: 'equity', supported_strategies: ['dca', 'twap', 'rebalance']};

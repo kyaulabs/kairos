@@ -58,7 +58,7 @@ class MarketPicker {
     });
     this.renderFooter();
   }
-  get favoritesKey() { return this.exchange === 'alpaca' ? 'kairos:alpaca:favorites' : 'kairos:favorites'; }
+  get favoritesKey() { return this.exchange && this.exchange !== 'kraken' ? `kairos:${this.exchange}:favorites` : 'kairos:favorites'; }
   setExchange(exchange) {
     this.exchange = exchange; this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows();
   }
@@ -287,7 +287,7 @@ class MarketPicker {
       button.closest('th').setAttribute('aria-sort', active ? this.sortDirection : 'none');
       button.querySelector('.sort-direction').textContent = this.favoritesOnly ? '' : active ? (this.sortDirection === 'ascending' ? '↑' : '↓') : '↕';
     }
-    document.getElementById('market-volume-label').textContent = this.exchange === 'alpaca' ? 'Volume · USD' : '24h volume · USD';
+    document.getElementById('market-volume-label').textContent = this.exchange?.startsWith('okx') ? 'Volume · unavailable' : this.exchange === 'alpaca' ? 'Volume · USD' : '24h volume · USD';
     document.getElementById('favorite-order-help').hidden = !this.favoritesOnly;
     document.getElementById('markets-all').setAttribute('aria-pressed', String(!this.favoritesOnly));
     document.getElementById('markets-favorites').setAttribute('aria-pressed', String(this.favoritesOnly));
@@ -381,7 +381,7 @@ class MarketPicker {
     const watched = byId.get(this.selected), volume = document.getElementById('market-volume');
     volume.hidden = this.exchange !== 'alpaca';
     volume.textContent = MarketPicker.volumeText(watched); volume.title = MarketPicker.volumeTitle(watched);
-    document.getElementById('market-change-status').textContent = this.exchange === 'alpaca' ? '24h change: unavailable' : '24h: venue snapshots · hover for age';
+    document.getElementById('market-change-status').textContent = this.exchange === 'alpaca' || this.exchange?.startsWith('okx') ? '24h change: unavailable' : '24h: venue snapshots · hover for age';
     for (const row of this.rows.querySelectorAll('[data-market-row]')) {
       const market = byId.get(row.dataset.marketRow);
       const quoteAge = market?.received ? Math.max(0, Date.now()/1000-market.received) : Infinity;

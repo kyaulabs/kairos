@@ -341,6 +341,19 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .watch-market strong { color: var(--green); font: 700 .875rem var(--font-mono); }
 .watch-market.stale strong { color: var(--muted); }
 .watch-market.stale strong::after { content: ' · stale'; color: var(--gold); font: .75rem var(--font-ui); }
+.okx-dialog { width: min(48rem, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 16px; border: 1px solid var(--control-border); border-radius: var(--radius-card); background: var(--panel); color: var(--text); overflow: auto; }
+.okx-dialog::backdrop { background: #161022b8; }
+.okx-dialog .market-dialog-head { position: sticky; top: -16px; z-index: 1; padding: 12px 0; gap: 8px; background: var(--panel); }
+.okx-dialog .market-dialog-head h2 { min-width: 0; font-size: 1rem; }
+.okx-dialog button { max-width: 100%; white-space: normal; }
+.okx-dialog label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.okx-dialog select, .okx-dialog input { min-width: 0; width: 100%; }
+.okx-dialog p, .okx-dialog .fields { margin-bottom: 12px; }
+.okx-dialog .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.okx-preview-data, .okx-evidence pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; font-size: .75rem; line-height: 1.5; }
+.okx-evidence { padding: 8px 12px; flex-shrink: 0; }
+.okx-evidence pre { max-height: 10rem; }
+@media (max-width: 480px) { .okx-dialog .fields { grid-template-columns: 1fr; } }
 .market-dialog { width: min(58rem, calc(100vw - 24px)); height: min(52rem, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); max-width: none; padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-card); background: var(--panel); color: var(--text); overflow: hidden auto; box-shadow: 0 20px 80px #0008; }
 .market-dialog[open] { display: flex; flex-direction: column; }
 .market-dialog::backdrop { background: #161022b8; backdrop-filter: blur(3px); }
