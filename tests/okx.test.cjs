@@ -91,6 +91,14 @@ test('OKX displays exact residual evidence without erasing input drafts or claim
   assert.match(node('result').textContent, /0\.00000000012345/);
   assert.equal(node('budget').value, '17.12345678912345');
   assert.equal(node('title').textContent, 'OKX Demo — virtual funds');
+  const original = {status:'RECONCILIATION_PENDING', residual:'3.535E-9', claimed:true};
+  const latest = {status:'matched', bill_proof:{precision_differences:{USDT:{difference:'4.49E-10'}}, ledger_adjustment:'0'}};
+  controller.render({...state, execution_cycle:original, reconciliation:latest}, true);
+  const evidence = JSON.parse(node('result').textContent);
+  assert.deepEqual(evidence.original_run, original);
+  assert.deepEqual(evidence.latest_account_reconciliation, latest);
+  assert.equal(original.status, 'RECONCILIATION_PENDING');
+  assert.equal(node('authorize').disabled, true);
   controller.render({...state, exchange:'okx', environment:'live'}, true);
   assert.equal(node('title').textContent, 'OKX Live — real funds');
   assert.equal(node('allowance-label').hidden, true);
