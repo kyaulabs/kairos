@@ -14,6 +14,11 @@ class AssessmentView {
     if (value == null || value === '' || typeof value === 'boolean') return null;
     const n = Number(value); return Number.isFinite(n) ? n : null;
   }
+  static programStatus(program, running) {
+    if (program?.configuration_changed) return 'Rearm required';
+    if (program?.status !== 'complete') return running ? 'Running' : 'Paused';
+    return {no_fills:'Finished — no fills', partial:'Finished — partial fills', filled:'Finished — filled', unresolved:'Finished — unresolved'}[program.execution?.outcome] || 'Schedule finished — inspect fills';
+  }
   static weights(decision) {
     if (!decision || decision.deterministic) return null;
     const rows = ['buy', 'hold', 'sell'].map(action => ({action, value: AssessmentView.number(decision.probabilities?.[action])}));
@@ -63,13 +68,15 @@ class AssessmentView {
     root.attr('data-kind', rules ? 'scalp' : state.settings.strategy === 'htf' ? 'htf' : 'model');
     if (definition.scheduled) {
       svg.attr('viewBox', '0 0 360 100').attr('aria-label', 'Deterministic program status. Claimed slots are not confirmed fills.');
-      const total = state.settings.strategy === 'dca' ? state.settings.dca_count : state.settings.strategy === 'twap' ? state.settings.twap_slices : null;
+      const config = state.program?.config || state.settings;
+      const total = state.settings.strategy === 'dca' ? config.dca_count : state.settings.strategy === 'twap' ? config.twap_slices : null;
       const claimed = state.program?.next_slot || 0;
+      const filled = state.program?.execution?.orders?.filled;
       text(14, 20, 'DETERMINISTIC EXECUTION', 'instrument-caption');
-      text(14, 50, total ? `${claimed} / ${total} SLOTS CLAIMED` : 'CONTINUOUS REBALANCING', 'instrument-value');
+      text(14, 50, `${filled ?? '—'} ORDERS WITH FILLS`, 'instrument-value');
       svg.append('rect').attr('x',14).attr('y',66).attr('width',332).attr('height',5).attr('fill','var(--border)');
       if (total) svg.append('rect').attr('x',14).attr('y',66).attr('width',332*Math.min(1,claimed/total)).attr('height',5).attr('fill','var(--accent)');
-      text(14, 91, 'CLAIMED ≠ FILLED', 'instrument-caption');
+      text(14, 91, total ? `${claimed} / ${total} WINDOWS PROCESSED · NOT FILLS` : 'CONTINUOUS REBALANCING', 'instrument-caption');
     } else if (rules) {
       const position=AssessmentView.bandPosition(input), z=AssessmentView.number(input.z_score);
       const source=input.position ? 'ENTRY' : state.running ? 'ASSESSED' : 'PAUSED';
@@ -168,10 +175,16 @@ class AssessmentView {
     root.selectAll('.instrument-score').style('font-size', `calc(1.5rem * ${scale})`);
     root.selectAll('.instrument-value').style('font-size', `calc(1rem * ${scale})`);
     if (rules) svg.selectAll('.instrument-score').style('font-size', `calc(1rem * ${scale})`);
-    const metrics=definition.scheduled ? [['ORDERS',state.program?.orders || 0],['MISSED SLOTS',state.program?.skipped_slots || 0],[`TURNOVER · ${state.exchange?.startsWith('okx') ? state.settings.quote : 'USD'}`,state.program?.spent_including_fees || 0]] : rules ? [['WINDOW Z', input.z_score],['TREND ER',input.efficiency],['NET · BPS',input.net_room_bps]] : [['TREND',input.trend],['SPREAD · BPS',input.spread_bps],['INVENTORY',input.inventory]];
+    const metrics=definition.scheduled ? [['ORDER RECORDS',state.program?.orders ?? 0],['SKIPPED CHECKS',state.program?.execution?.guard_skipped_slots ?? null],['MISSED WINDOWS',state.program?.skipped_slots ?? 0]] : rules ? [['WINDOW Z', input.z_score],['TREND ER',input.efficiency],['NET · BPS',input.net_room_bps]] : [['TREND',input.trend],['SPREAD · BPS',input.spread_bps],['INVENTORY',input.inventory]];
     const cells=root.append('div').attr('class','assessment-metrics').selectAll('div').data(metrics).join('div');
     cells.append('span').text(row=>row[0]);
     cells.append('strong').text(row=>row[1]==null?'—':AssessmentView.number(row[1])!=null?Number(row[1]).toLocaleString(undefined,{maximumFractionDigits:3}):String(row[1]));
+    if (definition.scheduled) {
+      const execution = state.program?.execution;
+      const latest = execution?.skip_evidence?.at(-1);
+      if (latest) root.append('p').attr('class','assessment-protection muted').text(`Last skipped check: ${latest.message}${latest.price_check ? ` · Bid ${latest.price_check.bid}, ask ${latest.price_check.ask}, parent limit ${latest.price_check.parent_limit} · ${latest.price_check.market}.` : ' · Historical bid/ask values were not recorded.'}`);
+      root.append('p').attr('class','muted').text('Schedule completion does not mean full execution. Skipped or unfilled quantities are not retried automatically; unsold holdings remain owned.');
+    }
     if (state.settings.strategy === 'htf') {
       const plan = state.htf?.position;
       root.append('p').attr('class', 'assessment-protection muted').text(plan ? `Stop ${Number(plan.stop).toLocaleString()}${plan.target ? ` · target ${Number(plan.target).toLocaleString()}` : ''} · deadline ${new Date(plan.deadline*1000).toLocaleString()} · trend-reversal exit. Protection only while running; bounded fills may leave residuals.` : 'Flat · passive pullback entries · no pyramiding or taker fallback. A target is not a profit forecast.');

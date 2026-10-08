@@ -80,11 +80,11 @@ class OKXOperations {
       const response = await this.request('okx-preview', body);
       this.renderState(response.state);
       this.proposal = response.preview;
-      const keys = ['kind','environment','account','instrument','spending_currency','allocation','budget','quantity','fee_bps','fee_source','venue_limit_preview','buy_ceiling','sell_floor','slippage_bps','attempts','duration_seconds','dust_policy','write_gate','confirmation'];
+      const keys = ['kind','environment','account','instrument','spending_currency','allocation','budget','quantity','fee_bps','fee_source','venue_limit_preview','buy_ceiling','sell_floor','price_check','slippage_bps','attempts','duration_seconds','dust_policy','write_gate','confirmation'];
       this.$('preview-data').textContent = JSON.stringify(Object.fromEntries(keys.map(k => [k, this.proposal[k]])), null, 2);
       this.$('confirmation').value = '';
       this.$('confirmation').placeholder = this.proposal.confirmation;
-      this.$('status').textContent = `Preflight completed; no orders submitted. Expires ${new Date(this.proposal.expires_at * 1000).toLocaleTimeString()}. Type the exact confirmation to authorize only these terms.${this.proposal.write_gate ? '' : ' Server write gate is disabled.'}`;
+      this.$('status').textContent = `Preflight completed; no orders submitted. Expires ${new Date(this.proposal.expires_at * 1000).toLocaleTimeString()}. Type the exact confirmation to authorize only these terms.${this.proposal.kind === 'twap' ? ' This does not reserve a price. Each window checks the unchanged limit again; a price-blocked window is skipped without retry.' : ''}${this.proposal.write_gate ? '' : ' Server write gate is disabled.'}`;
     } catch (error) { this.$('status').textContent = error.message; }
     finally { this.pending = false; this.buttons(); }
   }

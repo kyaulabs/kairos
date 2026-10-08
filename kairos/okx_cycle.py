@@ -295,6 +295,12 @@ async def preview(e, values):
             "settings_id": e.settings_id(),
             "market_rules": fingerprint(e.client.instruments[pair.id]),
             "program_terms": terms,
+            "price_check": {
+                **programs.price_check(book, side, parent),
+                "price_currency": venue_limits["price_currency"],
+            }
+            if kind == "twap"
+            else None,
             "write_gate": e.client.allow_writes,
             "confirmation": confirmation(e, kind),
             "claimed": False,
@@ -480,6 +486,9 @@ async def report(e, operation, outcome, message):
         closing_ledger=e.ledger(),
         reconciliation=e.store.get("okx-reconciliation"),
     )
+    if operation["kind"] == "twap":
+        program = programs.snapshot(e)
+        operation["program_execution"] = program["execution"] if program else None
     e.last_error = (
         None if outcome in {"PASSED", "PASSED_WITH_DUST", "NO_FILL", "TWAP_COMPLETE"} else message
     )

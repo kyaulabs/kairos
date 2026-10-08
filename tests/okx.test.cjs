@@ -28,6 +28,18 @@ function fixture() {
   return {controller, node:id => node('okx-' + id), state, preview, calls};
 }
 
+test('TWAP preview shows the original quote and fixed-limit warning without authorizing', async () => {
+  const {controller, node, preview, calls} = fixture();
+  node('kind').value = preview.kind = 'twap';
+  preview.price_check = {side:'sell', bid:'82783.2', ask:'82783.3', parent_limit:'82745', source_time:1791434199.54, notice:'Current-price check only, not a price reservation.'};
+  await controller.preview();
+  assert.deepEqual(JSON.parse(node('preview-data').textContent).price_check, preview.price_check);
+  assert.match(node('status').textContent, /does not reserve a price/);
+  assert.match(node('status').textContent, /skipped without retry/);
+  assert.equal(node('authorize').disabled, true);
+  assert.deepEqual(calls.map(c=>c.route), ['okx-preview']);
+});
+
 test('OKX preflight is not authorization; wrong phrases and reused previews never send writes', async () => {
   const {controller, node, preview, calls} = fixture();
   await controller.preview();

@@ -79,6 +79,81 @@ class ProgramTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.set_mode("trading", "ENABLE LIVE TRADING")
         await self.engine.start()
 
+    async def test_completed_price_blocked_windows_report_zero_fills_and_two_guard_skips(self):
+        await self.configure("twap", twap_slices=2, twap_duration_seconds=120, twap_limit="99")
+        ledger = self.engine.ledger()
+        await self.engine.start()
+        await self.engine.tick()
+        self.advance(60)
+        await self.engine.tick()
+        result = self.program()
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["next_slot"], 2)
+        self.assertEqual(result["skipped_slots"], 0)  # No elapsed window was missed.
+        self.assertEqual(result["execution"]["outcome"], "no_fills")
+        self.assertEqual(result["execution"]["guard_skipped_slots"], 2)
+        self.assertEqual(result["execution"]["orders"]["filled"], 0)
+        for slot, row in enumerate(result["execution"]["skip_evidence"]):
+            self.assertEqual(row["slot"], slot)
+            self.assertEqual(row["skip_reason"], "parent_limit")
+            self.assertEqual(row["price_check"]["parent_limit"], "99")
+            self.assertEqual(row["price_check"]["ask"], "100")
+            self.assertLess(dec(row["price_check"]["limit_room_bps"]), 0)
+            self.assertEqual(row["price_check"]["source_time"], row["time"])
+        self.assertIn("0 orders with fills", result["message"])
+        self.assertEqual(self.engine.ledger(), ledger)
+        self.assertEqual(self.engine.orders(), [])
+        self.assertFalse(self.engine.running)
+        self.kraken.add.assert_not_awaited()
+
+    async def test_legacy_skip_activity_is_read_without_rewriting_or_inventing_prices(self):
+        import json
+
+        await self.configure("twap", twap_slices=2, twap_duration_seconds=120, twap_limit="99")
+        await self.engine.start()
+        program = self.store.get(programs.key(self.engine))
+        program.update(
+            next_slot=2, next_at=None, status="complete", message="Run complete; legacy report"
+        )
+        self.store.put(programs.key(self.engine), program)
+        for _ in range(2):
+            self.store.event(
+                "program",
+                {
+                    "program_id": program["id"],
+                    "message": "Skipped TWAP slot: parent limit is not marketable",
+                    "mode": self.engine.mode,
+                },
+            )
+        self.store.event(
+            "program",
+            {
+                "program_id": "unrelated",
+                "message": "Skipped scheduled slot: spread exceeds maximum",
+            },
+        )
+        before = json.dumps(
+            [self.store.get(programs.key(self.engine)), self.store.history(), self.engine.ledger()],
+            sort_keys=True,
+        )
+        result = self.program()["execution"]
+        self.assertEqual(result["guard_skipped_slots"], 2)
+        self.assertEqual(result["outcome"], "no_fills")
+        self.assertTrue(
+            all("price_check" not in row and "slot" not in row for row in result["skip_evidence"])
+        )
+        self.assertEqual(
+            before,
+            json.dumps(
+                [
+                    self.store.get(programs.key(self.engine)),
+                    self.store.history(),
+                    self.engine.ledger(),
+                ],
+                sort_keys=True,
+            ),
+        )
+
     async def test_dca_has_no_inference_and_never_repeats_a_claimed_slot(self):
         await self.engine.start()
         identifier = self.program()["id"]
@@ -99,6 +174,9 @@ class ProgramTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.tick()
         self.assertEqual([order["program_slot"] for order in self.engine.orders()], [0, 2])
         self.assertEqual(self.program()["skipped_slots"], 1)
+        self.assertEqual(self.program()["execution"]["missed_windows"], 1)
+        self.assertEqual(self.program()["execution"]["guard_skipped_slots"], 0)
+        self.assertEqual(self.program()["execution"]["outcome"], "partial")
         self.assertEqual(self.program()["status"], "complete")
         self.assertFalse(self.engine.running)
         with self.assertRaisesRegex(SafetyError, "complete"):
@@ -155,6 +233,8 @@ class ProgramTests(unittest.IsolatedAsyncioTestCase):
         first = self.engine.orders()[0]
         self.assertEqual(first["status"], "canceled")
         self.assertEqual(dec(first["filled"]), dec(".2"))
+        self.assertEqual(self.program()["execution"]["orders"]["partial"], 1)
+        self.assertEqual(self.program()["execution"]["outcome"], "partial")
         self.advance(60)
         self.kraken.book.side_effect = lambda pair: book(pair, "99.9", "100")
         await self.engine.tick()
@@ -171,6 +251,7 @@ class ProgramTests(unittest.IsolatedAsyncioTestCase):
         self.kraken.book.side_effect = lambda pair: book(pair, "90", "100")
         await self.engine.tick()
         self.assertEqual(self.program()["next_slot"], 2)
+        self.assertEqual(self.program()["execution"]["guard_skipped_slots"], 2)
         self.assertIn("spread", self.program()["message"])
         self.assertEqual(self.engine.orders(), [])
 
