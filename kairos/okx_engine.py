@@ -11,6 +11,7 @@ from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec
 from kairos.engine import Engine
 from kairos.okx import OKXBeforeSend, OKXRejected, PendingOKX
+from kairos.okx_reconciliation import bill_evidence
 from kairos.settings import DEFAULTS, validate_settings
 
 
@@ -350,13 +351,51 @@ class OKXEngine(Engine):
                 )
         balance = native.balances(await self.client.request("GET", "/api/v5/account/balance"))
         differences = native.mismatch(binding, self.ledger(), balance)
-        self.account_info, self.account_snapshot = proof["config"], balance
         pending = self.orders(active=True)
+        evidence = None
+        if differences and not pending and not proof["pending"]:
+            evidence = bill_evidence(
+                binding, self.ledger(), self.orders(), proof["bills"], balance, differences
+            )
+            if evidence:
+                # No cache: a second complete native account/bill read is required.
+                second = await self.read_account()
+                if (
+                    proof["config"] != second["config"]
+                    or second["pending"]
+                    or proof["balance"]["assets"] != balance["assets"]
+                    or balance["assets"] != second["balance"]["assets"]
+                    or {r["ordId"]: r for r in proof["history"]}
+                    != {r["ordId"]: r for r in second["history"]}
+                    or {r["billId"]: r for r in proof["bills"]}
+                    != {r["billId"]: r for r in second["bills"]}
+                    or bill_evidence(
+                        binding,
+                        self.ledger(),
+                        self.orders(),
+                        second["bills"],
+                        second["balance"],
+                        differences,
+                    )
+                    != evidence
+                ):
+                    raise PendingOKX(
+                        "OKX bill/summary proof changed between independent reads; no accounting approval or new order"
+                    )
+                previous = self.store.get("okx-reconciliation") or {}
+                evidence["original_pending_since"] = previous.get(
+                    "since", (previous.get("bill_proof") or {}).get("original_pending_since")
+                )
+                evidence["read_received_at"] = [proof["received_at"], second["received_at"]]
+                proof, balance, differences = second, second["balance"], {}
+        self.account_info, self.account_snapshot = proof["config"], balance
         issue = {
             "differences": differences,
             "unresolved_orders": [o["id"] for o in pending],
             "checked_at": self.clock(),
         }
+        if evidence:
+            issue["bill_proof"] = evidence
         if differences or pending:
             previous = self.store.get("okx-reconciliation") or {}
             issue["since"] = previous.get("since", self.clock())
