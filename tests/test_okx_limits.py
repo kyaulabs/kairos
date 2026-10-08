@@ -130,6 +130,47 @@ class OKXLimitTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.store.orders())
         self.assertFalse([c for c in self.venue.calls if c[0] == "POST"])
 
+    async def test_slow_account_reads_cannot_consume_the_preview_reference_window(self):
+        now = time.time()
+        old_source = now
+        original_probe, original_request = self.engine.probe, self.client.request
+        reads = 0
+
+        async def probe():
+            nonlocal now
+            proof = await original_probe()
+            now += 20  # Account checks outlast the ten-second reference window.
+            self.book()
+            return proof
+
+        async def request(method, path, **kwargs):
+            nonlocal reads
+            if path.endswith("/index-tickers"):
+                reads += 1
+                return [
+                    {
+                        "instId": "USDT-USD",
+                        "idxPx": "0.99952",
+                        "ts": str(int((old_source if reads <= 2 else now) * 1000)),
+                    }
+                ]
+            return await original_request(method, path, **kwargs)
+
+        with (
+            patch("kairos.okx.time.time", side_effect=lambda: now),
+            patch.object(self.engine, "clock", lambda: now),
+            patch.object(self.engine, "probe", probe),
+            patch.object(self.client, "request", request),
+        ):
+            preview = await okx_cycle.preview(self.engine, self.values)
+        self.assertEqual(reads, 3)
+        self.assertGreater(
+            float(preview["venue_limit_preview"]["usd_reference"]["source_time"]), old_source
+        )
+        self.assertIsNone(self.engine.ledger())
+        self.assertFalse(self.store.orders())
+        self.assertFalse([c for c in self.venue.calls if c[0] == "POST"])
+
     async def test_stop_cancels_even_a_hanging_reference_read_and_invalidates_preview(self):
         original = self.client.request
         started, canceled = asyncio.Event(), asyncio.Event()
@@ -226,6 +267,77 @@ class OKXLimitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.get("okx-operation")["status"], "TWAP_COMPLETE")
         self.assertEqual(self.engine.balance("BTC"), dec(".0001998"))
         self.assertFalse(self.engine.armed or self.engine.running)
+
+    async def test_slow_execution_account_checks_wait_again_before_creating_child(self):
+        self.engine.settings.update(
+            twap_quantity=".0002", twap_limit="50000", twap_slices=1, twap_duration_seconds=90
+        )
+        preview = await okx_cycle.preview(self.engine, {**self.values, "kind": "twap"})
+        await okx_cycle.authorize(self.engine, preview["id"], preview["confirmation"])
+        now = time.time()
+        old_source = now
+        settle, request = self.engine.settle, self.client.request
+        checks = reads = 0
+
+        async def slow_account(*args, **kwargs):
+            nonlocal now, checks
+            checks += 1
+            await settle(*args, **kwargs)
+            if checks == 2:  # The place-time check, after tick's initial reconciliation.
+                now += 20
+                self.engine.account_checked = now
+                self.book()
+
+        async def index(method, path, **kwargs):
+            nonlocal reads
+            if path.endswith("/index-tickers"):
+                self.assertFalse(self.store.orders())
+                reads += 1
+                return [
+                    {
+                        "instId": "USDT-USD",
+                        "idxPx": "0.99952",
+                        "ts": str(int((old_source if reads == 1 else now) * 1000)),
+                    }
+                ]
+            return await request(method, path, **kwargs)
+
+        with (
+            patch("kairos.okx.time.time", side_effect=lambda: now),
+            patch.object(self.engine, "clock", lambda: now),
+            patch.object(self.engine, "settle", slow_account),
+            patch.object(self.client, "request", index),
+        ):
+            await self.engine.tick()
+        self.assertEqual(reads, 2)
+        self.assertEqual(len(self.store.orders()), 1)
+        self.assertEqual(len([c for c in self.venue.calls if c[0] == "POST"]), 1)
+        self.assertEqual(self.store.get("okx-operation")["status"], "TWAP_COMPLETE")
+
+    async def test_long_reference_wait_refreshes_expired_account_before_intent(self):
+        self.engine.settings.update(
+            twap_quantity=".0002", twap_limit="50000", twap_slices=1, twap_duration_seconds=90
+        )
+        preview = await okx_cycle.preview(self.engine, {**self.values, "kind": "twap"})
+        await okx_cycle.authorize(self.engine, preview["id"], preview["confirmation"])
+        original = self.client.wait_limit_reference
+        waits = 0
+
+        async def wait(*args):
+            nonlocal waits
+            self.assertFalse(self.store.orders())
+            result = await original(*args)
+            waits += 1
+            if waits == 1:
+                self.engine.account_checked = self.engine.clock() - 31
+            return result
+
+        with patch.object(self.client, "wait_limit_reference", wait):
+            await self.engine.tick()
+        self.assertEqual(waits, 2)
+        self.assertEqual(len(self.store.orders()), 1)
+        self.assertEqual(len([c for c in self.venue.calls if c[0] == "POST"]), 1)
+        self.assertEqual(self.store.get("okx-operation")["status"], "TWAP_COMPLETE")
 
     async def test_wait_does_not_extend_a_twap_child_slot(self):
         self.engine.settings.update(

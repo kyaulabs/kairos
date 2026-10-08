@@ -97,11 +97,6 @@ async def preview(e, values):
             raise SafetyError(
                 "A manual planning allowance is available only for the demo diagnostic, never live/TWAP"
             )
-        await e.client.wait_limit_reference(
-            pair,
-            e.settings["stale_seconds"],
-            lambda: e.stop_generation == generation and not e.shutting_down,
-        )
         fee = await fees(e, pair, allowance)
         proof = await e.probe()
         if binding:
@@ -119,6 +114,13 @@ async def preview(e, values):
             raise SafetyError(
                 f"OKX server/local clock difference {skew:.3f}s exceeds 2s; nothing submitted; synchronize the server clock"
             )
+        # Account reads can outlast an index update. Wait after those reads,
+        # immediately before deriving and checking the preview's current prices.
+        await e.client.wait_limit_reference(
+            pair,
+            e.settings["stale_seconds"],
+            lambda: e.stop_generation == generation and not e.shutting_down,
+        )
         book = await e.client.book(pair)
         book.fresh(e.settings["stale_seconds"])
         if book.spread_bps > dec(e.settings["max_spread_bps"]):
