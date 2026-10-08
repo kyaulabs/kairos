@@ -909,7 +909,8 @@ class OKXEngine(Engine):
                             self,
                             operation,
                             "TWAP_COMPLETE" if complete else "PARTIAL",
-                            "Finite TWAP stopped; inspect actual fills and retained inventory. Unfilled/missed slots are not replayed; this is not execution-cycle qualification.",
+                            self.store.get(programs.key(self))["message"]
+                            + " Schedule completion is not proof of full execution or round-trip qualification.",
                         )
             except Exception as exc:
                 self.running, self.armed, self.authorization = False, False, None

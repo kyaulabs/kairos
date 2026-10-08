@@ -104,6 +104,61 @@ class CycleTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(SafetyError):
             await self.proposal(kind="twap", demo_fee_allowance_bps="20")
 
+    async def test_sell_preview_can_pass_before_price_drops_and_both_windows_skip(self):
+        self.engine.settings.update(
+            twap_quantity=".0004", twap_limit="50000", twap_slices=2, twap_duration_seconds=30
+        )
+        proposal = await self.proposal(kind="twap")
+        await okx_cycle.authorize(self.engine, proposal["id"], proposal["confirmation"])
+        for slot in range(2):
+            if slot:
+                program = self.store.get(programs.key(self.engine))
+                program["started"] -= 16
+                program["next_at"] -= 16
+                self.store.put(programs.key(self.engine), program)
+            self.book()
+            await self.engine.tick()
+        await self.engine.reset_program("NEW STRATEGY RUN")
+        self.engine.settings.update(twap_side="sell", twap_quantity=".0003996", twap_limit="49900")
+        proposal = await self.proposal(kind="twap")
+        self.assertEqual(proposal["price_check"]["bid"], "49999.9")
+        self.assertEqual(proposal["price_check"]["price_currency"], "USD")
+        self.assertEqual(proposal["spending_currency"], "USDC")
+        self.assertEqual(proposal["price_check"]["parent_limit"], "49900")
+        self.assertGreater(dec(proposal["price_check"]["limit_room_bps"]), 0)
+        self.assertIn("not a price reservation", proposal["price_check"]["notice"])
+        ledger = self.engine.ledger()
+        writes = len([c for c in self.venue.calls if c[0] == "POST"])
+        await okx_cycle.authorize(self.engine, proposal["id"], proposal["confirmation"])
+        for slot in range(2):
+            if slot:
+                program = self.store.get(programs.key(self.engine))
+                program["started"] -= 16
+                program["next_at"] -= 16
+                self.store.put(programs.key(self.engine), program)
+            self.book()
+            book = self.client.market_data.books[self.pair.id]
+            book.bids = [[dec("49800"), dec("2")]]
+            book.asks = [[dec("49800.1"), dec("2")]]
+            await self.engine.tick()
+        result = self.store.get("okx-operation")
+        self.assertEqual(result["status"], "TWAP_COMPLETE")  # Schedule, not fills.
+        self.assertFalse(result["submitted"])
+        self.assertEqual(result["orders"], [])
+        self.assertEqual(result["program_execution"]["outcome"], "no_fills")
+        self.assertEqual(result["program_execution"]["guard_skipped_slots"], 2)
+        self.assertIn("0 orders with fills", result["message"])
+        self.assertEqual(self.engine.ledger(), ledger)
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertIsNone(self.engine.authorization)
+        self.assertEqual(len([c for c in self.venue.calls if c[0] == "POST"]), writes)
+        for row in result["program_execution"]["skip_evidence"]:
+            self.assertEqual(row["price_check"]["bid"], "49800")
+            self.assertEqual(row["price_check"]["parent_limit"], "49900")
+        self.assertEqual(
+            proposal["price_check"]["bid"], "49999.9"
+        )  # Original preview timestamp/price retained.
+
     async def test_existing_twap_scheduler_uses_native_execution_for_buy_and_sell(self):
         self.engine.settings.update(
             twap_quantity=".0004", twap_limit="50000", twap_slices=2, twap_duration_seconds=30
@@ -135,6 +190,7 @@ class CycleTests(unittest.IsolatedAsyncioTestCase):
         self.book()
         await self.engine.tick()
         self.assertEqual(self.engine.balance("BTC"), 0)
+        self.assertEqual(self.store.get("okx-operation")["program_execution"]["outcome"], "filled")
         self.assertEqual(len(self.store.orders()), 4)
         self.assertFalse(self.engine.running)
         self.assertFalse(self.engine.armed)

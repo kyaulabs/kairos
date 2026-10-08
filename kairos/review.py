@@ -1,18 +1,8 @@
 """Read-only reporting from existing snapshots; no requests, signals or state writes."""
 
-from kairos.domain import BPS, TERMINAL, ZERO, dec
+from kairos.domain import BPS, ZERO, dec
 from kairos.htf_review import NATIVE_POLICY
-from kairos.programs import fill_cost
-
-
-def order_totals(orders):
-    return {
-        "records": len(orders),
-        "filled": sum(dec(o["filled"]) > 0 for o in orders),
-        "partial": sum(ZERO < dec(o["filled"]) < dec(o["volume"]) for o in orders),
-        "working": sum(o["status"] not in TERMINAL for o in orders),
-        "terminal_unfilled": sum(o["status"] in TERMINAL and not dec(o["filled"]) for o in orders),
-    }
+from kairos.programs import fill_cost, order_totals
 
 
 def snapshot(state, now):
@@ -91,6 +81,7 @@ def snapshot(state, now):
             "message": program["message"],
             "next_at": program["next_at"],
             "orders": order_totals(children),
+            "execution": program.get("execution"),
             "turnover_with_fee_reserve": str(spent),
             "markets": {},
         }
