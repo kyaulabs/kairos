@@ -52,7 +52,7 @@ class OKXOperations {
     this.$('open').disabled = !connected || state.running;
     this.$('title').textContent = state.environment === 'demo' ? 'OKX Demo — virtual funds' : 'OKX Live — real funds';
     this.$('notice').textContent = `${state.credentials_configured ? 'Credentials configured privately' : 'Credentials missing; see OKX.md for private setup'}. Write gate ${state.write_gate ? 'enabled' : 'disabled'}; ${state.armed ? 'finite permission active' : 'unarmed'}. Account ${state.account_identity || 'unbound — preflight required'}. ${state.market_data?.status || 'Data unavailable'}. Monetary amounts use the selected asset, never interchangeable USD/stablecoin balances.`;
-    this.$('result').textContent = state.execution_cycle ? JSON.stringify(state.execution_cycle, null, 2) : 'Not run / authorization required. Mocks and quotes do not establish hosted execution.';
+    this.$('result').textContent = state.execution_cycle ? JSON.stringify({original_run: state.execution_cycle, latest_account_reconciliation: state.reconciliation}, null, 2) : 'Not run / authorization required. Mocks and quotes do not establish hosted execution.';
     this.buttons();
   }
   open(kind) {
