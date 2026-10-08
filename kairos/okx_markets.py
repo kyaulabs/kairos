@@ -4,7 +4,27 @@ import time
 
 from kairos.domain import SafetyError, dec
 
-ACCOUNT_SOURCES = {"okx-account": "OKX trading account · native assets, not bot allocation"}
+ACCOUNT_SOURCES = {
+    "okx-account": "OKX trading account · native assets, not bot allocation",
+    "okx-bills": "OKX transaction bills · read-only evidence since allocation",
+}
+BILL_COLUMNS = {
+    "ccy": "Currency",
+    "balChg": "Balance change (balChg)",
+    "bal": "Balance after (bal)",
+    "fee": "Signed fee (native)",
+    "billId": "Bill ID",
+    "ordId": "Order ID",
+    "tradeId": "Trade ID",
+    "instType": "Product",
+    "instId": "Instrument",
+    "type": "Type",
+    "subType": "Subtype",
+    "sz": "Size (native)",
+    "px": "Price",
+    "ts": "Balance update (ms)",
+    "fillTime": "Fill time (ms)",
+}
 
 
 class OKXMarkets:
@@ -121,7 +141,53 @@ class OKXMarkets:
     async def account_snapshot(self, source):
         if source not in ACCOUNT_SOURCES:
             raise SafetyError("Unknown OKX account view")
+        binding = self.engine.store.get("okx-account") if source == "okx-bills" else None
+        if source == "okx-bills" and binding is None:
+            raise SafetyError(
+                "OKX bill evidence requires an existing allocation; this view never binds or funds an account"
+            )
         proof = await self.engine.read_account()
+        if source == "okx-bills":
+            owned = {o["txid"]: o for o in self.engine.orders() if o.get("txid")}
+            records = []
+            for row in proof["bills"]:
+                record = {key: row.get(key) for key in BILL_COLUMNS}
+                if any(
+                    value is not None and not isinstance(value, str) for value in record.values()
+                ):
+                    raise SafetyError(
+                        "OKX bill fields must retain their native string representation; evidence not interpreted"
+                    )
+                order = owned.get(row.get("ordId"))
+                classification = "Unrecognized — not adopted"
+                if row.get("billId") in binding["bills"]:
+                    classification = "Baseline — not bot activity"
+                elif (
+                    order
+                    and row.get("type") == "2"
+                    and row.get("instType") == "SPOT"
+                    and row.get("instId") == order["instrument"]
+                ):
+                    classification = "Recorded order — not accounting approval"
+                records.append({"classification": classification, **record})
+            return {
+                "source": source,
+                "title": f"OKX {self.spot.environment} transaction bills since allocation · native strings; missing fields shown as —; no reconciliation approval or ledger change",
+                "columns": ["Scope", *BILL_COLUMNS.values()],
+                "rows": [
+                    [
+                        r["classification"],
+                        *[r[k] if r[k] not in (None, "") else "—" for k in BILL_COLUMNS],
+                    ]
+                    for r in records
+                ],
+                "records": records,
+                "bound_at": binding["bound_at"],
+                "baseline": binding["baseline"],
+                "reported_balance": proof["balance"],
+                "truncated": False,
+                "received": time.time(),
+            }
         return {
             "source": source,
             "title": f"OKX {self.spot.environment} account ••••{proof['config']['uid'][-4:]} · full native assets, not bot allocation",
