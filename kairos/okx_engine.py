@@ -629,7 +629,7 @@ class OKXEngine(Engine):
             raise SafetyError("OKX accepts finite cash IOC intents only")
         self.check_scope(side, volume, price)
 
-        # Wait before account/band/book checks and before creating a durable intent.
+        # Finish account reads before waiting for the short-lived price reference.
         # No waiting or replay is permitted once submit_spot owns that intent.
         def wait_guard():
             self.permission()
@@ -639,27 +639,38 @@ class OKXEngine(Engine):
                     "OKX TWAP slot expired during data wait; no new intent or catch-up submission"
                 )
 
-        await self.client.wait_limit_reference(pair, self.settings["stale_seconds"], wait_guard)
-        await self.settle()
-        self.permission()
-        if not self.account_info["can_trade"] or self.account_info["fee_type"] not in {"0", "1"}:
-            raise SafetyError(
-                "OKX account lacks Trade permission or documented fee-currency policy; nothing submitted"
+        while True:
+            wait_guard()
+            await self.settle()
+            self.permission()
+            if not self.account_info["can_trade"] or self.account_info["fee_type"] not in {
+                "0",
+                "1",
+            }:
+                raise SafetyError(
+                    "OKX account lacks Trade permission or documented fee-currency policy; nothing submitted"
+                )
+            needed = (
+                volume * price * (1 + self.fees.reserve(pair) / BPS) if side == "buy" else volume
             )
-        needed = volume * price * (1 + self.fees.reserve(pair) / BPS) if side == "buy" else volume
-        asset = pair.quote if side == "buy" else pair.base
-        available = dec(self.account_snapshot["assets"].get(asset, {}).get("available", 0))
-        if needed > available:
-            raise SafetyError(
-                f"OKX requires {needed} {asset}, available after holds {available}; nothing submitted"
-            )
-        await self.client.catalog()
-        pair = self.resolve(pair.id)
-        metadata = self.client.instruments[pair.id]
-        if fingerprint(metadata) != self.permission()["market_rules"]:
-            raise SafetyError(
-                "OKX account instrument rules changed after authorization; no new submission"
-            )
+            asset = pair.quote if side == "buy" else pair.base
+            available = dec(self.account_snapshot["assets"].get(asset, {}).get("available", 0))
+            if needed > available:
+                raise SafetyError(
+                    f"OKX requires {needed} {asset}, available after holds {available}; nothing submitted"
+                )
+            await self.client.catalog()
+            pair = self.resolve(pair.id)
+            metadata = self.client.instruments[pair.id]
+            if fingerprint(metadata) != self.permission()["market_rules"]:
+                raise SafetyError(
+                    "OKX account instrument rules changed after authorization; no new submission"
+                )
+            await self.client.wait_limit_reference(pair, self.settings["stale_seconds"], wait_guard)
+            if 0 <= self.clock() - self.account_checked < 30:
+                break
+            # A long reference wait may age the account proof. Recheck it before
+            # any intent; the same permission and child-slot deadlines still apply.
         bands = await self.client.request(
             "GET", "/api/v5/public/price-limit", params={"instId": metadata["instId"]}
         )
