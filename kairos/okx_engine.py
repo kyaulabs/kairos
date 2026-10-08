@@ -13,6 +13,7 @@ from kairos.engine import Engine
 from kairos.okx import OKXBeforeSend, OKXRejected, PendingOKX
 from kairos.okx_reconciliation import bill_evidence
 from kairos.settings import DEFAULTS, validate_settings
+from kairos.strategies import limit_price
 
 
 def fingerprint(value):
@@ -689,15 +690,6 @@ class OKXEngine(Engine):
                 raise SafetyError(
                     "OKX account lacks Trade permission or documented fee-currency policy; nothing submitted"
                 )
-            needed = (
-                volume * price * (1 + self.fees.reserve(pair) / BPS) if side == "buy" else volume
-            )
-            asset = pair.quote if side == "buy" else pair.base
-            available = dec(self.account_snapshot["assets"].get(asset, {}).get("available", 0))
-            if needed > available:
-                raise SafetyError(
-                    f"OKX requires {needed} {asset}, available after holds {available}; nothing submitted"
-                )
             await self.client.catalog()
             pair = self.resolve(pair.id)
             metadata = self.client.instruments[pair.id]
@@ -719,6 +711,28 @@ class OKXEngine(Engine):
             or type(bands[0].get("enabled")) is not bool
         ):
             raise SafetyError("OKX native price-band evidence unavailable; nothing submitted")
+        # The scheduler's price predates account/reference/band I/O. Construct
+        # this TWAP child once from a fresh native book, within the unchanged
+        # authorized parent bound. Nothing may reprice a durable intent.
+        scope = self.permission()
+        if scope["kind"] == "twap" and kwargs.get("program"):
+            book = await self.client.book(pair)
+            book.fresh(self.settings["stale_seconds"])
+            price = limit_price(
+                book,
+                side,
+                self.settings["slippage_bps"],
+                parent=dec(scope["buy_ceiling" if side == "buy" else "sell_floor"]),
+            )
+        wait_guard()
+        self.check_scope(side, volume, price)
+        needed = volume * price * (1 + self.fees.reserve(pair) / BPS) if side == "buy" else volume
+        asset = pair.quote if side == "buy" else pair.base
+        available = dec(self.account_snapshot["assets"].get(asset, {}).get("available", 0))
+        if needed > available:
+            raise SafetyError(
+                f"OKX requires {needed} {asset}, available after holds {available}; nothing submitted"
+            )
         band = bands[0]
         age = self.clock() - native.native_time(band["ts"]) / 1000
         if not -2 <= age <= self.settings["stale_seconds"]:
