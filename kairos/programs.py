@@ -3,7 +3,7 @@
 import time
 import uuid
 
-from kairos.domain import BPS, ZERO, SafetyError, dec, floor
+from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.settings import SCHEDULED_STRATEGIES as STRATEGIES
 from kairos.strategies import limit_price
 
@@ -108,6 +108,61 @@ def orders(engine, program):
     ]
 
 
+def order_totals(orders):
+    return {
+        "records": len(orders),
+        "filled": sum(dec(o["filled"]) > 0 for o in orders),
+        "partial": sum(ZERO < dec(o["filled"]) < dec(o["volume"]) for o in orders),
+        "working": sum(o["status"] not in TERMINAL for o in orders),
+        "terminal_unfilled": sum(o["status"] in TERMINAL and not dec(o["filled"]) for o in orders),
+    }
+
+
+def execution_summary(engine, program, children):
+    """Read original order/skip evidence, including legacy Activity; never infer fills."""
+    counts = order_totals(children)
+    skips = engine.store.program_skips(program["id"])
+    config = program["config"]
+    incomplete = (
+        counts["partial"] or counts["terminal_unfilled"] or skips or program["skipped_slots"]
+    )
+    if program["strategy"] == "twap":
+        incomplete = incomplete or sum((dec(o["filled"]) for o in children), ZERO) != dec(
+            config["twap_quantity"]
+        )
+    elif program["strategy"] == "dca":
+        incomplete = incomplete or counts["filled"] != config["dca_count"]
+    return {
+        "outcome": "unresolved"
+        if counts["working"]
+        else "no_fills"
+        if not counts["filled"]
+        else "partial"
+        if incomplete
+        else "filled",
+        "orders": counts,
+        "guard_skipped_slots": len(skips),
+        "missed_windows": program["skipped_slots"],
+        "skip_evidence": skips,
+    }
+
+
+def price_check(book, side, parent):
+    reference = book.asks[0][0] if side == "buy" else book.bids[0][0]
+    room = parent - reference if side == "buy" else reference - parent
+    return {
+        "market": book.pair.id,
+        "side": side,
+        "parent_limit": str(parent),
+        "bid": str(book.bids[0][0]),
+        "ask": str(book.asks[0][0]),
+        "limit_room_bps": str(room / reference * BPS),
+        "source_time": book.received,
+        "received_at": getattr(book, "arrived_at", None),
+        "notice": "Current-price check only, not a price reservation. Each scheduled window checks the unchanged limit again; an unmarketable window is skipped, never retried automatically.",
+    }
+
+
 def snapshot(engine):
     if engine.settings["strategy"] not in STRATEGIES:
         return None
@@ -126,6 +181,7 @@ def snapshot(engine):
         },
         "spent_including_fees": str(sum((fill_cost(order) for order in children), ZERO)),
         "orders": len(children),
+        "execution": execution_summary(engine, program, children),
     }
 
 
@@ -179,19 +235,25 @@ def prepare(engine):
     )
 
 
-def report(engine, program, message):
+def report(engine, program, message, **details):
     program["message"] = message
     engine.store.put(key(engine), program)
-    engine.event("program", {"message": message, "program_id": program["id"], "mode": engine.mode})
+    engine.event(
+        "program", {"message": message, "program_id": program["id"], "mode": engine.mode, **details}
+    )
 
 
 def finish(engine, program):
     program["status"] = "complete"
     program["next_at"] = None
+    execution = execution_summary(engine, program, orders(engine, program))
     report(
         engine,
         program,
-        "Run complete; unfilled or skipped amounts remain unspent. New run requires explicit rearming.",
+        f"Schedule finished: {execution['orders']['filled']} orders with fills, "
+        f"{execution['orders']['partial']} partial, {execution['orders']['working']} unresolved; "
+        f"{execution['guard_skipped_slots']} skipped checks, {execution['missed_windows']} missed windows. "
+        "Unfilled amounts are not replayed; unsold holdings remain owned. New run requires explicit authorization.",
     )
     engine.running = False
 
@@ -251,7 +313,13 @@ async def scheduled_order(engine, program, slot):
     book = await client.book(pair)
     book.fresh(settings["stale_seconds"])
     if book.spread_bps > dec(settings["max_spread_bps"]):
-        report(engine, program, "Skipped scheduled slot: spread exceeds maximum")
+        report(
+            engine,
+            program,
+            "Skipped scheduled slot: spread exceeds maximum",
+            slot=slot,
+            skip_reason="spread",
+        )
         return
     price = limit_price(
         book,
@@ -260,7 +328,14 @@ async def scheduled_order(engine, program, slot):
         parent=dec(settings["twap_limit"]) if settings["strategy"] == "twap" else None,
     )
     if (side == "buy" and price < book.asks[0][0]) or (side == "sell" and price > book.bids[0][0]):
-        report(engine, program, "Skipped TWAP slot: parent limit is not marketable")
+        report(
+            engine,
+            program,
+            "Skipped TWAP slot: parent limit is not marketable",
+            slot=slot,
+            skip_reason="parent_limit",
+            price_check=price_check(book, side, dec(settings["twap_limit"])),
+        )
         return
     fee = engine.fees.reserve(pair) / BPS
     children = orders(engine, program)
@@ -287,7 +362,13 @@ async def scheduled_order(engine, program, slot):
         if settings["strategy"] == "twap" and sum(
             (dec(o["cost"]) for o in children), ZERO
         ) + notional > dec(settings["futures_parent_notional"]):
-            report(engine, program, "Skipped Futures TWAP slice: parent notional cap")
+            report(
+                engine,
+                program,
+                "Skipped Futures TWAP slice: parent notional cap",
+                slot=slot,
+                skip_reason="parent_notional",
+            )
             return
     if (
         volume < pair.minimum
@@ -307,6 +388,8 @@ async def scheduled_order(engine, program, slot):
             engine,
             program,
             "Skipped scheduled slot: minimum size, allocated funds, order cap or exposure limit",
+            slot=slot,
+            skip_reason="risk_or_minimum",
         )
         return
     order = await engine.place(

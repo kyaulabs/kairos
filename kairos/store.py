@@ -143,6 +143,17 @@ class Store:
             )
         return {"id": cursor.lastrowid, "ts": ts, "kind": kind, "data": data}
 
+    def program_skips(self, program_id):
+        """Read persisted guard skips; old messages are evidence, not fabricated history."""
+        rows = self.db.execute(
+            """SELECT ts,data FROM events WHERE kind='program'
+            AND json_extract(data,'$.program_id')=?
+            AND (json_extract(data,'$.skip_reason') IS NOT NULL
+                 OR json_extract(data,'$.message') LIKE 'Skipped %') ORDER BY id""",
+            (program_id,),
+        ).fetchall()
+        return [{"time": row[0], **json.loads(row[1])} for row in rows]
+
     def history(self, limit=200):
         rows = self.db.execute(
             """SELECT e.id,e.ts,e.kind,e.data FROM events e

@@ -97,6 +97,15 @@ test('real D3 renders model, missing data, program and band instruments without 
   assert.ok(root.querySelectorAll('text').some(node=>node.textContent==='RISING TREND'));
   view.render(null,{...state,settings:{...state.settings,strategy:'twap',twap_slices:12} },[],{scheduled:true});
   assert.match(root.querySelector('svg').getAttribute('aria-label'),/Claimed slots/);
+  const program = {status:'complete', next_slot:2, skipped_slots:0, orders:0, config:{twap_slices:2}, execution:{outcome:'no_fills', orders:{filled:0}, guard_skipped_slots:2, skip_evidence:[{message:'Skipped TWAP slot: parent limit is not marketable'}]}};
+  const originalProgram = JSON.stringify(program);
+  view.render(null,{...state,settings:{...state.settings,strategy:'twap',twap_slices:12},program},[],{scheduled:true});
+  assert.ok(root.querySelectorAll('text').some(n=>n.textContent==='0 ORDERS WITH FILLS'));
+  assert.ok(root.querySelectorAll('text').some(n=>n.textContent==='2 / 2 WINDOWS PROCESSED · NOT FILLS'));
+  assert.ok(root.querySelectorAll('p').some(n=>n.textContent.includes('Historical bid/ask values were not recorded')));
+  assert.equal(view.constructor.programStatus(program, false), 'Finished — no fills');
+  for (const [outcome,label] of [['partial','Finished — partial fills'],['filled','Finished — filled'],['unresolved','Finished — unresolved']]) assert.equal(view.constructor.programStatus({...program,execution:{outcome}},false),label);
+  assert.equal(JSON.stringify(program),originalProgram);
   const rule={deterministic:true,state:{window:30,candle_close_time:1800,lower:'99',middle:'100',upper:'101',series:[{time:0,close:'100'},{time:60,close:'98'},{time:120,close:'99.5'}]}};
   view.render(rule,{...state,settings:{...state.settings,strategy:'scalp'}});
   assert.match(root.querySelector('.range-gauge').getAttribute('aria-label'),/Not confidence or permission to trade/);

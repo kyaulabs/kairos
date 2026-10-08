@@ -295,10 +295,10 @@
       $('decision-inputs').textContent = JSON.stringify(operation, null, 2);
     } else if (scheduled) {
       const program = state.program;
-      $('decision').textContent = program?.configuration_changed ? 'Rearm required' : program?.status === 'complete' ? 'Complete' : state.running ? 'Running' : 'Paused';
+      $('decision').textContent = AssessmentView.programStatus(program, state.running);
       $('decision').className = '';
       $('confidence').textContent = 'Deterministic rules · no model calls';
-      $('decision-context').textContent = program?.message || 'No run started. Save settings, then Start with a pre-funded allocation.';
+      $('decision-context').textContent = program?.status === 'complete' && program.execution ? `Schedule ended: ${program.execution.orders.filled} orders with fills, ${program.execution.orders.partial} partial, ${program.execution.orders.working} unresolved. ${program.execution.guard_skipped_slots} skipped checks; ${program.execution.missed_windows} missed windows. Unsold holdings remain owned; no automatic retry.` : program?.message || 'No run started. Save settings, then Start with a pre-funded allocation.';
       $('decision-market').textContent = state.settings.strategy === 'rebalance' ? `Basket: ${state.settings.rebalance_targets}` : `Program market: ${botPair.symbol}`;
       $('model-info').textContent = program ? `${program.orders} orders · ${number(program.spent_including_fees)} ${quote} turnover ${hosted ? 'incl. planning fee reserves' : 'incl. fees'} · ${program.skipped_slots} missed slots${program.next_at ? ` · Next ${new Date(program.next_at*1000).toLocaleString()}` : ''}` : 'Schedules persist across restarts. A completed run never rearms automatically.';
       $('decision-inputs').textContent = JSON.stringify(program || {}, null, 2);

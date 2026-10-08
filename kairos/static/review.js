@@ -154,6 +154,8 @@ class StrategyReview {
     const execution = program ? [
       ['Program', `${program.id.slice(0, 8)} · ${program.status}${program.configuration_changed ? ' · saved settings differ; rearm required' : ''}`],
       ['Last outcome', program.message], ['Next slot', t(program.next_at)],
+      ['Execution result', program.execution?.outcome?.replaceAll('_', ' ') || 'Inspect actual order totals'],
+      ['Recorded skipped checks', program.execution?.guard_skipped_slots ?? 'Unavailable'],
       ['Claimed / elapsed missed slots', `${program.claimed_slots} / ${program.missed_slots}`],
       ['Order records / with fills / partial', `${program.orders.records} / ${program.orders.filled} / ${program.orders.partial}`],
       ['Working / terminal unfilled', `${program.orders.working} / ${program.orders.terminal_unfilled}`],
