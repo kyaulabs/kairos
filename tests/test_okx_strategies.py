@@ -647,6 +647,68 @@ class DemoStrategyTests(unittest.IsolatedAsyncioTestCase):
         await replacement.stop()
         self.assertEqual(len(self.posts()), 2)
 
+    async def test_preview_recaptures_all_books_after_other_market_reference_wait(self):
+        await self.basket()
+        self.engine.settings["strategy"] = "arbitrage"
+        wait = self.client.wait_limit_reference
+        calls = 0
+
+        async def changed_reference(*args):
+            nonlocal calls
+            result = await wait(*args)
+            calls += 1
+            if calls == 2:
+                book = self.book(self.pair)
+                book.bids[0][0], book.asks[0][0] = dec("8.99"), dec("9")
+            return result
+
+        with patch.object(self.client, "wait_limit_reference", changed_reference):
+            proposal = await self.preview()
+        self.assertEqual(
+            dec(proposal["markets"][self.pair.id]["buy_ceiling"]),
+            self.pair.price(dec("9.45"), "buy"),
+        )
+        self.assertEqual(self.posts(), [])
+
+    async def test_preview_blocks_when_later_book_read_ages_an_earlier_market(self):
+        await self.basket()
+        self.engine.settings["strategy"] = "arbitrage"
+        read = self.client.book
+        captured = []
+
+        async def delayed_book(pair):
+            result = await read(pair)
+            captured.append(result)
+            if len(captured) == 3:
+                captured[0].received -= 20
+            return result
+
+        with patch.object(self.client, "book", delayed_book):
+            with self.assertRaisesRegex(SafetyError, "stale"):
+                await self.preview()
+        self.assertFalse(
+            self.store.db.execute("SELECT key FROM state WHERE key LIKE 'okx-preview:%'").fetchall()
+        )
+        self.assertEqual(self.posts(), [])
+
+    async def test_preview_captures_price_after_native_history_read(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        bars = self.client.bars
+
+        async def delayed_history(*args, **kwargs):
+            result = await bars(*args, **kwargs)
+            book = self.book()
+            book.bids[0][0], book.asks[0][0] = dec("48000"), dec("48000.1")
+            return result
+
+        with patch.object(self.client, "bars", delayed_history):
+            proposal = await self.preview()
+        self.assertEqual(
+            dec(proposal["markets"][self.pair.id]["buy_ceiling"]),
+            self.pair.price(dec("48000.1") * dec("1.05"), "buy"),
+        )
+        self.assertEqual(self.posts(), [])
+
     async def test_invalid_basket_never_persists_settings_or_retargets_books(self):
         before = copy.deepcopy(self.engine.settings)
         saved = self.store.get("settings")

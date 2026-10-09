@@ -142,16 +142,30 @@ async def preview(e, values):
             raise SafetyError(
                 "DCA schedule, total prefunding and order count must fit this finite authorization"
             )
+        if strategy in {"htf", "scalp"}:
+            # Finish history I/O before capturing the preview's quote cohort.
+            if strategy == "htf":
+                from kairos.htf_review import native_rows
+
+                minutes = e.settings["candle_minutes"]
+                rows = await e.client.bars(pair, minutes)
+                cutoff = int(e.clock()) // (minutes * 60) * minutes * 60
+                if native_rows(pair, rows, cutoff, minutes)[0] is None:
+                    raise SafetyError("Demo HTF requires 30 adjacent completed native bars")
+            else:
+                scalping.signal(await e.client.candles(pair, 1), e.settings, e.clock())
         # Every valuation uses an actual native same-currency market, never parity.
-        books = {}
         for market in selected:
             await e.client.wait_limit_reference(
                 market,
                 e.settings["stale_seconds"],
                 lambda: generation == e.stop_generation and not e.shutting_down,
             )
-            books[market.id] = await e.client.book(market)
-            books[market.id].fresh(e.settings["stale_seconds"])
+        books = {market.id: await e.client.book(market) for market in selected}
+        # A later book read can itself wait. Validate the entire captured cohort
+        # after all I/O; never silently authorize terms derived from an aged book.
+        for book in books.values():
+            book.fresh(e.settings["stale_seconds"])
         prices = {pair.quote: dec(1)}
         for market in selected:
             if market.quote == pair.quote:
@@ -186,18 +200,6 @@ async def preview(e, values):
                 "budget": str(budget / prices[market.quote]),
                 "fee_bps": str(fee),
             }
-        if strategy in {"htf", "scalp"}:
-            # Read-only warm-up verification. Missing bars are blockers, never synthesized.
-            if strategy == "htf":
-                from kairos.htf_review import native_rows
-
-                minutes = e.settings["candle_minutes"]
-                rows = await e.client.bars(pair, minutes)
-                cutoff = int(e.clock()) // (minutes * 60) * minutes * 60
-                if native_rows(pair, rows, cutoff, minutes)[0] is None:
-                    raise SafetyError("Demo HTF requires 30 adjacent completed native bars")
-            else:
-                scalping.signal(await e.client.candles(pair, 1), e.settings, e.clock())
         if (
             strategy in {"maker", "arbitrage"}
             or strategy == "htf"
