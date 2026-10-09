@@ -291,6 +291,10 @@ class DemoStrategyTests(unittest.IsolatedAsyncioTestCase):
             await self.authorize(duration_seconds=7200)
             await cycle()
             self.assertEqual(self.posts(), [])
+            data = self.engine.snapshot()["review"]["data"]
+            self.assertEqual(data["required_native_bars"], 30)
+            self.assertEqual(data["consecutive_native_bars"], 30)
+            self.assertIsNone(data["required_minutes"])
             now += 3600
             rows = rows[1:] + [[end, "49975", "51475", "48475", "49975", "49975", "10", 1]]
             await cycle()
@@ -642,6 +646,19 @@ class DemoStrategyTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(replacement.running or replacement.armed)
         await replacement.stop()
         self.assertEqual(len(self.posts()), 2)
+
+    async def test_invalid_basket_never_persists_settings_or_retargets_books(self):
+        before = copy.deepcopy(self.engine.settings)
+        saved = self.store.get("settings")
+        selected = dict(self.client.market_data.pairs)
+        with self.assertRaises(SafetyError):
+            await self.engine.configure(
+                {**before, "strategy": "rebalance", "rebalance_targets": "BTC/USD=50,CASH=50"}
+            )
+        self.assertEqual(self.engine.settings, before)
+        self.assertEqual(self.store.get("settings"), saved)
+        self.assertEqual(self.client.market_data.pairs, selected)
+        self.assertEqual(self.posts(), [])
 
     async def test_demo_budget_and_live_capability_fail_closed(self):
         with self.assertRaisesRegex(SafetyError, "DCA schedule"):

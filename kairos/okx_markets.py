@@ -90,7 +90,7 @@ class OKXMarkets:
             "change_received": None,
             "errors": [],
             "partial": wanted is not None,
-            "note": "Native same-environment books5 for the explicitly selected execution market only. Browsing never retargets that feed. Charts use same-environment native REST candles, not execution prices. Turnover and 24h change are unavailable; no other venue/environment supplies them.",
+            "note": "Native same-environment books5 for explicitly selected execution markets only. Browsing never retargets that feed. Charts use same-environment native REST candles, not execution prices. Turnover and 24h change are unavailable; no other venue/environment supplies them.",
         }
 
     async def candles(self, market, minutes):

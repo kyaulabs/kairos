@@ -1025,11 +1025,33 @@ class OKXEngine(Engine):
                 and values["strategy"] not in {"rebalance", "arbitrage"}
             ):
                 raise SafetyError("OKX owned inventory prevents changing execution instruments")
+            if values["strategy"] == "arbitrage":
+                from kairos.strategies import triangle
+
+                selected = [leg.pair for leg in triangle(pair, self.client.pairs)[0]]
+            elif values["strategy"] in programs.STRATEGIES:
+                selected = programs.validate_markets(values, self.resolve)
+            else:
+                selected = [pair]
+            if self.client.environment == "demo" and values["strategy"] != "twap":
+                if pair.id not in {p.id for p in selected} or any(
+                    p.quote != self.client.instruments[p.id]["quoteCcy"] for p in selected
+                ):
+                    raise SafetyError(
+                        "Demo strategy markets must include the primary market and use native price currencies"
+                    )
+                valued_assets = {p.base for p in selected if p.quote == values["quote"]}
+                if self.ledger() and any(
+                    dec(q)
+                    for asset, q in self.ledger()["balances"].items()
+                    if asset != values["quote"] and asset not in valued_assets
+                ):
+                    raise SafetyError(
+                        "Retained inventory requires its native valuation market in the strategy scope"
+                    )
             self.settings = values
             self.store.put("settings", values)
-            await self.client.market_data.configure(
-                self.fee_pairs(), max_age=values["stale_seconds"]
-            )
+            await self.client.market_data.configure(selected, max_age=values["stale_seconds"])
             await self.refresh_fees(required=False)
             self.emit_state()
 

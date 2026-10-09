@@ -28,7 +28,10 @@ def snapshot(state, now):
     age = now - observed if observed is not None else None
     review = state.get("htf_review") or {}
     cutoff = review.get("window_end")
-    native = state.get("exchange") == "alpaca" and review.get("history_policy") == NATIVE_POLICY
+    native_policy = {"alpaca": NATIVE_POLICY, "okx-demo": "okx-us-confirmed-native-bars-v1"}.get(
+        state.get("exchange")
+    )
+    native = native_policy is not None and review.get("history_policy") == native_policy
     required = 30 * settings["candle_minutes"] if strategy == "htf" and not native else None
     step = settings["candle_minutes"] * 60 if native else 60
     # A stopped/canceled review can retain old counts. Do not call these current data.
