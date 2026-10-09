@@ -33,7 +33,7 @@ def order(side="buy", identifier="a" * 32):
         "fee": "0",
         "fees": {},
         "status": "submitting",
-        "payload": {"sz": quantity, "px": price},
+        "payload": {"sz": quantity, "px": price, "ordType": "ioc"},
     }
 
 

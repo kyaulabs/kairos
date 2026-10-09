@@ -221,7 +221,7 @@ def order_observation(order, row):
     expected = {
         "instType": "SPOT",
         "tdMode": "cash",
-        "ordType": "ioc",
+        "ordType": payload["ordType"],
         "instId": order["instrument"],
         "side": order["side"],
         "clOrdId": order.get("client_id", order["id"]),

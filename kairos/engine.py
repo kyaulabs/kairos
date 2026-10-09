@@ -1609,6 +1609,8 @@ class Engine:
             self.event("skip", {"reason": "Arbitrage opportunity disappeared during assessment"})
             return
         cycle = {"id": str(uuid.uuid4()), "mode": self.mode, "plan": plan, "completed_legs": 0}
+        if self.exchange == "okx-demo":
+            cycle["authorization_id"] = self.permission()["id"]
         self.store.put("cycle", cycle)
         self.recovery_required = True
         output = amount
@@ -1633,7 +1635,7 @@ class Engine:
             if dec(order["filled"]) != volume:
                 raise SafetyError("Arbitrage leg partially filled; inspect intermediate inventory")
             output = (
-                dec(order["filled"])
+                dec(order["filled"]) - dec(order.get("fees", {}).get(order["base"], 0))
                 if leg.side == "buy"
                 else dec(order["cost"]) - dec(order["fee"])
             )

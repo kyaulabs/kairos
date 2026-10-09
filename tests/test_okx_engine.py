@@ -60,7 +60,7 @@ class Venue:
                 "fillPx": str(price),
                 "fee": str(fee),
                 "feeCcy": fee_currency,
-                "execType": "T",
+                "execType": "M" if order["ordType"] == "post_only" else "T",
                 "billId": str(len(self.fills) + 200),
                 "tradeId": str(len(self.fills) + 300),
                 "fillTime": stamp,

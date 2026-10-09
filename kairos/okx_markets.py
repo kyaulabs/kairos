@@ -3,6 +3,7 @@
 import time
 
 from kairos.domain import SafetyError, dec
+from kairos.settings import STRATEGIES
 
 ACCOUNT_SOURCES = {
     "okx-account": "OKX trading account · native assets, not bot allocation",
@@ -44,7 +45,10 @@ class OKXMarkets:
                 "candle_source": f"OKX U.S. {self.spot.environment} {self.spot.instruments[key]['instId']} native OHLCV · chart only",
                 "execution_reason": "",
                 "price_label": f"OKX {self.spot.environment} books5",
-                "supported_strategies": ["twap"],
+                "supported_strategies": list(STRATEGIES)
+                if self.spot.environment == "demo"
+                and pair.quote == self.spot.instruments[key]["quoteCcy"]
+                else ["twap"],
             }
             for key, pair in self.spot.pairs.items()
         }

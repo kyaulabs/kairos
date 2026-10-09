@@ -29,7 +29,11 @@ class OKXWebTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(settings.STRATEGIES, original)
         self.assertEqual(schema["exchange"], "okx-demo")
         self.assertEqual(list(schema["fields"]["product"]["choices"]), ["spot"])
-        self.assertEqual(schema["strategies"]["htf"]["products"], [])
+        self.assertEqual(schema["strategies"]["htf"]["products"], ["spot"])
+        self.assertEqual(
+            settings.FIELDS["htf_policy"]["choices"]["multibar-v2"],
+            "Multi-bar pullback · 14-day paper trial",
+        )
         catalog = await (await self.http.get("/api/pairs")).json()
         self.assertIn(self.pair.id, [row["id"] for row in catalog])
         markets = await (await self.http.get("/api/markets?kind=all")).json()

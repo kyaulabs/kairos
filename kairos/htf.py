@@ -44,13 +44,25 @@ def quantity(engine, pair):
         return engine.futures.position(pair)
     if engine.settings["product"] == "margin":
         return dec(engine.store.get("margin")["positions"].get(pair.id, {}).get("quantity", 0))
+    if getattr(engine, "exchange", "") == "okx-demo":
+        return engine.balance(pair.base) - dec(snapshot(engine).get("excluded_inventory", 0))
     return engine.balance(pair.base)
 
 
 def owned(engine, position, mode=None):
     return sum(
         (
-            dec(o["filled"]) * (1 if o["side"] == "buy" else -1)
+            (
+                dec(o["filled"]) * (1 if o["side"] == "buy" else -1)
+                + sum(
+                    (
+                        dec(x["fee_signed"])
+                        for x in o.get("executions", [])
+                        if x["fee_currency"] == o["base"]
+                    ),
+                    ZERO,
+                )
+            )
             for o in engine.orders(mode or engine.mode)
             if position
             and o.get("htf_id") == position["id"]
