@@ -247,7 +247,7 @@
     $('engine-strategy').textContent = settingsSchema.strategies[state.settings.strategy].label;
     $('engine-error').hidden = !(state.error || state.start_block_reason);
     $('engine-error').textContent = state.start_block_reason || state.error || '';
-    $('start').textContent = native ? 'Preview TWAP…' : 'Start';
+    $('start').textContent = native ? (state.settings.strategy === 'twap' ? 'Preview TWAP…' : 'Preview strategy…') : 'Start';
     $('start').hidden = state.running || !!(state.error || state.start_block_reason);
     $('restart').hidden = state.running || !(state.error || state.start_block_reason);
     $('restart').textContent = state.start_block_reason ? 'Qualification required' : 'Restart engine';
@@ -466,14 +466,14 @@
     action('exchange', {exchange, confirmation: 'SWITCH EXCHANGE'});
   });
   $('start').addEventListener('click', () => {
-    if (OKXOperations.enabled(state)) { okx.open('twap'); return; }
+    if (OKXOperations.enabled(state)) { okx.open(state.settings.strategy === 'twap' ? 'twap' : 'strategy'); return; }
     if (state?.exchange === 'alpaca') {
       if (confirm('Start Alpaca HOSTED PAPER using SAVED settings? Orders go to Alpaca’s simulator, not local simulation or live trading. Use a dedicated unused paper account. GTC passive quotes are canceled locally and can stay working while Kairos is offline.')) action('start', {confirmation: 'START ALPACA PAPER'});
     } else action('start');
   });
   $('restart').addEventListener('click', () => {
     if (OKXOperations.enabled(state)) {
-      if (confirm('Restart OKX read-only feeds and reconciliation? Trading stays paused and unarmed. Original intents and holdings are retained; no finite run resumes.')) action('restart', {confirmation: 'RESTART ENGINE'});
+      if (confirm('Restart OKX feeds, cancel any previously owned working orders, and reconcile? Trading stays paused and unarmed. Original intents and holdings are retained; no finite run resumes.')) action('restart', {confirmation: 'RESTART ENGINE'});
       return;
     }
     const mode = state?.exchange === 'alpaca' ? 'Alpaca HOSTED PAPER trading (broker-side simulated orders)' : state?.mode === 'trading' ? 'LIVE trading with REAL funds' : 'paper trading';

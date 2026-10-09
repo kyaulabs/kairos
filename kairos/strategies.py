@@ -80,7 +80,12 @@ class Leg:
 
 def triangle(primary, pairs):
     """Use one liquid BTC/ETH bridge, in both directions; no unbounded market scan."""
-    for bridge_asset in ("XXBT", "XETH"):
+    native_okx = primary.id.startswith("okx")
+    if native_okx:
+        pairs = {
+            key: p for key, p in pairs.items() if p.id.split(":")[-2].rsplit("-", 1)[-1] == p.quote
+        }
+    for bridge_asset in ("BTC", "ETH") if native_okx else ("XXBT", "XETH"):
         if bridge_asset == primary.base:
             continue
         bridge = next(
@@ -106,7 +111,11 @@ def plan_leg(leg, book, amount, fee_bps, slippage_bps):
     if filled < volume:
         raise SafetyError("Insufficient displayed depth for the proposed order")
     # Profitability assumes every leg executes at its worst permitted price.
-    output = volume if leg.side == "buy" else volume * limit * (1 - fee)
+    output = (
+        (volume * (1 - fee) if leg.pair.id.startswith("okx") else volume)
+        if leg.side == "buy"
+        else volume * limit * (1 - fee)
+    )
     return volume, limit, output
 
 

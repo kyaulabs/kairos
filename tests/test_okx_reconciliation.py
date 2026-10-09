@@ -45,7 +45,7 @@ def incident(store):
             quote="USDT",
             volume=quantity,
             price=price,
-            payload={"sz": quantity, "px": price},
+            payload={"sz": quantity, "px": price, "ordType": "ioc"},
         )
         row = fill(
             intent,

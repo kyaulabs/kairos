@@ -59,6 +59,10 @@ async def fees(e, pair, allowance):
 
 
 async def preview(e, values):
+    if isinstance(values, dict) and values.get("kind") == "strategy":
+        from kairos.okx_strategy import preview as strategy_preview
+
+        return await strategy_preview(e, values)
     idle(e)
     if not isinstance(values, dict) or set(values) - FIELDS:
         raise SafetyError("Unknown OKX finite-run preview fields")
@@ -367,6 +371,10 @@ async def authorize(e, preview_id, phrase):
                 raise SafetyError("OKX preview belongs to a different account/environment")
             if e.store.get("okx-account"):
                 await e.settle()
+            if proposal["kind"] == "strategy":
+                from kairos.okx_strategy import recheck
+
+                await recheck(e, proposal)
             if e.stop_generation != proposal["generation"] or e.shutting_down:
                 raise SafetyError("OKX authorization canceled by Stop before execution")
             e.bind(proof, pair, proposal["allocation"])
@@ -380,12 +388,20 @@ async def authorize(e, preview_id, phrase):
             e.authorization_monotonic_deadline = time.monotonic() + proposal["duration_seconds"]
             e.armed = e.running = True
             e.execution_purpose = (
-                "execution_cycle" if proposal["kind"] == "execution_cycle" else "finite_twap"
+                "okx_demo_strategy"
+                if proposal["kind"] == "strategy"
+                else "execution_cycle"
+                if proposal["kind"] == "execution_cycle"
+                else "finite_twap"
             )
             await e.valuation(enforce=True)
             e.ensure_run()
-            if proposal["kind"] == "twap":
+            if proposal["kind"] in {"twap", "strategy"}:
                 programs.prepare(e)
+            if proposal["kind"] == "strategy":
+                from kairos.okx_strategy import prepare_position
+
+                prepare_position(e)
             record(e, operation)
             if proposal["kind"] == "execution_cycle":
                 e.operation_task = asyncio.create_task(run(e, operation))
@@ -430,11 +446,17 @@ def execution_evidence(e, operation):
         (
             dec(o["cost"]) + dec(o.get("fees", {}).get(o["quote"], 0))
             for o in orders
-            if o["side"] == "buy"
+            if o["side"] == "buy" and o["quote"] == operation["spending_currency"]
         ),
         ZERO,
     )
+    buy_debits = {}
+    for order in orders:
+        if order["side"] == "buy":
+            amount = dec(order["cost"]) + dec(order.get("fees", {}).get(order["quote"], 0))
+            buy_debits[order["pair"]] = str(dec(buy_debits.get(order["pair"], 0)) + amount)
     return dict(
+        buy_debits_by_market=buy_debits,
         entry_debit=str(entry_debit),
         counts=programs.order_totals(orders),
         submitted=(
@@ -479,11 +501,20 @@ async def report(e, operation, outcome, message):
     except SafetyError:
         estimate = None
     entry_debit = dec(evidence["entry_debit"])
-    if outcome in {"PASSED", "PASSED_WITH_DUST", "TWAP_COMPLETE"} and entry_debit > dec(
-        operation["budget"]
-    ):
+    if outcome in {
+        "PASSED",
+        "PASSED_WITH_DUST",
+        "TWAP_COMPLETE",
+        "STRATEGY_COMPLETE",
+    } and entry_debit > dec(operation["budget"]):
         outcome = "PARTIAL"
         message = f"Actual entry debit {entry_debit} {operation['spending_currency']} exceeded authorized budget {operation['budget']}; native fees retained, accounting reconciled but operational bounds failed; no repeat authorized"
+    if operation["kind"] == "strategy" and outcome == "STRATEGY_COMPLETE":
+        for market, amount in evidence["buy_debits_by_market"].items():
+            limit = operation["markets"][market]
+            if dec(amount) > dec(limit["budget"]):
+                outcome = "PARTIAL"
+                message = f"Actual debit {amount} {limit['quote']} exceeded the authorized market budget {limit['budget']} for {market}; native accounting retained, no further permission"
     operation.update(
         **evidence,
         status=outcome,
@@ -496,12 +527,24 @@ async def report(e, operation, outcome, message):
         closing_ledger=e.ledger(),
         reconciliation=e.store.get("okx-reconciliation"),
     )
-    if operation["kind"] == "twap":
+    if (
+        operation["kind"] == "twap"
+        or operation["kind"] == "strategy"
+        and e.settings["strategy"] in programs.STRATEGIES
+    ):
         program = programs.snapshot(e)
         operation["program_execution"] = program["execution"] if program else None
     e.last_error = (
         None
-        if outcome in {"PASSED", "PASSED_WITH_DUST", "NO_FILL", "TWAP_COMPLETE", "STOPPED"}
+        if outcome
+        in {
+            "PASSED",
+            "PASSED_WITH_DUST",
+            "NO_FILL",
+            "TWAP_COMPLETE",
+            "STRATEGY_COMPLETE",
+            "STOPPED",
+        }
         else message
     )
     record(e, operation)
