@@ -821,15 +821,45 @@ class OKXEngine(Engine):
         if self.operation_task and self.operation_task is not asyncio.current_task():
             self.operation_task.cancel()
         async with self.lock:
+            settled = False
             try:
                 await self.cancel_active()
                 if self.store.get("okx-account"):
                     await self.settle(seconds=10)
+                settled = True
             except SafetyError as exc:
                 self.last_error = str(exc)
                 self.recovery_required = True
                 raise
             finally:
+                operation = self.store.get("okx-operation")
+                if (
+                    operation
+                    and operation.get("kind") == "twap"
+                    and operation.get("status") == "running"
+                ):
+                    from kairos.okx_cycle import children, report
+
+                    if not settled:
+                        self.recovery_required = True
+                    pending = [o for o in children(self, operation) if o["status"] not in TERMINAL]
+                    outcome = (
+                        "UNKNOWN"
+                        if any(o["status"] in {"submitting", "uncertain"} for o in pending)
+                        else "RECONCILIATION_PENDING"
+                        if pending or self.recovery_required
+                        else "STOPPED"
+                    )
+                    await report(
+                        self,
+                        operation,
+                        outcome,
+                        "Stop revoked permission; actual fills and retained holdings are recorded. "
+                        "Unsubmitted windows are not replayed; a new run requires explicit authorization."
+                        if outcome == "STOPPED"
+                        else self.last_error
+                        or "Stop revoked permission; original orders/accounting remain unresolved.",
+                    )
                 self.emit_state()
 
     async def reconcile(self, acknowledge=False):
@@ -906,6 +936,7 @@ class OKXEngine(Engine):
                 self.emit_state()
                 return
             operation = self.store.get("okx-operation")
+            generation = self.stop_generation
             try:
                 self.permission()
                 if self.authorization["kind"] != "twap":
@@ -914,6 +945,8 @@ class OKXEngine(Engine):
                 await self.settle()
                 await programs.run(self)
                 if not self.running:
+                    if self.stop_generation != generation:
+                        return  # Stop owns final reporting after its settlement reads.
                     self.armed, self.authorization = False, None
                     if operation:
                         from kairos.okx_cycle import report
@@ -934,6 +967,8 @@ class OKXEngine(Engine):
                     else "OKX program failed; original intents retained; reconcile before another authorization"
                 )
                 diagnostics.capture(exc, "okx-program")
+                if self.stop_generation != generation:
+                    return  # Do not race Stop with an earlier, incomplete report.
                 if operation:
                     from kairos.okx_cycle import report
 
@@ -950,8 +985,11 @@ class OKXEngine(Engine):
                 self.emit_state()
 
     def snapshot(self):
+        from kairos.okx_cycle import execution_evidence
+
         state = super().snapshot()
         binding = self.store.get("okx-account")
+        operation = self.store.get("okx-operation")
         if getattr(self, "planning_source", None):
             state["fees"]["source"] = self.planning_source
             state["fees"]["note"] = self.planning_source + ". " + self.client.fee_note
@@ -966,7 +1004,8 @@ class OKXEngine(Engine):
             account_identity="••••" + binding["uid"][-4:] if binding else None,
             account_balances=self.account_snapshot,
             reconciliation=self.store.get("okx-reconciliation"),
-            execution_cycle=self.store.get("okx-operation"),
+            execution_cycle=operation,
+            execution_cycle_evidence=execution_evidence(self, operation) if operation else None,
             capabilities={
                 "crypto_spot": "OKX U.S. cash spot; isolated live/demo",
                 "programs": "finite execution_cycle and existing finite TWAP only",
