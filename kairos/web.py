@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import time
+from importlib.metadata import version
 from pathlib import Path
 
 import aiohttp
@@ -132,7 +133,12 @@ async def response_headers(request, response):
 async def state(request):
     engine = request.app["engine"]
     return web.json_response(
-        {**engine.snapshot(), "csrf": request.app["csrf"], "tickers": request.app["hub"].tickers}
+        {
+            **engine.snapshot(),
+            "version": request.app["version"],
+            "csrf": request.app["csrf"],
+            "tickers": request.app["hub"].tickers,
+        }
     )
 
 
@@ -691,6 +697,7 @@ async def index(request):
 def create_app(engine=None, origin=None, futures=None):
     app = web.Application(middlewares=[security], client_max_size=16 * 1024)
     app["hub"] = Hub()
+    app["version"] = version("kairos-trader")
     app["candle_cache"] = {}
     app["candle_lock"] = asyncio.Lock()
     app["market_cache"] = {}
