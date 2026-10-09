@@ -111,6 +111,16 @@ test('OKX displays exact residual evidence without erasing input drafts or claim
   assert.deepEqual(evidence.latest_account_reconciliation, latest);
   assert.equal(original.status, 'RECONCILIATION_PENDING');
   assert.equal(node('authorize').disabled, true);
+  const stoppedLegacy = {status:'interrupted', submitted:false, claimed:true};
+  const runEvidence = {submitted:true, counts:{filled:1}, orders:[{side:'sell',filled:'0.00015027'}], fees:{USDT:'0.0430523324595'}};
+  const balances = {BTC:'0.000150279055',USDT:'487.0994419661075'};
+  controller.render({...state, execution_cycle:stoppedLegacy, execution_cycle_evidence:runEvidence, ledger:{balances}, reconciliation:latest}, true);
+  const stopped = JSON.parse(node('result').textContent);
+  assert.deepEqual(stopped.original_run, stoppedLegacy);
+  assert.deepEqual(stopped.latest_run_execution, runEvidence);
+  assert.deepEqual(stopped.current_owned_balances, balances);
+  assert.equal(stoppedLegacy.submitted, false);
+  assert.equal(node('authorize').disabled, true);
   controller.render({...state, exchange:'okx', environment:'live'}, true);
   assert.equal(node('title').textContent, 'OKX Live — real funds');
   assert.equal(node('allowance-label').hidden, true);
