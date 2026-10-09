@@ -30,7 +30,7 @@
 </head>
 <body>
 <aside id="settings-sidebar" class="settings-sidebar" aria-label="Kairos settings navigation">
-  <div class="sidebar-heading"><button id="sidebar-toggle" class="brand" type="button" aria-label="Open Kairos settings" aria-expanded="false" aria-controls="settings-panel" title="Open Kairos settings"><img id="brand-wordmark" src="/static/brand/kairos-wordmark-on-dark.svg" alt="" width="120" height="31"><img id="brand-icon" src="/static/brand/kai-icon-on-dark.svg" alt="" width="48" height="25"><span class="icon icon-menu" aria-hidden="true">☰</span></button></div>
+  <div class="sidebar-heading"><button id="sidebar-toggle" class="brand" type="button" aria-label="Open Kairos settings" aria-expanded="false" aria-controls="settings-panel" title="Open Kairos settings"><img id="brand-wordmark" src="/static/brand/kairos-wordmark-on-dark.svg" alt="" width="120" height="31"><span id="brand-version" class="brand-version" hidden></span><img id="brand-icon" src="/static/brand/kai-icon-on-dark.svg" alt="" width="48" height="25"><span class="icon icon-menu" aria-hidden="true">☰</span></button></div>
   <div id="sidebar-body" class="sidebar-body">
     <nav class="sidebar-rail" role="tablist" aria-label="Kairos sections" aria-orientation="vertical">
       <button type="button" id="strategy-tab" role="tab" aria-selected="true" data-settings-tab="strategy-tab" aria-label="Strategy" title="Strategy" aria-controls="strategy-settings" aria-expanded="false"><span class="icon icon-strategy" aria-hidden="true">♞</span></button>
@@ -54,7 +54,7 @@
     <span id="connection" class="connection" role="status">Connecting</span>
     <span class="header-separator" aria-hidden="true">·</span>
     <span id="mode-badge" class="pill">DRY-RUN</span>
-    <button id="quick-stop" class="small danger" type="button" hidden title="Stop the selected exchange and cancel tracked orders">Stop</button>
+    <button id="quick-stop" class="appearance-toggle" type="button" hidden aria-label="Stop the selected exchange and cancel tracked orders" title="Stop the selected exchange and cancel tracked orders"><span class="icon icon-stop icon-solid" aria-hidden="true">■</span></button>
     <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" aria-haspopup="dialog" aria-controls="appearance-menu" popovertarget="appearance-menu" popovertargetaction="show" aria-expanded="false" aria-describedby="appearance-help" title="Switch to light theme · Right-click for color schemes"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀︎</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
     <span id="appearance-help" class="sr-only">Right-click, press Arrow Down or Shift+F10, or touch and hold for color schemes.</span>
     <div id="appearance-menu" class="appearance-menu" popover="auto" role="dialog" aria-label="Color scheme">

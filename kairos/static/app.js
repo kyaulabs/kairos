@@ -48,7 +48,11 @@
   for (const list of document.querySelectorAll('[role="tablist"]')) {
     const tabs = [...list.querySelectorAll('[role="tab"]')];
     for (const tab of tabs) {
-      tab.addEventListener('click', () => selectTab(tab));
+      tab.addEventListener('click', () => {
+        if (tab.closest('#settings-sidebar') && sidebar.expanded && sidebar.selected === tab.id) {
+          sidebar.setOpen(false);
+        } else selectTab(tab);
+      });
       tab.addEventListener('keydown', event => {
         const i = tabs.indexOf(tab);
         const vertical = list.getAttribute('aria-orientation') === 'vertical';
@@ -188,6 +192,10 @@
       refreshHistory().catch(error => message(`History refresh failed: ${error.message}. Reload to refresh records.`));
     }
     if (next.csrf) csrf = next.csrf;
+    if (next.version) {
+      $('brand-version').textContent = `v${next.version}`;
+      $('brand-version').hidden = false;
+    }
     if (next.tickers) tickers = next.tickers;
     if (!initialized) { loadForm(); initialized = true; }
     const botPair = pairs.find(pair => pair.id === state.settings.pair) || {id: state.settings.pair, symbol: state.settings.pair};
@@ -570,7 +578,7 @@
     await refreshHistory();
     const stream = new EventSource('/api/events');
     stream.onopen = async () => {
-      connected = true; $('connection').textContent = 'DESK CONNECTED'; $('connection').classList.add('connected');
+      connected = true; $('connection').textContent = 'CONNECTED'; $('connection').classList.add('connected');
       try { render(await request('state')); await refreshHistory(); }
       catch (error) { message(error.message); }
     };

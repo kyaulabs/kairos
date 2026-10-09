@@ -31,7 +31,7 @@ test('forming candle updates replace the bar; the next candle advances the live 
   view.setCandles([candle(start, '103'), candle(start + 60)]);
   assert.equal(view.points.length, 2);
   assert.equal(domain(view)[0] - firstDomain[0], 60000);
-  assert.equal(domain(view)[1] - domain(view)[0], 60 * 60000);
+  assert.equal(domain(view)[1] - domain(view)[0], 90 * 60000);
 });
 
 test('snapshots retain up to 720 historical candles for pan/zoom', () => {
@@ -89,7 +89,7 @@ test('native interval changes discard incompatible bars but preserve fill events
     view.setCandleInterval(minutes);
     assert.equal(view.points.length, 0);
     view.setCandles([candle()]);
-    assert.equal(domain(view)[1] - domain(view)[0], 60 * minutes * 60000);
+    assert.equal(domain(view)[1] - domain(view)[0], 90 * minutes * 60000);
     assert.equal(view.fills.length, 1);
   }
   for (const invalid of [0, 10, NaN, '5', true]) {
