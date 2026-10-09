@@ -155,7 +155,8 @@ class TWAPPricingTests(unittest.IsolatedAsyncioTestCase):
             self.engine.stop_generation += 1
 
         await self.tick_after_reads(stopped)
-        self.assert_blocked("revoked")
+        await self.engine.stop()  # Complete the Stop whose revocation was injected above.
+        self.assert_blocked("Stop revoked")
 
     async def test_expired_slot_during_reads_is_not_replayed_or_extended(self):
         await self.prepare()

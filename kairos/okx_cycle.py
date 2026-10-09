@@ -419,21 +419,9 @@ def owned(e, operation):
     )
 
 
-async def report(e, operation, outcome, message):
-    e.running, e.armed, e.authorization = False, False, None
+def execution_evidence(e, operation):
+    """Current owned-order facts; reading them never rewrites the original report."""
     orders = children(e, operation)
-    residual = (
-        owned(e, operation)
-        if operation["kind"] == "execution_cycle"
-        else e.balance(operation["base"])
-    )
-    book = e.client.market_data.books.get(operation["pair"])
-    try:
-        if book:
-            book.fresh(e.settings["stale_seconds"])
-        estimate = str(residual * book.bids[0][0]) if book else None
-    except SafetyError:
-        estimate = None
     fees_by_currency = {}
     for order in orders:
         for asset, amount in order.get("fees", {}).items():
@@ -446,17 +434,9 @@ async def report(e, operation, outcome, message):
         ),
         ZERO,
     )
-    if outcome in {"PASSED", "PASSED_WITH_DUST", "TWAP_COMPLETE"} and entry_debit > dec(
-        operation["budget"]
-    ):
-        outcome = "PARTIAL"
-        message = f"Actual entry debit {entry_debit} {operation['spending_currency']} exceeded authorized budget {operation['budget']}; native fees retained, accounting reconciled but operational bounds failed; no repeat authorized"
-    operation.update(
+    return dict(
         entry_debit=str(entry_debit),
-        status=outcome,
-        phase="stopped",
-        message=message,
-        ended_at=e.clock(),
+        counts=programs.order_totals(orders),
         submitted=(
             True
             if any(
@@ -480,6 +460,36 @@ async def report(e, operation, outcome, message):
             for o in orders
         ],
         fees=fees_by_currency,
+    )
+
+
+async def report(e, operation, outcome, message):
+    e.running, e.armed, e.authorization = False, False, None
+    evidence = execution_evidence(e, operation)
+    residual = (
+        owned(e, operation)
+        if operation["kind"] == "execution_cycle"
+        else e.balance(operation["base"])
+    )
+    book = e.client.market_data.books.get(operation["pair"])
+    try:
+        if book:
+            book.fresh(e.settings["stale_seconds"])
+        estimate = str(residual * book.bids[0][0]) if book else None
+    except SafetyError:
+        estimate = None
+    entry_debit = dec(evidence["entry_debit"])
+    if outcome in {"PASSED", "PASSED_WITH_DUST", "TWAP_COMPLETE"} and entry_debit > dec(
+        operation["budget"]
+    ):
+        outcome = "PARTIAL"
+        message = f"Actual entry debit {entry_debit} {operation['spending_currency']} exceeded authorized budget {operation['budget']}; native fees retained, accounting reconciled but operational bounds failed; no repeat authorized"
+    operation.update(
+        **evidence,
+        status=outcome,
+        phase="stopped",
+        message=message,
+        ended_at=e.clock(),
         residual=str(residual),
         residual_value_estimate=estimate,
         value_currency=operation["spending_currency"],
@@ -490,7 +500,9 @@ async def report(e, operation, outcome, message):
         program = programs.snapshot(e)
         operation["program_execution"] = program["execution"] if program else None
     e.last_error = (
-        None if outcome in {"PASSED", "PASSED_WITH_DUST", "NO_FILL", "TWAP_COMPLETE"} else message
+        None
+        if outcome in {"PASSED", "PASSED_WITH_DUST", "NO_FILL", "TWAP_COMPLETE", "STOPPED"}
+        else message
     )
     record(e, operation)
 
