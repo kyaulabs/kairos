@@ -5,6 +5,7 @@ import hmac
 import json
 import unittest
 from dataclasses import replace
+from importlib.metadata import version
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -366,6 +367,8 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("JEV_API_KEY", text)
         self.assertIn('"csrf"', text)
         self.assertIn('"us_stocks"', text)
+        self.assertEqual(json.loads(text)["version"], version("kairos-trader"))
+        self.assertNotIn("version", self.engine.settings)
 
     async def test_settings_contract_is_read_only_and_contains_no_runtime_credentials(self):
         # Review reports include observation time; hold time fixed to compare state.

@@ -100,7 +100,7 @@ class LiveChart {
     const first = this.points[0].time, last = this.points.at(-1).time;
     if (this.intervalMs) {
       const end = (this.anchor ?? last) + 5 * this.intervalMs;
-      return [end - 60 * this.intervalMs, end];
+      return [end - 90 * this.intervalMs, end];
     }
     const start = Math.min(first, last - 60000);
     return [start, last + Math.max((last-start)*.025, 1000)];
