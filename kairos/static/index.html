@@ -264,17 +264,18 @@
   <div class="market-dialog-head"><h2 id="okx-title">OKX finite execution</h2><button id="okx-dialog-stop" type="button" class="danger" title="Revoke permission; cancel only owned working orders; retain holdings">Stop</button><button id="okx-close" type="button" aria-label="Close OKX authorization">×</button></div>
   <p id="okx-notice" class="muted">No trading permission until a completed preview is explicitly authorized.</p>
   <div id="okx-inputs" class="fields">
-    <label>Operation<select id="okx-kind"><option value="execution_cycle">Execution cycle · buy, sell, reconcile, stop</option><option value="twap">Finite TWAP · saved strategy settings</option></select></label>
+    <label>Operation<select id="okx-kind"><option value="execution_cycle">Execution cycle · buy, sell, reconcile, stop</option><option value="twap">Finite TWAP · saved strategy settings</option><option value="strategy">Demo strategy · saved settings, bounded orders</option></select></label>
     <label>Instrument / actual spending currency<select id="okx-pair"><option value="">Choose an account-enabled instrument…</option></select></label>
     <label>Initial allocation · selected currency<input id="okx-allocation" type="number" min="0.01" step="any" value="500"></label>
-    <label data-okx-cycle>Entry budget incl. fee allowance<input id="okx-budget" type="number" min="0.01" step="any" value="25"></label>
-    <label data-okx-cycle>Absolute buy ceiling · optional<input id="okx-buy" type="number" min="0.00000001" step="any" placeholder="Propose from fresh native book"></label>
-    <label data-okx-cycle>Absolute sell floor · optional<input id="okx-sell" type="number" min="0.00000001" step="any" placeholder="Propose from fresh native book"></label>
+    <label data-okx-budget>Starting-currency buy budget incl. fees<input id="okx-budget" type="number" min="0.01" step="any" value="25"></label>
+    <label data-okx-budget>Absolute buy ceiling · optional<input id="okx-buy" type="number" min="0.00000001" step="any" placeholder="Propose from fresh native book"></label>
+    <label data-okx-budget>Absolute sell floor · optional<input id="okx-sell" type="number" min="0.00000001" step="any" placeholder="Propose from fresh native book"></label>
     <label data-okx-cycle>Maximum exit attempts<input id="okx-exits" type="number" min="1" max="3" step="1" value="1"></label>
-    <label data-okx-cycle>Maximum run duration · seconds<input id="okx-duration" type="number" min="30" max="900" step="1" value="180"></label>
+    <label data-okx-budget>Maximum run duration · seconds<input id="okx-duration" type="number" min="30" max="900" step="1" value="180"></label>
+    <label data-okx-strategy>Total order attempts · all markets<input id="okx-max-orders" type="number" min="1" max="100" step="1" value="4"></label>
     <label id="okx-allowance-label">Demo-only fallback planning allowance · bps<input id="okx-allowance" type="number" min="0.01" max="1000" step="any" placeholder="Blank: authenticated fee rates required"></label>
   </div>
-  <p class="muted">One entry attempt per cycle. Only owned inventory may be sold. Partial fills and dust remain visible; no extra purchases, transfers, model calls, or automatic rearming. TWAP uses saved settings and the existing scheduler. Stop retains holdings.</p>
+  <p class="muted">Cycles allow one entry attempt. TWAP and demo strategies use saved settings. Review every market, native-currency budget, price bound and order count before authorizing. Strategies may call Jev where required. Stop and expiry retain holdings, not liquidate them. Demo post-only orders use local cancellation, not exchange-side expiry, and can remain open during an outage. No transfers, borrowing or automatic rearming.</p>
   <button id="okx-preview" type="button">Run read-only preflight / preview</button>
   <p id="okx-status" role="status" class="muted"></p>
   <pre id="okx-preview-data" class="okx-preview-data" tabindex="0"></pre>

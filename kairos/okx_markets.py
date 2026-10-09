@@ -3,6 +3,7 @@
 import time
 
 from kairos.domain import SafetyError, dec
+from kairos.settings import STRATEGIES
 
 ACCOUNT_SOURCES = {
     "okx-account": "OKX trading account · native assets, not bot allocation",
@@ -44,7 +45,10 @@ class OKXMarkets:
                 "candle_source": f"OKX U.S. {self.spot.environment} {self.spot.instruments[key]['instId']} native OHLCV · chart only",
                 "execution_reason": "",
                 "price_label": f"OKX {self.spot.environment} books5",
-                "supported_strategies": ["twap"],
+                "supported_strategies": list(STRATEGIES)
+                if self.spot.environment == "demo"
+                and pair.quote == self.spot.instruments[key]["quoteCcy"]
+                else ["twap"],
             }
             for key, pair in self.spot.pairs.items()
         }
@@ -86,7 +90,7 @@ class OKXMarkets:
             "change_received": None,
             "errors": [],
             "partial": wanted is not None,
-            "note": "Native same-environment books5 for the explicitly selected execution market only. Browsing never retargets that feed. Charts use same-environment native REST candles, not execution prices. Turnover and 24h change are unavailable; no other venue/environment supplies them.",
+            "note": "Native same-environment books5 for explicitly selected execution markets only. Browsing never retargets that feed. Charts use same-environment native REST candles, not execution prices. Turnover and 24h change are unavailable; no other venue/environment supplies them.",
         }
 
     async def candles(self, market, minutes):

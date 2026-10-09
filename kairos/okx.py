@@ -93,6 +93,7 @@ def code(value):
 
 
 class OKX:
+    native_history_policy = "okx-us-confirmed-native-bars-v1"
     fee_name = "OKX account"
     fee_estimates = True
     fee_source = "OKX U.S. authenticated account/trade-fee, instrument feeGroup"
@@ -260,14 +261,15 @@ class OKX:
         if path == "/api/v5/trade/order":
             if set(payload) != ORDER_FIELDS or (
                 payload["tdMode"] != "cash"
-                or payload["ordType"] != "ioc"
+                or payload["ordType"]
+                not in ({"ioc", "post_only"} if self.environment == "demo" else {"ioc"})
                 or payload["side"] not in {"buy", "sell"}
                 or payload["stpMode"] != "cancel_taker"
                 or payload["pxAmendType"] != "0"
                 or not re.fullmatch(r"[A-Za-z0-9]{1,32}", payload["clOrdId"])
             ):
                 raise SafetyError(
-                    "OKX writes permit only explicit cash spot IOC limits; nothing submitted"
+                    "OKX writes permit explicit cash spot IOC limits, or demo post-only limits; nothing submitted"
                 )
             pair = next(
                 (
@@ -520,3 +522,51 @@ class OKX:
 
     async def marks(self, pairs):
         return {p.id: (await self.book(p)).mid for p in pairs}
+
+    async def bars(self, pair, minutes, *, count=30):
+        """Native confirmed execution bars, never chart data or clock-promoted bars.
+
+        OKX supplies no trade count or VWAP here. Zero denotes unavailable, as
+        on the Futures history path; neither is used by these signal policies.
+        """
+        from kairos.market_data import CandleHistory
+
+        intervals = {1: "1m", 5: "5m", 15: "15m", 30: "30m", 60: "1H", 240: "4H", 1440: "1Dutc"}
+        if minutes not in intervals or type(count) is not int or not 1 <= count <= 299:
+            raise SafetyError("Unsupported OKX native execution history interval/count")
+        if self.resolve(pair.id) != pair:
+            raise SafetyError("OKX execution history market rules changed")
+        metadata = self.instruments[pair.id]
+        if pair.quote != metadata["quoteCcy"]:
+            raise SafetyError(
+                "OKX execution candles require the native price currency; no parity assumption"
+            )
+        cutoff = int(time.time()) // (minutes * 60) * minutes * 60
+        rows = await self.request(
+            "GET",
+            "/api/v5/market/candles",
+            params={
+                "instId": metadata["instId"],
+                "bar": intervals[minutes],
+                "limit": str(count + 1),
+            },
+        )
+        history = CandleHistory(pair, minutes, count)
+        result, seen, previous = [], set(), None
+        for row in rows:
+            if not isinstance(row, list) or len(row) != 9 or row[8] not in {"0", "1"}:
+                raise SafetyError("Malformed OKX execution candle evidence")
+            ts = dec(row[0]) / 1000
+            if ts in seen or previous is not None and ts >= previous:
+                raise SafetyError("Duplicate or unordered OKX execution candles")
+            seen.add(ts)
+            previous = ts
+            candle = history.validate([ts, *row[1:5], "0", row[5], 0], vwap_optional=True)
+            if ts > cutoff or row[8] == "1" and ts >= cutoff:
+                raise SafetyError("Future or forming OKX bar claimed complete")
+            if row[8] == "1" and ts < cutoff:
+                result.append(candle)
+        return list(reversed(result))[-count:]
+
+    async def candles(self, pair, minutes):
+        return await self.bars(pair, minutes, count=121)

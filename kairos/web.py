@@ -150,11 +150,18 @@ async def settings_schema(request):
         ] = ["unavailable"]
         contract["fields"]["product"]["choices"] = {"spot": "Cash crypto spot only"}
         for name, strategy in contract["strategies"].items():
-            if name != "twap":
+            if engine.client.environment == "demo":
+                strategy["products"] = ["spot"]
+            elif name != "twap":
                 strategy["products"] = []
                 strategy["help"] = (
-                    "Unavailable on OKX. Use the separate finite execution-cycle diagnostic or finite spot TWAP; no predictive strategy has been ported."
+                    "Unavailable on OKX Live. Strategy tests require a separate finite OKX Demo authorization."
                 )
+        if engine.client.environment == "demo":
+            contract["fields"]["htf_policy"]["choices"] = {
+                **contract["fields"]["htf_policy"]["choices"],
+                "multibar-v2": "Multi-bar pullback · separate bounded demo experiment",
+            }
         for key in (
             "recover_initial",
             "recovery_check_seconds",

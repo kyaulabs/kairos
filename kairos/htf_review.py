@@ -92,7 +92,7 @@ ROLLING_POLICY = "rolling-confirmed-minutes-v1"
 def native_rows(pair, rows, cutoff, minutes):
     """Validate provider-native closed bars; missing minutes are not synthesized."""
     history = CandleHistory(pair, minutes, 30)
-    rows = [history.validate(row) for row in rows]
+    rows = [history.validate(row, vwap_optional=pair.id.startswith("okx")) for row in rows]
     times = [r[0] for r in rows]
     if times != sorted(set(times)) or any(t >= cutoff for t in times):
         raise SafetyError("Invalid completed native HTF history")
@@ -130,7 +130,11 @@ class HTFReview:
 
     @property
     def policy(self):
-        return NATIVE_POLICY if self.native else ROLLING_POLICY
+        return (
+            getattr(self.engine.kraken, "native_history_policy", NATIVE_POLICY)
+            if self.native
+            else ROLLING_POLICY
+        )
 
     @property
     def window_step(self):
@@ -150,7 +154,9 @@ class HTFReview:
             self.engine.fees.reserve(pair, True),
             self.engine.fees.reserve(pair),
         )
-        if getattr(self.engine.kraken, "hosted_paper", False) is True:
+        if getattr(self.engine.kraken, "hosted_paper", False) is True and not getattr(
+            self.engine.kraken, "native_history_policy", None
+        ):
             view["entry_execution"] = "passive-limit"
             view["execution_note"] = "Alpaca has no post-only guarantee; taker-rate cost screen"
         if self.engine.settings.get("htf_policy") == "multibar-v2":

@@ -18,6 +18,8 @@ def snapshot(engine):
 
 
 def quantity(engine, pair):
+    if getattr(engine, "exchange", "") == "okx-demo":
+        return engine.balance(pair.base) - dec(snapshot(engine).get("excluded_inventory", 0))
     return (
         engine.futures.position(pair)
         if engine.settings["product"] == "futures"
@@ -50,7 +52,17 @@ def prepare(engine):
         raise SafetyError("Scalping requires one position only; use a flat paper portfolio")
     owned = sum(
         (
-            dec(order["filled"]) * (1 if order["side"] == "buy" else -1)
+            (
+                dec(order["filled"]) * (1 if order["side"] == "buy" else -1)
+                + sum(
+                    (
+                        dec(x["fee_signed"])
+                        for x in order.get("executions", [])
+                        if x["fee_currency"] == order["base"]
+                    ),
+                    ZERO,
+                )
+            )
             for order in engine.orders(engine.mode)
             if position and order.get("scalp_id") == position["id"]
         ),

@@ -82,13 +82,14 @@ class OKXEngine(Engine):
     def validate_capabilities(self, values):
         if (
             values["product"] != "spot"
-            or values["strategy"] != "twap"
+            or self.client.environment != "demo"
+            and values["strategy"] != "twap"
             or values["recover_initial"]
             or values["reinvest_profits"]
             or values["api_auto_recovery"]
         ):
             raise SafetyError(
-                "OKX supports cash spot execution_cycle and finite TWAP only; predictive strategies, compounding and capital recovery are unavailable"
+                "OKX supports cash spot only: demo finite strategies; live cycle/TWAP only. Compounding, automatic recovery and capital recovery are unavailable"
             )
 
     async def initialize(self):
@@ -106,11 +107,14 @@ class OKXEngine(Engine):
                 raise SafetyError(
                     f"OKX {self.client.environment} credentials missing; configure this environment privately; no orders submitted"
                 )
+            # Retire owned resting quotes even if their former market was delisted
+            # or the data service cannot restart. This grants no new-order permission.
+            if self.store.get("okx-account"):
+                await self.cancel_active()
             await self.client.catalog()
             if self.settings["pair"]:
-                pair = self.resolve(self.settings["pair"])
                 await self.client.market_data.configure(
-                    [pair], max_age=self.settings["stale_seconds"]
+                    self.fee_pairs(), max_age=self.settings["stale_seconds"]
                 )
                 await self.refresh_fees(required=False)
             if self.store.get("okx-account"):
@@ -453,14 +457,42 @@ class OKXEngine(Engine):
     async def valuation(self, enforce=False):
         if not self.ledger():
             return {self.settings["quote"]: dec(1)}, ZERO
-        pair = self.resolve(self.settings["pair"])
-        book = await self.client.book(pair)
-        book.fresh(self.settings["stale_seconds"])
-        exposure = self.balance(pair.base) * book.mid
-        self.record_valuation(self.balance(pair.quote) + exposure, exposure, "day:" + self.mode)
+        quote = self.settings["quote"]
+        prices = {quote: dec(1)}
+        exposure = ZERO
+        selected = self.fee_pairs()
+        for asset, quantity in self.ledger()["balances"].items():
+            if asset == quote or not dec(quantity):
+                continue
+            pair = next((p for p in selected if p.base == asset and p.quote == quote), None)
+            if pair is None:
+                raise SafetyError(
+                    "Owned asset lacks a selected native valuation market; retain inventory"
+                )
+            book = await self.client.book(pair)
+            book.fresh(self.settings["stale_seconds"])
+            prices[asset] = book.mid
+            exposure += dec(quantity) * book.mid
+        self.record_valuation(self.balance(quote) + exposure, exposure, "day:" + self.mode)
         if enforce and -dec(self.daily_pnl) >= dec(self.settings["daily_loss"]):
             raise SafetyError("Daily marked-to-market loss limit reached; no further orders")
-        return {pair.quote: dec(1), pair.base: book.mid}, exposure
+        return prices, exposure
+
+    def limits(self):
+        cap, exposure = super().limits()
+        scope = getattr(self, "authorization", None)
+        if scope and scope["kind"] == "strategy":
+            fee = max(dec(row["fee_bps"]) for row in scope["markets"].values())
+            cap = min(cap, dec(scope["budget"]) / (1 + fee / BPS))
+        return cap, exposure
+
+    def active_run(self):
+        run = super().active_run()
+        scope = getattr(self, "authorization", None)
+        if run and scope and scope["kind"] == "strategy":
+            # Reuse signal lifecycle bounds, not the frozen Alpaca trial or its state.
+            return {**run, "trial_ends_at": scope["deadline"], "protocol": scope["protocol"]}
+        return run
 
     def permission(self):
         if self.mode != ("paper" if self.client.environment == "demo" else "trading"):
@@ -529,7 +561,7 @@ class OKXEngine(Engine):
         self.client.check_limit_reference(evidence, self.settings["stale_seconds"])
         if any(o["id"] != order["id"] for o in self.orders(active=True)):
             raise SafetyError("OKX permits one unresolved intent at a time")
-        pair = self.resolve(scope["pair"])
+        pair = self.resolve(order["pair"])
         book = self.client.market_data.books.get(pair.id)
         if book is None:
             raise SafetyError(
@@ -537,12 +569,22 @@ class OKXEngine(Engine):
             )
         book.fresh(self.settings["stale_seconds"])
         self.check_scope(
-            order["side"], dec(order["volume"]), dec(order["price"]), include_intent=order["id"]
+            order["side"],
+            dec(order["volume"]),
+            dec(order["price"]),
+            include_intent=order["id"],
+            pair=pair,
         )
         return True
 
-    def check_scope(self, side, volume, price, *, include_intent=None):
+    def check_scope(self, side, volume, price, *, include_intent=None, pair=None):
         scope = self.permission()
+        if scope["kind"] == "strategy":
+            from kairos.okx_strategy import check
+
+            return check(
+                self, pair or self.resolve(scope["pair"]), side, volume, price, include_intent
+            )
         children = [
             o
             for o in self.orders()
@@ -596,6 +638,14 @@ class OKXEngine(Engine):
         book = await self.client.book(pair)
         book.fresh(self.settings["stale_seconds"])
         best = book.asks[0][0] if side == "buy" else book.bids[0][0]
+        if maker:
+            if (
+                self.client.environment != "demo"
+                or (side == "buy" and price >= best)
+                or (side == "sell" and price <= best)
+            ):
+                raise SafetyError("OKX demo post-only price crosses the fresh book; no chasing")
+            return book
         slip = abs(price - best) / best * BPS
         if (
             (side == "buy" and price < best)
@@ -629,7 +679,7 @@ class OKXEngine(Engine):
             "tdMode": "cash",
             "clOrdId": order["client_id"],
             "side": order["side"],
-            "ordType": "ioc",
+            "ordType": "post_only" if order["maker"] else "ioc",
             "sz": order["volume"],
             "px": order["price"],
             "tradeQuoteCcy": order["quote"],
@@ -639,7 +689,11 @@ class OKXEngine(Engine):
 
     async def submit_spot(self, order, *, program=None, review=None):
         scope = self.permission()
-        deadline = min(scope["deadline"], program["deadline"] if program else scope["deadline"])
+        from kairos.htf_review import intent_deadline
+
+        deadline = intent_deadline(
+            min(scope["deadline"], program["deadline"] if program else scope["deadline"]), review
+        )
         try:
             order["venue_limits"] = await self.client.limit_order_check(
                 self.resolve(order["pair"]),
@@ -665,9 +719,11 @@ class OKXEngine(Engine):
 
     async def place(self, pair, side, volume, price, book, maker=False, **kwargs):
         self.validate_capabilities(self.settings)
-        if maker or kwargs.get("exit_only") or kwargs.get("review") is not None:
+        if self.permission()["kind"] != "strategy" and (
+            maker or kwargs.get("exit_only") or kwargs.get("review") is not None
+        ):
             raise SafetyError("OKX accepts finite cash IOC intents only")
-        self.check_scope(side, volume, price)
+        self.check_scope(side, volume, price, pair=pair)
 
         # Finish account reads before waiting for the short-lived price reference.
         # No waiting or replay is permitted once submit_spot owns that intent.
@@ -693,7 +749,13 @@ class OKXEngine(Engine):
             await self.client.catalog()
             pair = self.resolve(pair.id)
             metadata = self.client.instruments[pair.id]
-            if fingerprint(metadata) != self.permission()["market_rules"]:
+            scope = self.permission()
+            expected_rules = (
+                scope["markets"][pair.id]["market_rules"]
+                if scope["kind"] == "strategy"
+                else scope["market_rules"]
+            )
+            if fingerprint(metadata) != expected_rules:
                 raise SafetyError(
                     "OKX account instrument rules changed after authorization; no new submission"
                 )
@@ -712,20 +774,23 @@ class OKXEngine(Engine):
         ):
             raise SafetyError("OKX native price-band evidence unavailable; nothing submitted")
         # The scheduler's price predates account/reference/band I/O. Construct
-        # this TWAP child once from a fresh native book, within the unchanged
-        # authorized parent bound. Nothing may reprice a durable intent.
+        # scheduled child once from a fresh native book, within unchanged
+        # authorization and DCA-slot bounds. Never reprice a durable intent.
         scope = self.permission()
-        if scope["kind"] == "twap" and kwargs.get("program"):
+        if scope["kind"] in {"twap", "strategy"} and kwargs.get("program"):
+            limits = scope["markets"][pair.id] if scope["kind"] == "strategy" else scope
+            parent = dec(limits["buy_ceiling" if side == "buy" else "sell_floor"])
+            if scope["kind"] == "strategy" and self.settings["strategy"] == "dca":
+                parent = min(
+                    parent,
+                    dec(self.settings["dca_amount"])
+                    / (volume * (1 + self.fees.reserve(pair) / BPS)),
+                )
             book = await self.client.book(pair)
             book.fresh(self.settings["stale_seconds"])
-            price = limit_price(
-                book,
-                side,
-                self.settings["slippage_bps"],
-                parent=dec(scope["buy_ceiling" if side == "buy" else "sell_floor"]),
-            )
+            price = limit_price(book, side, self.settings["slippage_bps"], parent=parent)
         wait_guard()
-        self.check_scope(side, volume, price)
+        self.check_scope(side, volume, price, pair=pair)
         needed = volume * price * (1 + self.fees.reserve(pair) / BPS) if side == "buy" else volume
         asset = pair.quote if side == "buy" else pair.base
         available = dec(self.account_snapshot["assets"].get(asset, {}).get("available", 0))
@@ -749,9 +814,25 @@ class OKXEngine(Engine):
                 raise SafetyError(
                     f"OKX {side} price {price} violates native venue band {bound}; no price amendment or submission"
                 )
-        result = await super().place(pair, side, volume, price, book, **kwargs)
+        result = await super().place(pair, side, volume, price, book, maker=maker, **kwargs)
+        if maker:
+            # Native post-only orders have no exchange-side GTD. Bound observation
+            # and cancel owned remainder; never interpret cancel acceptance as a fill.
+            end = min(result["expires"], scope["deadline"])
+            monotonic_end = time.monotonic() + max(0, end - self.clock())
+            while (
+                self.running
+                and self.armed
+                and self.clock() < end
+                and time.monotonic() < monotonic_end
+            ):
+                await self.refresh_order(result)
+                if result["status"] in TERMINAL:
+                    break
+                await asyncio.sleep(min(1, max(0, end - self.clock())))
+            await self.cancel_active()
         await self.settle()
-        return result
+        return next(o for o in self.orders() if o["id"] == result["id"])
 
     async def confirm_spot(self, order):
         try:
@@ -818,6 +899,7 @@ class OKXEngine(Engine):
     async def stop(self):
         self.running, self.armed, self.authorization = False, False, None
         self.stop_generation += 1
+        self.htf_review.cancel()
         if self.operation_task and self.operation_task is not asyncio.current_task():
             self.operation_task.cancel()
         async with self.lock:
@@ -835,7 +917,7 @@ class OKXEngine(Engine):
                 operation = self.store.get("okx-operation")
                 if (
                     operation
-                    and operation.get("kind") == "twap"
+                    and operation.get("kind") in {"twap", "strategy"}
                     and operation.get("status") == "running"
                 ):
                     from kairos.okx_cycle import children, report
@@ -863,10 +945,46 @@ class OKXEngine(Engine):
                 self.emit_state()
 
     async def reconcile(self, acknowledge=False):
-        if acknowledge:
-            raise SafetyError("OKX automatic external-order adoption is unavailable")
         async with self.lock:
+            if self.running or self.armed:
+                raise SafetyError("Stop OKX before reconciling original intents")
+            cycle = self.store.get("cycle")
+            operation = self.store.get(
+                "okx-operation:" + str((cycle or {}).get("authorization_id"))
+            )
+            if acknowledge and not (
+                self.client.environment == "demo"
+                and cycle
+                and operation
+                and operation.get("kind") == "strategy"
+                and operation.get("strategy") == "arbitrage"
+            ):
+                raise SafetyError("OKX automatic external-order adoption is unavailable")
             await self.settle()
+            if cycle:
+                if not acknowledge:
+                    raise SafetyError(
+                        "Review the interrupted demo route and retained inventory, then explicitly acknowledge recovery"
+                    )
+                # Preserve the original route and operation outcome. Acknowledgement
+                # releases only the recovery latch, not inventory or trading permission.
+                with self.store.db:
+                    self.store._put(
+                        "okx-cycle:" + cycle["id"],
+                        {
+                            **cycle,
+                            "acknowledged_at": self.clock(),
+                            "retained_ledger": self.ledger(),
+                            "reconciliation": self.store.get("okx-reconciliation"),
+                        },
+                    )
+                    self.store._put("cycle", None)
+                self.event(
+                    "system",
+                    {
+                        "message": "Interrupted demo route acknowledged; original evidence and all holdings retained; no permission rearmed"
+                    },
+                )
             self.last_error = None
             self.emit_state()
 
@@ -876,6 +994,20 @@ class OKXEngine(Engine):
                 raise SafetyError("Stop and reconcile OKX before changing settings")
             values = validate_settings(values)
             self.validate_capabilities(values)
+            if self.settings["strategy"] in {"htf", "scalp"} and any(
+                values[k] != self.settings[k] for k in ("strategy", "product", "pair")
+            ):
+                from kairos import htf, scalping
+
+                module = htf if self.settings["strategy"] == "htf" else scalping
+                if module is htf:
+                    htf.reconcile_entry(self)
+                if module.snapshot(self).get("position") and module.quantity(
+                    self, self.resolve(self.settings["pair"])
+                ):
+                    raise SafetyError(
+                        "Retained demo strategy position prevents changing strategy/market; no reset or silent adoption"
+                    )
             pair = self.resolve(values["pair"])
             if values["quote"] != pair.quote:
                 raise SafetyError(
@@ -890,11 +1022,36 @@ class OKXEngine(Engine):
                 self.ledger()
                 and any(dec(q) for a, q in self.ledger()["balances"].items() if a != pair.quote)
                 and values["pair"] != self.settings["pair"]
+                and values["strategy"] not in {"rebalance", "arbitrage"}
             ):
                 raise SafetyError("OKX owned inventory prevents changing execution instruments")
+            if values["strategy"] == "arbitrage":
+                from kairos.strategies import triangle
+
+                selected = [leg.pair for leg in triangle(pair, self.client.pairs)[0]]
+            elif values["strategy"] in programs.STRATEGIES:
+                selected = programs.validate_markets(values, self.resolve)
+            else:
+                selected = [pair]
+            if self.client.environment == "demo" and values["strategy"] != "twap":
+                if pair.id not in {p.id for p in selected} or any(
+                    p.quote != self.client.instruments[p.id]["quoteCcy"] for p in selected
+                ):
+                    raise SafetyError(
+                        "Demo strategy markets must include the primary market and use native price currencies"
+                    )
+                valued_assets = {p.base for p in selected if p.quote == values["quote"]}
+                if self.ledger() and any(
+                    dec(q)
+                    for asset, q in self.ledger()["balances"].items()
+                    if asset != values["quote"] and asset not in valued_assets
+                ):
+                    raise SafetyError(
+                        "Retained inventory requires its native valuation market in the strategy scope"
+                    )
             self.settings = values
             self.store.put("settings", values)
-            await self.client.market_data.configure([pair], max_age=values["stale_seconds"])
+            await self.client.market_data.configure(selected, max_age=values["stale_seconds"])
             await self.refresh_fees(required=False)
             self.emit_state()
 
@@ -927,7 +1084,7 @@ class OKXEngine(Engine):
                 await self.initialize()
                 return
         raise SafetyError(
-            "OKX Start requires the finite execution-cycle/TWAP preview and explicit authorization"
+            "OKX Start requires a finite preview and explicit authorization; strategy tests are demo-only"
         )
 
     async def tick(self):
@@ -938,12 +1095,46 @@ class OKXEngine(Engine):
             operation = self.store.get("okx-operation")
             generation = self.stop_generation
             try:
+                if (
+                    self.authorization
+                    and self.authorization["kind"] == "strategy"
+                    and (
+                        self.clock() >= self.authorization["deadline"]
+                        or time.monotonic() >= self.authorization_monotonic_deadline
+                    )
+                ):
+                    self.running, self.armed, self.authorization = False, False, None
+                    await self.cancel_active()
+                    await self.settle()
+                    from kairos.okx_cycle import report
+
+                    await report(
+                        self,
+                        operation,
+                        "STRATEGY_COMPLETE",
+                        "Finite demo period ended; retained holdings remain owned. No liquidation or replay authorized.",
+                    )
+                    return
                 self.permission()
-                if self.authorization["kind"] != "twap":
+                if self.authorization["kind"] == "execution_cycle":
                     return  # execution_cycle owns its separately bounded task.
                 await self.refresh_fees()
                 await self.settle()
-                await programs.run(self)
+                if self.authorization["kind"] == "strategy":
+                    from kairos.okx_strategy import run
+
+                    await run(self)
+                    scope = self.authorization
+                    if (
+                        scope
+                        and len(
+                            [o for o in self.orders() if o.get("authorization_id") == scope["id"]]
+                        )
+                        >= scope["max_orders"]
+                    ):
+                        self.running = False
+                else:
+                    await programs.run(self)
                 if not self.running:
                     if self.stop_generation != generation:
                         return  # Stop owns final reporting after its settlement reads.
@@ -951,14 +1142,22 @@ class OKXEngine(Engine):
                     if operation:
                         from kairos.okx_cycle import report
 
-                        complete = self.store.get(programs.key(self))["status"] == "complete"
-                        await report(
-                            self,
-                            operation,
-                            "TWAP_COMPLETE" if complete else "PARTIAL",
-                            self.store.get(programs.key(self))["message"]
-                            + " Schedule completion is not proof of full execution or round-trip qualification.",
-                        )
+                        if operation["kind"] == "strategy":
+                            await report(
+                                self,
+                                operation,
+                                "STRATEGY_COMPLETE",
+                                "Finite demo schedule or attempt limit reached; actual executions recorded, holdings retained. Not proof of profitability.",
+                            )
+                        else:
+                            complete = self.store.get(programs.key(self))["status"] == "complete"
+                            await report(
+                                self,
+                                operation,
+                                "TWAP_COMPLETE" if complete else "PARTIAL",
+                                self.store.get(programs.key(self))["message"]
+                                + " Schedule completion is not proof of full execution or round-trip qualification.",
+                            )
             except Exception as exc:
                 self.running, self.armed, self.authorization = False, False, None
                 self.last_error = (
@@ -969,6 +1168,11 @@ class OKXEngine(Engine):
                 diagnostics.capture(exc, "okx-program")
                 if self.stop_generation != generation:
                     return  # Do not race Stop with an earlier, incomplete report.
+                try:
+                    await self.cancel_active()
+                    await self.settle(seconds=10)
+                except Exception:
+                    self.recovery_required = True
                 if operation:
                     from kairos.okx_cycle import report
 
@@ -978,10 +1182,14 @@ class OKXEngine(Engine):
                             o["status"] in {"uncertain", "submitting"}
                             for o in self.orders(active=True)
                         )
+                        else "RECONCILIATION_PENDING"
+                        if self.recovery_required
                         else "PARTIAL"
                     )
                     await report(self, operation, outcome, self.last_error)
             finally:
+                if not self.running:
+                    self.htf_review.cancel()
                 self.emit_state()
 
     def snapshot(self):
@@ -994,7 +1202,9 @@ class OKXEngine(Engine):
             state["fees"]["source"] = self.planning_source
             state["fees"]["note"] = self.planning_source + ". " + self.client.fee_note
         state.update(
-            recovery_required=self.recovery_required or bool(self.orders(active=True)),
+            recovery_required=self.recovery_required
+            or bool(self.orders(active=True))
+            or bool(self.store.get("cycle")),
             account_verified_at=self.account_checked or None,
             environment=self.client.environment,
             armed=self.armed,
@@ -1008,9 +1218,9 @@ class OKXEngine(Engine):
             execution_cycle_evidence=execution_evidence(self, operation) if operation else None,
             capabilities={
                 "crypto_spot": "OKX U.S. cash spot; isolated live/demo",
-                "programs": "finite execution_cycle and existing finite TWAP only",
+                "programs": "finite demo strategies; live execution_cycle/TWAP only",
                 "funding_policy": "explicit allocation; no conversions, transfers, borrowing or withdrawals",
-                "unsupported": "predictive strategies, margin, derivatives and local fill simulation",
+                "unsupported": "live predictive strategies, margin, derivatives and local fill simulation",
             },
         )
         return state

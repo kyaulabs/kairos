@@ -58,19 +58,26 @@ class OKXData:
         self.status, self.error = "inactive", None
         self.book_age, self.last_message = 10, None
         self.changed = asyncio.Event()
+        self.subscribed = set()
 
     def invalidate(self):
         self.generation += 1
         self.connected = False
         self.books.clear()
+        self.subscribed.clear()
         self.changed.set()
 
     async def configure(self, pairs, candle=None, *, max_age=10):
         pairs = {p.id: p for p in pairs}
-        if len(pairs) > 1:
-            raise SafetyError(
-                "OKX initially supports one explicitly selected execution instrument/currency"
-            )
+        if len(pairs) > (10 if self.client.environment == "demo" else 1):
+            raise SafetyError("OKX permits at most ten selected demo markets or one live market")
+        instruments = [
+            self.client.instruments[p.id]["instId"]
+            for p in pairs.values()
+            if p.id in self.client.instruments
+        ]
+        if len(instruments) != len(set(instruments)):
+            raise SafetyError("Select one spending-currency variant per OKX execution instrument")
         if any(p.id not in self.client.pairs for p in pairs.values()):
             raise SafetyError(
                 "OKX execution instrument was not discovered for this account/environment"
@@ -91,8 +98,8 @@ class OKXData:
         self.pairs.clear()
         self.status, self.error, self.blocked = "inactive", None, False
 
-    def argument(self):
-        pair = next(iter(self.pairs.values()))
+    def argument(self, pair=None):
+        pair = pair or next(iter(self.pairs.values()))
         return {"channel": "books5", "instId": self.client.instruments[pair.id]["instId"]}
 
     def message(self, row):
@@ -105,14 +112,17 @@ class OKXData:
             )
         if row.get("event") == "notice":
             raise PendingOKX("OKX public service reconnect notice; new snapshot required")
+        pair = next((p for p in self.pairs.values() if row.get("arg") == self.argument(p)), None)
         if row.get("event") == "subscribe":
-            if row.get("arg") != self.argument():
+            if pair is None:
                 raise SafetyError("OKX subscribed to an unexpected book channel/instrument")
+            self.subscribed.add(pair.id)
             self.connected, self.status, self.error = True, "streaming", None
             return
         if (
             not self.connected
-            or row.get("arg") != self.argument()
+            or pair is None
+            or pair.id not in self.subscribed
             # books5 is snapshot-only and its documented pushes omit action.
             or row.get("action") not in (None, "snapshot")
         ):
@@ -120,8 +130,7 @@ class OKXData:
         if not isinstance(row.get("data"), list) or len(row["data"]) != 1:
             raise SafetyError("Incomplete OKX book snapshot")
         raw = row["data"][0]
-        pair = next(iter(self.pairs.values()))
-        if raw.get("instId", self.argument()["instId"]) != self.argument()["instId"]:
+        if raw.get("instId", self.argument(pair)["instId"]) != self.argument(pair)["instId"]:
             raise SafetyError("OKX book payload instrument differs from the subscription")
         stamp = dec(raw["ts"]) / 1000
         if stamp > dec(time.time()) + 2:
@@ -162,7 +171,9 @@ class OKXData:
                     if str(ws._response.url) not in {url, url.replace("wss:", "https:")}:
                         self.blocked = True
                         raise SafetyError("OKX public stream redirected outside its environment")
-                    await ws.send_json({"op": "subscribe", "args": [self.argument()]})
+                    await ws.send_json(
+                        {"op": "subscribe", "args": [self.argument(p) for p in self.pairs.values()]}
+                    )
                     while True:
                         try:
                             msg = await ws.receive(timeout=15)
@@ -198,7 +209,7 @@ class OKXData:
         self.changed.set()
 
     async def book(self, pair):
-        if set(self.pairs) != {pair.id}:
+        if pair.id not in self.pairs:
             raise SafetyError(
                 "OKX book does not match the selected execution instrument/currency; chart browsing cannot change it"
             )

@@ -28,6 +28,34 @@ function fixture() {
   return {controller, node:id => node('okx-' + id), state, preview, calls};
 }
 
+test('demo strategy preview preserves native budgets and separates consent from preflight', async () => {
+  const {controller, node, preview, calls} = fixture();
+  node('kind').value = preview.kind = 'strategy';
+  node('budget').value = '24.999999999999999';
+  node('max-orders').value = '4'; node('duration').value = '7200';
+  preview.strategy = 'htf'; preview.protocol = 'okx-demo-bounded-strategies-v1';
+  preview.markets = {'okx-demo:BTC-USDT:USDT': {budget:'24.999999999999999', quote:'USDT'}};
+  preview.execution_policy = 'post-only; local cancellation, not exchange expiry';
+  await controller.preview();
+  assert.equal(calls[0].body.kind, 'strategy');
+  assert.equal(calls[0].body.budget, '24.999999999999999');
+  assert.equal(calls[0].body.max_orders, 4);
+  assert.equal(calls[0].body.duration_seconds, 7200);
+  assert.deepEqual(JSON.parse(node('preview-data').textContent).markets, preview.markets);
+  assert.match(node('preview-data').textContent, /local cancellation/);
+  assert.equal(node('authorize').disabled, true);
+  assert.deepEqual(calls.map(c => c.route), ['okx-preview']);
+});
+
+test('live UI never requests a demo strategy preview', async () => {
+  const {controller, node, state, calls} = fixture();
+  controller.render({...state, exchange:'okx', environment:'live'}, true);
+  node('kind').value = 'strategy';
+  await controller.preview();
+  assert.equal(calls.length, 0);
+  assert.match(node('status').textContent, /requires OKX Demo/);
+});
+
 test('TWAP preview shows the original quote and fixed-limit warning without authorizing', async () => {
   const {controller, node, preview, calls} = fixture();
   node('kind').value = preview.kind = 'twap';

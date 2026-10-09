@@ -105,6 +105,22 @@ test('Review labels native bar readiness without claiming fabricated minute cove
   assert.match(text('review-status'), /cached state only/);
 });
 
+test('OKX strategy Review shows its native history and finite protocol, not the Alpaca trial', () => {
+  const {view,state,text} = fixture();
+  state.exchange = 'okx-demo'; state.environment = 'demo';
+  state.settings.strategy = 'htf'; state.settings.quote = 'USDT';
+  state.settings.htf_policy = 'multibar-v2';
+  state.execution_cycle = {kind:'strategy', protocol:'okx-demo-bounded-strategies-v1', deadline:1800003600};
+  state.review.data = {history_policy:'okx-us-confirmed-native-bars-v1',bar_minutes:60,required_native_bars:30,consecutive_native_bars:30,native_bar_shortfall:0};
+  const before = JSON.stringify(state); view.render(state,true);
+  assert.equal(JSON.stringify(state), before);
+  assert.match(text('review-readiness'), /Completed native 60-minute bars 30 \/ 30/);
+  assert.match(text('review-funnel'), /Finite permission ends/);
+  assert.match(text('review-funnel'), /okx-demo-bounded-strategies-v1/);
+  assert.match(text('review-funnel'), /Bounded demo strategy test/);
+  assert.doesNotMatch(text('review-funnel'), /14 calendar days|no predictive signal/);
+});
+
 test('Review distinguishes account-read recovery from market data and preserves completed episode diagnostics', () => {
   const {view,state,text} = fixture();
   state.account_reads = {last_success_at:null,last_failure:{method:'GET',endpoint:'/v2/orders',reason:'timeout',at:1800000000},recovery:{status:'waiting',since:1800000000,attempts:0,max_attempts:3,timeout_seconds:120,duration_seconds:12,next_retry_at:1800000015}};
