@@ -15,6 +15,7 @@ import aiohttp
 from yarl import URL
 
 from kairos import diagnostics
+from kairos.clients import TransientFeeRead
 from kairos.domain import BPS, ZERO, Pair, SafetyError, dec
 
 REST = "https://us.okx.com"
@@ -497,11 +498,17 @@ class OKX:
         maker, taker = {}, {}
         for pair in pairs:
             instrument = self.instruments[pair.id]
-            rows = await self.request(
-                "GET",
-                "/api/v5/account/trade-fee",
-                params={"instType": "SPOT", "instId": instrument["instId"]},
-            )
+            try:
+                rows = await self.request(
+                    "GET",
+                    "/api/v5/account/trade-fee",
+                    params={"instType": "SPOT", "instId": instrument["instId"]},
+                )
+            except PendingOKX as exc:
+                # Only this authenticated GET is a retryable fee read, never an order.
+                raise TransientFeeRead(
+                    "OKX authenticated fee read temporarily unavailable"
+                ) from exc
             if len(rows) != 1 or rows[0].get("instType") != "SPOT":
                 raise SafetyError(
                     "OKX fee discovery unavailable for the selected spot instrument; do not assume zero"
