@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from kairos import htf, okx_cycle, programs, scalping
 from kairos.domain import SafetyError, dec
+from kairos.okx import PendingOKX, PendingOKXBook
 from kairos.okx_engine import OKXEngine
 from kairos.store import Store
 from tests.test_okx import instrument
@@ -96,6 +97,231 @@ class DemoStrategyTests(unittest.IsolatedAsyncioTestCase):
 
     def posts(self):
         return [call for call in self.venue.calls if call[0] == "POST"]
+
+    async def test_htf_initial_book_recovers_without_extending_permission_or_replaying_signal(self):
+        # Earlier owned inventory makes HTF valuation read a book, as in the incident.
+        await self.authorize(duration_seconds=3600)
+        await self.engine.place(self.pair, "buy", dec(".0001"), dec("50000"), self.book())
+        await self.engine.stop()
+        old_posts, old_orders = self.posts(), self.engine.orders()
+        old_report = self.store.get("okx-operation")
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        scope = copy.deepcopy(self.engine.authorization)
+        deadline = self.engine.authorization_monotonic_deadline
+        state = htf.snapshot(self.engine)
+        state["candidate"] = {"id": "old-entry"}
+        state["baseline_after"] = 0
+        self.store.put(htf.key(self.engine), state)
+        read = self.client.book
+        calls = 0
+
+        async def interrupted(pair):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise PendingOKXBook("fixture initial snapshot timeout")
+            return await read(pair)
+
+        with patch.object(self.client, "book", interrupted):
+            await self.engine.tick()
+        self.assertTrue(self.engine.running and self.engine.armed)
+        self.assertIsNone(self.engine.last_error)
+        self.assertEqual(self.engine.authorization, scope)
+        self.assertEqual(self.engine.authorization_monotonic_deadline, deadline)
+        self.assertIn("old-entry", htf.snapshot(self.engine)["consumed_candidates"])
+        self.assertGreater(htf.snapshot(self.engine)["baseline_after"], 0)
+        self.assertEqual(self.posts(), old_posts)
+        self.assertEqual(self.engine.orders(), old_orders)
+        self.assertEqual(self.store.get("okx-operation:" + old_report["id"]), old_report)
+        self.assertEqual(self.store.get("okx-operation")["status"], "running")
+
+    async def test_htf_recovery_rebaselines_entries_but_preserves_owned_exit_plan(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        state = htf.snapshot(self.engine)
+        plan = {
+            "id": "retained",
+            "entry_limit": "50000",
+            "stop": "49000",
+            "deadline": self.engine.clock() + 100,
+            "exit_reason": "existing stop",
+        }
+        state["position"] = plan
+        self.store.put(htf.key(self.engine), state)
+        await self.engine.place(self.pair, "buy", dec(".0001"), dec("50000"), self.book())
+        ledger = self.engine.ledger()
+        with patch.object(
+            self.client, "book", AsyncMock(side_effect=[PendingOKXBook("gap"), self.book()])
+        ):
+            await self.engine.wait_htf_book()
+        self.assertEqual(htf.snapshot(self.engine)["position"], plan)
+        self.assertEqual(self.engine.ledger(), ledger)
+        self.assertEqual(len(self.posts()), 1)
+
+    async def test_htf_book_wait_is_bounded_and_closed_run_never_revives(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        with (
+            patch("kairos.okx_engine.HTF_BOOK_WAIT_SECONDS", 0.05),
+            patch.object(self.client, "book", AsyncMock(side_effect=PendingOKXBook("gap"))),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            await self.engine.tick()
+        run.assert_not_awaited()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertIn("bounded wait", self.engine.last_error)
+        self.assertIn("Last read: gap", self.engine.last_error)
+        saved = self.store.get("okx-operation")
+        self.assertEqual(saved["status"], "PARTIAL")
+        self.assertFalse(saved["submitted"])
+        self.book()
+        await self.engine.tick()
+        self.assertEqual(self.store.get("okx-operation"), saved)
+        restarted = OKXEngine(self.store, self.client, AsyncMock(), lambda *_: None)
+        self.addAsyncCleanup(restarted.htf_review.close)
+        await restarted.initialize()
+        self.assertFalse(restarted.running or restarted.armed)
+        self.assertEqual(self.store.get("okx-operation"), saved)
+        self.assertEqual(self.posts(), [])
+
+    async def test_stop_cancels_pending_htf_book_read_and_owns_final_report(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+        calls = 0
+
+        async def waiting(pair):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise PendingOKXBook("initial gap")
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        with (
+            patch.object(self.client, "book", waiting),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            tick = asyncio.create_task(self.engine.tick())
+            await asyncio.wait_for(entered.wait(), 2)
+            self.assertIn("Waiting", self.engine.last_error)
+            await asyncio.wait_for(self.engine.stop(), 2)
+            await asyncio.wait_for(tick, 2)
+        run.assert_not_awaited()
+        self.assertTrue(cancelled.is_set())
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertIsNone(self.engine.last_error)
+        self.assertEqual(self.store.get("okx-operation")["status"], "STOPPED")
+        self.assertEqual(self.posts(), [])
+
+    async def test_htf_book_wait_cannot_outlive_wall_clock_permission(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        self.engine.authorization["deadline"] = self.engine.clock() + 0.1
+        deadline = self.engine.authorization["deadline"]
+
+        async def waiting(pair):
+            await asyncio.Event().wait()
+
+        with (
+            patch.object(self.client, "book", waiting),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            await asyncio.wait_for(self.engine.tick(), 2)
+        run.assert_not_awaited()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertLess(deadline, self.engine.clock())
+        self.assertEqual(self.posts(), [])
+
+    async def test_htf_book_wait_cannot_outlive_monotonic_permission(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        self.engine.authorization_monotonic_deadline = time.monotonic() + 0.1
+
+        async def waiting(pair):
+            await asyncio.Event().wait()
+
+        with (
+            patch.object(self.client, "book", waiting),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            await asyncio.wait_for(self.engine.tick(), 2)
+        run.assert_not_awaited()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertEqual(self.posts(), [])
+
+    async def test_malformed_book_and_account_uncertainty_are_not_recovery_cases(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        read = AsyncMock(side_effect=SafetyError("malformed snapshot"))
+        with patch.object(self.client, "book", read):
+            await self.engine.tick()
+        read.assert_awaited_once()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        await self.authorize(duration_seconds=3600)
+        with (
+            patch.object(
+                self.engine, "settle", AsyncMock(side_effect=PendingOKX("account evidence pending"))
+            ),
+            patch.object(self.engine, "wait_htf_book", new_callable=AsyncMock) as wait,
+        ):
+            await self.engine.tick()
+        wait.assert_not_awaited()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertTrue(self.engine.recovery_required)
+        self.assertEqual(self.posts(), [])
+
+    async def test_later_book_failure_does_not_repeat_evaluation_or_a_filled_intent(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+
+        async def execution(engine):
+            await engine.place(self.pair, "buy", dec(".0001"), dec("50000"), self.book())
+            raise PendingOKXBook("later execution-stage timeout")
+
+        with patch("kairos.htf.run", AsyncMock(side_effect=execution)) as run:
+            await self.engine.tick()
+        run.assert_awaited_once()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertEqual(len(self.posts()), 1)
+        self.assertEqual(len(self.engine.orders()), 1)
+        self.assertEqual(self.store.get("okx-operation")["status"], "PARTIAL")
+        self.assertTrue(self.store.get("okx-operation")["submitted"])
+        await self.engine.tick()
+        self.assertEqual(len(self.posts()), 1)
+
+    async def test_htf_recovery_still_rejects_stale_generation_and_clock_invalid_books(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        for defect in ("stale", "generation", "clock"):
+            with self.subTest(defect=defect):
+                self.book()
+                await self.authorize(duration_seconds=3600)
+                book = self.book()
+                if defect == "stale":
+                    book.received -= 20
+                elif defect == "generation":
+                    self.client.market_data.generation += 1
+                else:
+                    book.received += 20
+                with (
+                    patch.object(
+                        self.client, "book", AsyncMock(side_effect=[PendingOKXBook("gap"), book])
+                    ),
+                    patch("kairos.htf.run", new_callable=AsyncMock) as run,
+                ):
+                    await self.engine.tick()
+                run.assert_not_awaited()
+                self.assertFalse(self.engine.running or self.engine.armed)
+                self.assertEqual(self.posts(), [])
+
+    async def test_native_bounded_book_timeout_has_a_specific_read_only_type(self):
+        with patch("kairos.okx_data.time.monotonic", side_effect=[0, 11]):
+            with self.assertRaises(PendingOKXBook):
+                await self.client.market_data.book(self.pair)
 
     async def test_dca_real_engine_scheduler_native_fees_and_one_use_consent(self):
         proposal = await self.preview()

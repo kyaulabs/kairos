@@ -10,10 +10,12 @@ from kairos import okx_account as native
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec
 from kairos.engine import Engine
-from kairos.okx import OKXBeforeSend, OKXRejected, PendingOKX
+from kairos.okx import OKXBeforeSend, OKXRejected, PendingOKX, PendingOKXBook
 from kairos.okx_reconciliation import bill_evidence
 from kairos.settings import DEFAULTS, validate_settings
 from kairos.strategies import limit_price
+
+HTF_BOOK_WAIT_SECONDS = 60
 
 
 def fingerprint(value):
@@ -1087,6 +1089,76 @@ class OKXEngine(Engine):
             "OKX Start requires a finite preview and explicit authorization; strategy tests are demo-only"
         )
 
+    async def wait_htf_book(self):
+        """Read-only preflight, never a retry of HTF evaluation or an order intent."""
+        scope = self.permission()
+        if (
+            self.client.environment != "demo"
+            or scope["kind"] != "strategy"
+            or scope["strategy"] != "htf"
+            or self.orders(active=True)
+            or self.recovery_required
+        ):
+            raise SafetyError("HTF book recovery requires an active, settled demo authorization")
+        pair = self.resolve(scope["pair"])
+        deadline = min(
+            time.monotonic() + HTF_BOOK_WAIT_SECONDS, self.authorization_monotonic_deadline
+        )
+        task, notice, reason = None, None, "book read still pending"
+        try:
+            while True:
+                if self.permission() is not scope:
+                    raise SafetyError("HTF book wait authorization changed; no evaluation")
+                remaining = min(deadline - time.monotonic(), scope["deadline"] - self.clock())
+                if remaining <= 0:
+                    raise PendingOKXBook(
+                        "HTF initial book recovery exhausted its bounded wait; no strategy "
+                        f"evaluation or new intent; original permission is not extended. Last read: {reason}"
+                    )
+                if task is None:
+                    task = asyncio.create_task(self.client.book(pair))
+                done, _ = await asyncio.wait((task,), timeout=min(0.25, remaining))
+                if not done or time.monotonic() >= deadline:
+                    continue
+                try:
+                    book = task.result()
+                except PendingOKXBook as exc:
+                    task, reason = None, str(exc)
+                    if notice is None:
+                        self.htf_review.cancel()
+                        notice = (
+                            "Waiting for a fresh OKX demo HTF book before evaluation "
+                            f"(at most {HTF_BOOK_WAIT_SECONDS}s total, within the original deadline). "
+                            "No new orders; protective exits cannot run without fresh data."
+                        )
+                        self.last_error = notice
+                        self.event("data-wait", {"message": notice, "reason": reason})
+                        self.emit_state()
+                    await asyncio.sleep(min(0.25, max(0, remaining)))
+                    continue
+                book.fresh(self.settings["stale_seconds"])
+                if self.permission() is not scope:  # Stop/expiry still wins with the snapshot.
+                    raise SafetyError("HTF book wait authorization changed; no evaluation")
+                if notice is not None:
+                    from kairos import htf
+
+                    htf.arm(self)  # Retire entry candidates, not ownership or authorization.
+                    self.last_error = None
+                    self.event(
+                        "data-wait",
+                        {
+                            "message": "Fresh HTF book recovered; old entry candidates retired. "
+                            "Original permission, budgets and deadlines unchanged."
+                        },
+                    )
+                return
+        finally:
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            if self.stop_generation != scope["generation"] and self.last_error == notice:
+                self.last_error = None  # A stopped run is no longer waiting for a book.
+
     async def tick(self):
         async with self.lock:
             if not self.running:
@@ -1159,6 +1231,8 @@ class OKXEngine(Engine):
                                 + " Schedule completion is not proof of full execution or round-trip qualification.",
                             )
             except Exception as exc:
+                if self.stop_generation != generation:
+                    return  # Stop owns cancellation, diagnostics and the final report.
                 self.running, self.armed, self.authorization = False, False, None
                 self.last_error = (
                     str(exc)
@@ -1166,8 +1240,6 @@ class OKXEngine(Engine):
                     else "OKX program failed; original intents retained; reconcile before another authorization"
                 )
                 diagnostics.capture(exc, "okx-program")
-                if self.stop_generation != generation:
-                    return  # Do not race Stop with an earlier, incomplete report.
                 try:
                     await self.cancel_active()
                     await self.settle(seconds=10)
