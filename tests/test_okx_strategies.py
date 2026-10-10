@@ -9,7 +9,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from kairos import htf, okx_cycle, programs, scalping
 from kairos.domain import SafetyError, dec
-from kairos.okx import PendingOKX, PendingOKXBook
+from kairos.fees import FeeUnavailable
+from kairos.okx import OKXRejected, PendingOKX, PendingOKXBook
 from kairos.okx_engine import OKXEngine
 from kairos.store import Store
 from tests.test_okx import instrument
@@ -135,6 +136,262 @@ class DemoStrategyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.engine.orders(), old_orders)
         self.assertEqual(self.store.get("okx-operation:" + old_report["id"]), old_report)
         self.assertEqual(self.store.get("okx-operation")["status"], "running")
+
+    async def test_htf_refreshes_fees_aged_out_by_book_recovery_before_evaluation(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        scope = copy.deepcopy(self.engine.authorization)
+        deadline = self.engine.authorization_monotonic_deadline
+        read = self.client.book
+        calls = 0
+
+        async def interrupted(pair):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise PendingOKXBook("initial gap")
+            if calls == 2:
+                self.engine.fees.rates[pair.id]["received"] -= 71
+            return await read(pair)
+
+        with patch.object(self.client, "book", interrupted):
+            await self.engine.tick()
+        self.assertTrue(self.engine.running and self.engine.armed)
+        self.assertIsNone(self.engine.last_error)
+        self.assertLess(time.time() - self.engine.fees.rates[self.pair.id]["received"], 60)
+        self.assertEqual(self.engine.authorization, scope)
+        self.assertEqual(self.engine.authorization_monotonic_deadline, deadline)
+        self.assertEqual(self.posts(), [])
+
+    async def test_htf_transient_fee_read_recovers_without_changing_owned_exit_plan(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        state = htf.snapshot(self.engine)
+        plan = {
+            "id": "retained",
+            "entry_limit": "50000",
+            "stop": "49000",
+            "deadline": self.engine.clock() + 100,
+            "exit_reason": "existing stop",
+        }
+        state.update(position=plan, candidate={"id": "pre-gap"})
+        self.store.put(htf.key(self.engine), state)
+        await self.engine.place(self.pair, "buy", dec(".0001"), dec("50000"), self.book())
+        ledger, orders = self.engine.ledger(), self.engine.orders()
+        scope = copy.deepcopy(self.engine.authorization)
+        request = self.client.request
+        reads = 0
+
+        async def interrupted(method, path, **kwargs):
+            nonlocal reads
+            if path.endswith("/trade-fee"):
+                reads += 1
+                if reads == 1:
+                    raise PendingOKX("temporary native fee GET timeout")
+            return await request(method, path, **kwargs)
+
+        with (
+            patch.object(self.client, "request", interrupted),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            await self.engine.tick()
+        run.assert_awaited_once()
+        self.assertEqual(reads, 2)
+        self.assertTrue(self.engine.running and self.engine.armed)
+        self.assertFalse(self.engine.fee_recovery)
+        self.assertIsNone(self.engine.last_error)
+        self.assertEqual(self.engine.authorization, scope)
+        self.assertEqual(self.engine.ledger(), ledger)
+        self.assertEqual(self.engine.orders(), orders)
+        self.assertEqual(htf.snapshot(self.engine)["position"], plan)
+        self.assertIn("pre-gap", htf.snapshot(self.engine)["consumed_candidates"])
+
+    async def test_htf_fee_grace_exhaustion_closes_permission_without_replay(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        request = self.client.request
+        reads = 0
+
+        async def unavailable(method, path, **kwargs):
+            nonlocal reads
+            if path.endswith("/trade-fee"):
+                reads += 1
+                raise PendingOKX("temporary fee GET backoff")
+            return await request(method, path, **kwargs)
+
+        with (
+            patch.object(self.client, "request", unavailable),
+            patch("kairos.okx_engine.HTF_FEE_WAIT_SECONDS", 0.05),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            await self.engine.tick()
+        run.assert_not_awaited()
+        self.assertEqual(reads, 1)  # The grace ends before the next one-second read retry.
+        self.assertFalse(self.engine.running or self.engine.armed or self.engine.fee_recovery)
+        self.assertIn("grace", self.engine.last_error)
+        report = self.store.get("okx-operation")
+        self.assertEqual(report["status"], "PARTIAL")
+        await self.engine.tick()
+        self.assertEqual(self.store.get("okx-operation"), report)
+        self.assertEqual(self.posts(), [])
+
+    async def test_stop_cancels_inflight_fee_read_and_clears_waiting_status(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        self.engine.fees.rates[self.pair.id]["received"] -= 71
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+
+        async def waiting(pairs):
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        with (
+            patch.object(self.client, "fees", waiting),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            tick = asyncio.create_task(self.engine.tick())
+            await asyncio.wait_for(entered.wait(), 2)
+            await asyncio.sleep(0.3)
+            self.assertTrue(self.engine.fee_recovery)
+            await asyncio.wait_for(self.engine.stop(), 2)
+            await asyncio.wait_for(tick, 2)
+        run.assert_not_awaited()
+        self.assertTrue(cancelled.is_set())
+        self.assertFalse(self.engine.running or self.engine.armed or self.engine.fee_recovery)
+        self.assertIsNone(self.engine.last_error)
+        self.assertEqual(self.store.get("okx-operation")["status"], "STOPPED")
+        self.assertEqual(self.posts(), [])
+
+    async def test_fee_grace_obeys_both_authorization_clocks(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        for clock in ("wall", "monotonic"):
+            with self.subTest(clock=clock):
+                await self.authorize(duration_seconds=3600)
+                if clock == "wall":
+                    self.engine.authorization["deadline"] = self.engine.clock() + 0.1
+                else:
+                    self.engine.authorization_monotonic_deadline = time.monotonic() + 0.1
+
+                async def waiting(pairs):
+                    await asyncio.Event().wait()
+
+                with (
+                    patch.object(self.client, "fees", waiting),
+                    patch("kairos.htf.run", new_callable=AsyncMock) as run,
+                ):
+                    await asyncio.wait_for(self.engine.tick(), 2)
+                run.assert_not_awaited()
+                self.assertFalse(
+                    self.engine.running or self.engine.armed or self.engine.fee_recovery
+                )
+                self.assertEqual(self.posts(), [])
+
+    async def test_fee_grace_rejects_permanent_errors_and_fee_increases_without_retry(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        for failure in (
+            SafetyError("malformed fee group"),
+            OKXRejected("50101", "fee GET"),
+            SafetyError("unknown 50004"),
+            None,
+        ):
+            with self.subTest(failure=str(failure)):
+                await self.authorize(duration_seconds=3600)
+                reader = (
+                    AsyncMock(side_effect=failure)
+                    if failure
+                    else AsyncMock(
+                        return_value=({self.pair.id: dec(100)}, {self.pair.id: dec(100)})
+                    )
+                )
+                with (
+                    patch.object(self.client, "fees", reader),
+                    patch("kairos.htf.run", new_callable=AsyncMock) as run,
+                ):
+                    await self.engine.tick()
+                reader.assert_awaited_once()
+                run.assert_not_awaited()
+                self.assertFalse(self.engine.running or self.engine.armed)
+                self.assertEqual(self.posts(), [])
+
+    async def test_fee_io_reacquires_a_fresh_book_instead_of_using_the_prior_snapshot(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        old = self.book()
+        fees = self.client.fees
+
+        async def slow(pairs):
+            result = await fees(pairs)
+            old.received -= 20
+            self.book()  # A genuinely new native snapshot, not a retimestamp of the old one.
+            return result
+
+        with (
+            patch.object(self.client, "fees", slow),
+            patch.object(self.client, "book", AsyncMock(wraps=self.client.book)) as read,
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            await self.engine.tick()
+        self.assertEqual(read.await_count, 2)
+        run.assert_awaited_once()
+        self.assertTrue(self.engine.running)
+        self.client.market_data.books[self.pair.id].fresh(10)
+        with self.assertRaises(PendingOKX):
+            old.fresh(10)
+        self.assertEqual(self.posts(), [])
+
+    async def test_fee_grace_does_not_accept_a_stale_book_after_fee_io(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+        good = self.book()
+        stale = copy.copy(good)
+        stale.received -= 20
+        with (
+            patch.object(self.client, "book", AsyncMock(side_effect=[good, stale])),
+            patch("kairos.htf.run", new_callable=AsyncMock) as run,
+        ):
+            await self.engine.tick()
+        run.assert_not_awaited()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertEqual(self.posts(), [])
+
+    async def test_later_retryable_fee_failure_never_replays_a_filled_intent(self):
+        self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
+        await self.authorize(duration_seconds=3600)
+
+        async def execution(engine):
+            await engine.place(self.pair, "buy", dec(".0001"), dec("50000"), self.book())
+            raise FeeUnavailable("later fee read failure", retryable=True)
+
+        with patch("kairos.htf.run", AsyncMock(side_effect=execution)) as run:
+            await self.engine.tick()
+        run.assert_awaited_once()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertEqual(len(self.posts()), 1)
+        await self.engine.tick()
+        self.assertEqual(len(self.posts()), 1)
+        self.assertEqual(self.store.get("okx-operation")["status"], "PARTIAL")
+
+    async def test_dca_does_not_inherit_htf_fee_grace(self):
+        await self.authorize(duration_seconds=3600)
+        request = self.client.request
+
+        async def unavailable(method, path, **kwargs):
+            if path.endswith("/trade-fee"):
+                raise PendingOKX("temporary fee GET timeout")
+            return await request(method, path, **kwargs)
+
+        self.engine.fees.attempts.clear()
+        with (
+            patch.object(self.client, "request", unavailable),
+            patch.object(self.engine, "wait_htf_fees", new_callable=AsyncMock) as wait,
+        ):
+            await self.engine.tick()
+        wait.assert_not_awaited()
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertEqual(self.posts(), [])
 
     async def test_htf_recovery_rebaselines_entries_but_preserves_owned_exit_plan(self):
         self.engine.settings.update(strategy="htf", htf_policy="multibar-v2")
