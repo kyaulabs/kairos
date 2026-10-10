@@ -10,12 +10,14 @@ from kairos import okx_account as native
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec
 from kairos.engine import Engine
+from kairos.fees import FeeUnavailable
 from kairos.okx import OKXBeforeSend, OKXRejected, PendingOKX, PendingOKXBook
 from kairos.okx_reconciliation import bill_evidence
 from kairos.settings import DEFAULTS, validate_settings
 from kairos.strategies import limit_price
 
 HTF_BOOK_WAIT_SECONDS = 60
+HTF_FEE_WAIT_SECONDS = 30
 
 
 def fingerprint(value):
@@ -1159,6 +1161,107 @@ class OKXEngine(Engine):
             if self.stop_generation != scope["generation"] and self.last_error == notice:
                 self.last_error = None  # A stopped run is no longer waiting for a book.
 
+    async def wait_htf_fees(self):
+        """Refresh fees after data waits; never retry evaluation or a durable intent."""
+        scope = self.permission()
+        if (
+            self.client.environment != "demo"
+            or scope["kind"] != "strategy"
+            or scope["strategy"] != "htf"
+            or self.orders(active=True)
+            or self.recovery_required
+        ):
+            raise SafetyError("HTF fee recovery requires an active, settled demo authorization")
+        pair = self.resolve(scope["pair"])
+        deadline = min(
+            time.monotonic() + HTF_FEE_WAIT_SECONDS, self.authorization_monotonic_deadline
+        )
+        task, notice, retry_at = None, None, 0
+        reason = "authenticated fee read still pending"
+
+        def waiting():
+            nonlocal notice
+            if notice is None:
+                self.htf_review.cancel()
+                notice = (
+                    f"Waiting up to {HTF_FEE_WAIT_SECONDS}s for fresh OKX demo HTF fees "
+                    "within the original deadline. Orders and protective exits are blocked."
+                )
+                self.fee_recovery = True
+                self.last_error = notice
+                self.event("fee-recovery", {"message": notice, "reason": reason})
+                self.emit_state()
+
+        async def refresh():
+            await self.refresh_fees(force=True)
+            self.permission()
+            if max(self.fees.reserve(pair), self.fees.reserve(pair, True)) > dec(
+                scope["markets"][pair.id]["fee_bps"]
+            ):
+                raise SafetyError("Demo strategy fee allowance increased; new preview required")
+            # Fee I/O may age the previous book. Reacquire it within this same grace,
+            # without restarting the book's 60-second recovery or evaluating a signal.
+            return await self.client.book(pair)
+
+        try:
+            while True:
+                if self.permission() is not scope:
+                    raise SafetyError("HTF fee wait authorization changed; no evaluation")
+                remaining = min(deadline - time.monotonic(), scope["deadline"] - self.clock())
+                if remaining <= 0:
+                    raise FeeUnavailable(
+                        f"HTF fee refresh exhausted its {HTF_FEE_WAIT_SECONDS}s grace; "
+                        f"no evaluation or new intent; permission not extended. Last read: {reason}"
+                    )
+                if task is None:
+                    delay = retry_at - time.monotonic()
+                    if delay > 0:
+                        await asyncio.sleep(min(0.25, delay, remaining))
+                        continue
+                    task = asyncio.create_task(refresh())
+                done, _ = await asyncio.wait((task,), timeout=min(0.25, remaining))
+                if not done:
+                    try:
+                        self.fees.reserve(pair)
+                    except FeeUnavailable:
+                        waiting()
+                    continue
+                if time.monotonic() >= deadline:
+                    continue
+                try:
+                    book = task.result()
+                except FeeUnavailable as exc:
+                    if not exc.retryable:
+                        raise
+                    task, reason = None, str(exc)
+                    waiting()
+                    retry_at = time.monotonic() + 1
+                    continue
+                book.fresh(self.settings["stale_seconds"])
+                self.fees.reserve(pair)  # Validate the complete fee/book cohort after all I/O.
+                if self.permission() is not scope:
+                    raise SafetyError("HTF fee wait authorization changed; no evaluation")
+                if notice is not None:
+                    from kairos import htf
+
+                    htf.arm(self)  # New entry baseline only; retained exit plans are untouched.
+                    self.last_error = None
+                    self.event(
+                        "fee-recovery",
+                        {
+                            "message": "Fresh HTF fees and book recovered; "
+                            "old entry candidates retired; original permission and limits unchanged."
+                        },
+                    )
+                return
+        finally:
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            self.fee_recovery = False
+            if self.stop_generation != scope["generation"] and self.last_error == notice:
+                self.last_error = None
+
     async def tick(self):
         async with self.lock:
             if not self.running:
@@ -1190,7 +1293,12 @@ class OKXEngine(Engine):
                 self.permission()
                 if self.authorization["kind"] == "execution_cycle":
                     return  # execution_cycle owns its separately bounded task.
-                await self.refresh_fees()
+                if not (
+                    self.client.environment == "demo"
+                    and self.authorization["kind"] == "strategy"
+                    and self.authorization["strategy"] == "htf"
+                ):
+                    await self.refresh_fees()
                 await self.settle()
                 if self.authorization["kind"] == "strategy":
                     from kairos.okx_strategy import run
