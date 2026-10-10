@@ -245,7 +245,7 @@ async def preview(e, values):
             else None,
             "protocol": "okx-demo-bounded-strategies-v1; separate from the frozen Alpaca trial",
             "dust_policy": "Existing inventory remains owned. HTF/scalp exclude unrelated inventory. No cleanup buy, reset or automatic liquidation.",
-            "execution_policy": "One outstanding order; IOC or demo post-only. Resting orders are locally canceled after at most 30s plus scheduler/settlement latency, or on Stop/expiry. OKX post-only has no server-side expiry here and can remain open during an outage. Restart never rearms. Price bounds also constrain protective exits; holdings can remain after permission ends.",
+            "execution_policy": "HTF initial book reads may wait up to 60s within the original authorization before evaluation; no orders or protective exits while data is unavailable, and recovered entry candidates are re-baselined. Later execution failures still stop the run. One outstanding order; IOC or demo post-only. Resting orders are locally canceled after at most 30s plus scheduler/settlement latency, or on Stop/expiry. OKX post-only has no server-side expiry here and can remain open during an outage. Restart never rearms. Price bounds also constrain protective exits; holdings can remain after permission ends.",
             "budget_policy": "Cumulative buy commitments per market in each listed native quote; starting-currency spending is also capped across markets. Intermediate currencies are never added together or treated at parity. Sales use allocated/acquired inventory only. Every durable attempt consumes the global count, even when rejected or unfilled.",
         }
         e.store.put("okx-preview:" + proposal["id"], proposal)
@@ -313,6 +313,7 @@ async def run(e):
     if strategy in programs.STRATEGIES:
         await programs.run(e)
     elif strategy == "htf":
+        await e.wait_htf_book()
         await htf.run(e)
     elif strategy == "scalp":
         await scalping.run(e)

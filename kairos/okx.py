@@ -60,6 +60,10 @@ class PendingOKX(SafetyError):
     """Transient read or delayed evidence; never permission to repeat a write."""
 
 
+class PendingOKXBook(PendingOKX):
+    """No fresh books5 snapshot in a bounded read; says nothing about earlier intents."""
+
+
 class OKXBeforeSend(SafetyError):
     """The transport did not attempt the HTTP write; its intent is still consumed."""
 
