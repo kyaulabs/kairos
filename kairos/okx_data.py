@@ -11,7 +11,7 @@ import aiohttp
 
 from kairos.domain import Book, SafetyError, dec
 from kairos.market_data import validate_levels
-from kairos.okx import PUBLIC_WS, PendingOKX, code
+from kairos.okx import PUBLIC_WS, PendingOKX, PendingOKXBook, code
 
 
 @dataclass
@@ -232,7 +232,7 @@ class OKXData:
                 )
             except TimeoutError:
                 pass
-        raise PendingOKX(
+        raise PendingOKXBook(
             f"OKX {self.client.environment} book startup/read wait exceeded 10s: {reason}; no order submitted by this data read; inspect the regional books5 feed"
         )
 
