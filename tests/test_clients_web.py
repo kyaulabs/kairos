@@ -320,6 +320,7 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             "/static/app.js",
             "/static/settings.js",
             "/static/chart.js",
+            "/static/indicators.js",
             "/static/markets.js",
             "/static/strategy-market.js",
             "/static/vendor/d3.v7.9.0.min.js",
