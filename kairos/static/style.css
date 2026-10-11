@@ -96,7 +96,11 @@ body.sidebar-open { grid-template-columns: calc(var(--rail-size) + var(--setting
 .metric strong { display: block; font: 1.0625rem/1.6 var(--font-mono); white-space: nowrap; }
 .market-price { color: var(--text); }
 .account-metrics { display: flex; gap: clamp(18px, 3vw, 48px); flex: 1; min-width: 0; padding-left: 24px; border-left: 1px solid var(--line); overflow-x: auto; }
-#indicators-toggle { align-self: center; flex-shrink: 0; }
+#indicators-toggle { display: inline-flex; align-items: center; gap: .5rem; align-self: stretch; flex-shrink: 0; padding: 0 0 0 24px; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--muted); font-size: .75rem; font-weight: 400; letter-spacing: .6px; text-transform: uppercase; }
+#indicators-toggle:hover, #indicators-toggle[aria-expanded="true"] { color: var(--accent); }
+#indicators-toggle .icon { font-size: 1.125rem; font-style: normal; }
+/* Font Awesome glyphs sit lower than the uppercase header labels. */
+.icons-ready :is(.header-controls, #indicators-toggle) .icon { transform: translateY(-.125em); }
 .pill { border: 1px solid var(--control-border); color: var(--accent); background: var(--surface-raised); border-radius: var(--radius-control); padding: 5px 8px; font-size: .75rem; letter-spacing: .6px; white-space: nowrap; }
 .pill.live { border-color: var(--danger); color: var(--danger); }
 .header-controls { --status-size: calc(1.125rem + 12px); display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
@@ -339,6 +343,7 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .icon-bank { --glyph: '\f19c'; --fallback-icon: url('/static/icons/bank.svg'); }
 :root:not(.icons-ready) :is(.icon-wallet, .icon-coins, .icon-bank, .icon-archive, .icon-restore)::before { content: ""; position: absolute; inset: 0; background: currentColor; mask: var(--fallback-icon) center / contain no-repeat; }
 .icon-chart { --glyph: '\f201'; }
+.fa-chart-mixed { --glyph: '\f643'; }
 .icon-settings { --glyph: '\f1de'; }
 .icon-brain { --glyph: '\f5dc'; }
 .icon-strategy { --glyph: '\f441'; }
@@ -432,6 +437,7 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 @media (max-width: 90em) {
   .desk-header { gap: 16px; padding: 8px 12px; }
   .account-metrics { padding-left: 16px; gap: 18px; }
+  #indicators-toggle { padding-left: 16px; }
   .workspace { grid-template-columns: minmax(0, 1fr) 18rem; }
   .chart-key { display: none; }
 }
@@ -476,6 +482,7 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
   .pill { font-size: .75rem; padding: 4px 6px; }
   .market-price { grid-column: 1; }
   .account-metrics { grid-column: 2; grid-row: 2; padding-left: 0; border: 0; gap: 12px; justify-content: space-between; }
+  #indicators-toggle { padding-left: 12px; letter-spacing: 0; }
   .metric > span { font-size: .75rem; letter-spacing: 0; }
   .metric strong { font-size: .875rem; }
   .desk { padding: 5px; gap: 5px; }
