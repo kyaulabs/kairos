@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/static/brand/palette.css">
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/vendor/d3.v7.9.0.min.js"></script>
+  <script defer src="/static/indicators.js"></script>
   <script defer src="/static/chart.js"></script>
   <script defer src="/static/vendor/crypto-icons/symbols.js"></script>
   <script defer src="/static/polling.js"></script>
@@ -49,6 +50,7 @@
     <div class="metric"><span id="equity-label">Equity · USD</span><strong id="equity" aria-describedby="valuation-time">—</strong></div>
     <div class="metric"><span id="pnl-label">Day P&amp;L · USD</span><strong id="pnl" title="Marked to market · UTC day">—</strong></div>
     <div class="metric"><span id="exposure-label">Exposure · USD</span><strong id="exposure" aria-describedby="exposure-cap">—</strong></div>
+    <button id="indicators-toggle" class="small" type="button" aria-haspopup="dialog" aria-controls="chart-indicators" aria-expanded="false" title="Choose chart-only indicators">Indicators</button>
   </div>
   <div class="header-controls">
     <span id="connection" class="connection" role="status">Connecting</span>
@@ -80,8 +82,9 @@
         <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option></select></label><button id="follow" class="small">Follow live</button></div>
         <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
       </div>
-      <div class="chart-stage"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlestick chart with aligned volume in the selected market's native units. Drag to pan, scroll to zoom; use Follow live to show recent candles."></svg></div>
-      <div class="chart-footer"><div class="market-info"><span id="bid-ask">Waiting for prices</span><span id="market-volume" hidden></span><span id="feed-age">—</span></div><p id="candle-status" class="muted" role="status">Loading candles…</p><span class="chart-help">Drag to pan · scroll to zoom · crosshair to inspect</span></div>
+      <div id="indicator-legend" class="indicator-legend" aria-label="Price overlay legend" hidden></div>
+      <div class="chart-stage" tabindex="0" role="region" aria-label="Scrollable price and indicator panels"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlesticks with optional chart-only indicators and native-unit volume. Drag to pan; Ctrl+scroll or two fingers to zoom. Scroll tall panels with one finger or the mouse wheel. Home or Follow live shows recent candles."></svg></div>
+      <div class="chart-footer"><div class="market-info"><span id="bid-ask">Waiting for prices</span><span id="market-volume" hidden></span><span id="feed-age">—</span></div><p id="candle-status" class="muted" role="status">Loading candles…</p><span class="chart-help">Drag to pan · Ctrl+scroll or two fingers to zoom · crosshair for OHLCV</span></div>
     </section>
 
     <section id="assessment-panel" class="panel assessment-panel" aria-labelledby="assessment-title">
@@ -260,6 +263,26 @@
   <div id="watchlist" class="watchlist" role="region" aria-label="Favorite market prices" tabindex="0"><span class="muted">Star markets to watch their prices here.</span></div>
   <details class="safety-info"><summary>Safety notes</summary><div class="safety-popover">Stop cancels tracked orders; it does not sell holdings or close Futures positions. Loss limits stop new trading, not market losses. Never expose the backend port publicly.</div></details>
 </footer>
+<dialog id="chart-indicators" class="indicator-dialog" aria-labelledby="indicator-title" aria-describedby="indicator-help">
+  <div class="market-dialog-head"><h2 id="indicator-title">Chart indicators</h2><button id="indicators-close" type="button" aria-label="Close chart indicators"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
+  <fieldset aria-label="Visible indicators">
+    <label><input type="checkbox" data-indicator="volume" checked>Volume</label>
+    <label><input type="checkbox" data-indicator="macd">MACD · 12 / 26 / 9</label>
+    <label><input type="checkbox" data-indicator="bollinger">Bollinger Bands · 20 / 2σ</label>
+    <label><input type="checkbox" data-indicator="rsi">RSI · 14</label>
+    <label><input type="checkbox" data-indicator="sma">Moving averages · SMA 8 / 21</label>
+  </fieldset>
+  <div class="indicator-warmup">
+    <p id="indicator-help">Warm-up <span>candles required</span></p>
+    <dl>
+      <div><dt>SMA 8 / 21</dt><dd>8 / 21</dd></div>
+      <div><dt>Bollinger Bands</dt><dd>20</dd></div>
+      <div><dt>RSI</dt><dd>15</dd></div>
+      <div><dt>MACD + signal</dt><dd>34</dd></div>
+    </dl>
+  </div>
+  <p id="indicator-status" role="status" hidden></p>
+</dialog>
 <dialog id="okx-dialog" class="okx-dialog" aria-labelledby="okx-title" aria-describedby="okx-notice">
   <div class="market-dialog-head"><h2 id="okx-title">OKX finite execution</h2><button id="okx-dialog-stop" type="button" class="danger" title="Revoke permission; cancel only owned working orders; retain holdings">Stop</button><button id="okx-close" type="button" aria-label="Close OKX authorization">×</button></div>
   <p id="okx-notice" class="muted">No trading permission until a completed preview is explicitly authorized.</p>

@@ -6,6 +6,7 @@
   const strategyReview = new StrategyReview($('review-settings'));
   const priceChart = new LiveChart('#chart', 'var(--success)', 'price', Number($('candle-interval').value));
   const equityChart = new LiveChart('#equity-chart', 'var(--accent)', 'equity');
+  ChartIndicators.bind(priceChart);
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();

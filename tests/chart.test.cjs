@@ -5,13 +5,15 @@ const {test} = require('node:test');
 const {runInNewContext} = require('node:vm');
 
 const browser = {};
-runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/chart.js'), 'utf8'), {window: browser});
+runInNewContext(['indicators.js', 'chart.js'].map(file => readFileSync(path.join(__dirname, '../kairos/static', file), 'utf8')).join('\n'), {window: browser});
 const start = 1700000040;
 
 function chart(intervalMs = 60000) {
   // Exercise the real data/viewport methods without an SVG renderer.
   return Object.assign(Object.create(browser.LiveChart.prototype), {
-    intervalMs, intervals: [1, 5, 15, 30, 60, 240, 1440], anchor: null, points: [], fills: [], draw() {}, follow() { this.anchor = null; },
+    intervalMs, intervals: [1, 5, 15, 30, 60, 240, 1440], anchor: null, points: [], fills: [],
+    indicatorPoints: [], indicators: browser.ChartIndicators.normalize(null), node: {style: {setProperty() {}}},
+    draw() {}, follow() { this.anchor = null; },
   });
 }
 function candle(time = start, close = '102') {
@@ -106,6 +108,39 @@ test('market changes clear candles and markers without changing the selected int
   assert.equal(view.points.length, 0);
   assert.equal(view.fills.length, 0);
   assert.equal(view.intervalMs, 300000);
+});
+
+test('indicator toggles preserve data, fills, interval and the manually anchored viewport', () => {
+  const view = chart();
+  view.setCandles(Array.from({length: 60}, (_, i) => candle(start + i * 60)));
+  view.anchor = start * 1000;
+  view.transform = {k: 3, x: -120};
+  view.fills.push({id: 'owned', time: start * 1000, value: 100});
+  const before = {points: view.points, studies: view.indicatorPoints, fills: view.fills, transform: view.transform, domain: domain(view)};
+  view.setIndicators({volume: false, macd: true, bollinger: true, rsi: true, sma: true});
+  assert.equal(view.points, before.points);
+  assert.equal(view.indicatorPoints, before.studies);
+  assert.equal(view.fills, before.fills);
+  assert.equal(view.transform, before.transform);
+  assert.deepEqual(domain(view), before.domain);
+  assert.equal(view.intervalMs, 60000);
+});
+
+test('forming updates recompute studies without altering earlier values or double-counting', () => {
+  const view = chart();
+  const rows = Array.from({length: 60}, (_, i) => candle(start + i * 60, String(100 + i % 4)));
+  view.setCandles(rows);
+  const before = JSON.stringify(view.indicatorPoints.slice(0, -1));
+  const last = view.indicatorPoints.at(-1).macd;
+  view.setCandles([...rows.slice(0, -1), candle(start + 59 * 60, '105')]);
+  assert.equal(view.indicatorPoints.length, 60);
+  assert.equal(JSON.stringify(view.indicatorPoints.slice(0, -1)), before);
+  assert.notEqual(view.indicatorPoints.at(-1).macd, last);
+  view.clear();
+  assert.equal(view.indicatorPoints.length, 0);
+  view.setCandles(rows);
+  view.setCandleInterval(15);
+  assert.equal(view.indicatorPoints.length, 0);
 });
 
 test('session equity remains a bounded line series and retains frequent observations', () => {
