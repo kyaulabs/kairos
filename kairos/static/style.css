@@ -164,7 +164,11 @@ body.sidebar-open { grid-template-columns: calc(var(--rail-size) + var(--setting
 .chart-key { flex-shrink: 0; display: flex; gap: 10px; padding: 8px 12px 0; font-size: .75rem; }
 .chart-viewport { position: relative; display: flex; flex: 1; min-height: 0; min-width: 0; }
 .chart-stage { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 0 6px; }
-.chart-navigation { position: absolute; bottom: 3rem; left: 50%; transform: translateX(-50%); display: flex; gap: .375rem; }
+.chart-navigation { position: absolute; bottom: 3rem; left: 50%; transform: translateX(-50%); display: flex; gap: .375rem; opacity: .85; }
+@media (hover: hover) and (pointer: fine) {
+  .chart-navigation { opacity: 0; pointer-events: none; }
+  .chart-viewport:hover .chart-navigation, .chart-viewport:has(:focus-visible) .chart-navigation { opacity: .85; pointer-events: auto; }
+}
 .chart-navigation button { display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; background: var(--surface-raised); color: var(--muted); font-size: 1.25rem; box-shadow: 0 2px 8px #0003; }
 .chart-navigation button:hover:not(:disabled) { color: var(--accent); background: var(--accent-soft); }
 #chart-follow { position: absolute; left: calc(100% + .75rem); }
