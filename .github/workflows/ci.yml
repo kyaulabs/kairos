@@ -87,6 +87,7 @@ jobs:
           node --check kairos/static/sidebar.js
           node --check kairos/static/review.js
           node --check kairos/static/chart.js
+          node --check kairos/static/indicators.js
           node --check kairos/static/polling.js
           node --check kairos/static/markets.js
           node --check kairos/static/strategy-market.js

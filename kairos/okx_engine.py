@@ -1162,7 +1162,7 @@ class OKXEngine(Engine):
                 self.last_error = None  # A stopped run is no longer waiting for a book.
 
     async def wait_htf_fees(self):
-        """Refresh fees after data waits; never retry evaluation or a durable intent."""
+        """Read-only fee/book preflight; never retry evaluation or a durable intent."""
         scope = self.permission()
         if (
             self.client.environment != "demo"
@@ -1184,7 +1184,7 @@ class OKXEngine(Engine):
             if notice is None:
                 self.htf_review.cancel()
                 notice = (
-                    f"Waiting up to {HTF_FEE_WAIT_SECONDS}s for fresh OKX demo HTF fees "
+                    f"Waiting up to {HTF_FEE_WAIT_SECONDS}s for fresh OKX demo HTF fees and book "
                     "within the original deadline. Orders and protective exits are blocked."
                 )
                 self.fee_recovery = True
@@ -1210,7 +1210,7 @@ class OKXEngine(Engine):
                 remaining = min(deadline - time.monotonic(), scope["deadline"] - self.clock())
                 if remaining <= 0:
                     raise FeeUnavailable(
-                        f"HTF fee refresh exhausted its {HTF_FEE_WAIT_SECONDS}s grace; "
+                        f"HTF fee/book refresh exhausted its {HTF_FEE_WAIT_SECONDS}s grace; "
                         f"no evaluation or new intent; permission not extended. Last read: {reason}"
                     )
                 if task is None:
@@ -1230,8 +1230,8 @@ class OKXEngine(Engine):
                     continue
                 try:
                     book = task.result()
-                except FeeUnavailable as exc:
-                    if not exc.retryable:
+                except (FeeUnavailable, PendingOKXBook) as exc:
+                    if isinstance(exc, FeeUnavailable) and not exc.retryable:
                         raise
                     task, reason = None, str(exc)
                     waiting()
