@@ -50,7 +50,10 @@
     <div class="metric"><span id="equity-label">Equity · USD</span><strong id="equity" aria-describedby="valuation-time">—</strong></div>
     <div class="metric"><span id="pnl-label">Day P&amp;L · USD</span><strong id="pnl" title="Marked to market · UTC day">—</strong></div>
     <div class="metric"><span id="exposure-label">Exposure · USD</span><strong id="exposure" aria-describedby="exposure-cap">—</strong></div>
-    <button id="indicators-toggle" type="button" aria-haspopup="dialog" aria-controls="chart-indicators" aria-expanded="false" title="Choose chart-only indicators"><i class="icon icon-solid fa-solid fa-chart-mixed" aria-hidden="true">↗</i><span>Indicators</span></button>
+    <div class="chart-header-controls">
+      <button id="indicators-toggle" type="button" aria-haspopup="dialog" aria-controls="chart-indicators" aria-expanded="false" title="Choose chart-only indicators"><i class="icon icon-solid fa-solid fa-chart-mixed" aria-hidden="true">↗</i><span>Indicators</span></button>
+      <label class="candle-control"><i class="icon fa-sharp fa-light fa-chart-candlestick" aria-hidden="true">║</i><select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option></select></label>
+    </div>
   </div>
   <div class="header-controls">
     <span id="connection" class="connection" role="status">Connecting</span>
@@ -78,12 +81,18 @@
   <div class="workspace" data-view="chart">
     <section id="market-panel" class="panel chart-panel" aria-labelledby="chart-title">
       <div class="panel-head"><h2 id="chart-title"><span class="icon icon-chart" aria-hidden="true">↗</span> Market chart</h2><span id="chart-context" class="chart-context">Bot market</span></div>
-      <div class="chart-toolbar">
-        <div class="chart-controls"><label>Candles<select id="candle-interval" aria-label="Chart candle interval" title="Candle duration; independent of the HTF strategy interval"><option value="1" selected>1m</option></select></label><button id="follow" class="small">Follow live</button></div>
-        <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
-      </div>
+      <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
       <div id="indicator-legend" class="indicator-legend" aria-label="Price overlay legend" hidden></div>
-      <div class="chart-stage" tabindex="0" role="region" aria-label="Scrollable price and indicator panels"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlesticks with optional chart-only indicators and native-unit volume. Drag to pan; Ctrl+scroll or two fingers to zoom. Scroll tall panels with one finger or the mouse wheel. Home or Follow live shows recent candles."></svg></div>
+      <div class="chart-viewport">
+        <div class="chart-stage" tabindex="0" role="region" aria-label="Scrollable price and indicator panels"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlesticks with optional chart-only indicators and native-unit volume. Drag to pan; Ctrl+scroll or two fingers to zoom. Scroll tall panels with one finger or the mouse wheel. Home or Reset chart to live shows recent candles."></svg></div>
+        <div id="chart-navigation" class="chart-navigation" role="group" aria-label="Chart navigation">
+          <button type="button" data-chart-action="zoom-out" aria-label="Zoom out" title="Zoom out" disabled><span class="icon icon-minus" aria-hidden="true">−</span></button>
+          <button type="button" data-chart-action="zoom-in" aria-label="Zoom in" title="Zoom in" disabled><span class="icon icon-plus" aria-hidden="true">+</span></button>
+          <button type="button" data-chart-action="pan-left" aria-label="Pan to earlier candles" title="Pan to earlier candles" disabled><span class="icon icon-left" aria-hidden="true">‹</span></button>
+          <button type="button" data-chart-action="pan-right" aria-label="Pan to later candles" title="Pan to later candles" disabled><span class="icon icon-right" aria-hidden="true">›</span></button>
+          <button type="button" id="chart-follow" data-chart-action="follow" aria-label="Reset chart to live" title="Reset chart to live" hidden><span class="icon icon-restore" aria-hidden="true">↶</span></button>
+        </div>
+      </div>
       <div class="chart-footer"><div class="market-info"><span id="bid-ask">Waiting for prices</span><span id="market-volume" hidden></span><span id="feed-age">—</span></div><p id="candle-status" class="muted" role="status">Loading candles…</p><span class="chart-help">Drag to pan · Ctrl+scroll or two fingers to zoom · crosshair for OHLCV</span></div>
     </section>
 
