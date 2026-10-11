@@ -4,8 +4,9 @@ const path = require('node:path');
 const {test} = require('node:test');
 const {runInNewContext} = require('node:vm');
 
+const d3 = require('../kairos/static/vendor/d3.v7.9.0.min.js');
 const browser = {};
-runInNewContext(['indicators.js', 'chart.js'].map(file => readFileSync(path.join(__dirname, '../kairos/static', file), 'utf8')).join('\n'), {window: browser});
+runInNewContext(['indicators.js', 'chart.js'].map(file => readFileSync(path.join(__dirname, '../kairos/static', file), 'utf8')).join('\n'), {window: browser, d3});
 const start = 1700000040;
 
 function chart(intervalMs = 60000) {
@@ -141,6 +142,89 @@ test('forming updates recompute studies without altering earlier values or doubl
   view.setCandles(rows);
   view.setCandleInterval(15);
   assert.equal(view.indicatorPoints.length, 0);
+});
+
+function navigable() {
+  const view = chart();
+  delete view.follow;
+  view.node.__zoom = view.transform = d3.zoomIdentity;
+  view.svg = d3.select(view.node);
+  view.buttons = ['zoom-out', 'zoom-in', 'pan-left', 'pan-right', 'follow'].map(chartAction => ({dataset: {chartAction}}));
+  view.navigation = {querySelectorAll: () => view.buttons};
+  view.zoom = d3.zoom().extent([[0, 0], [900, 300]])
+    .translateExtent([[-6300, 0], [900, 300]]).scaleExtent([1/12, 40])
+    .on('zoom', event => { view.transform = event.transform; view.draw(); });
+  view.draw = () => {
+    view.updateNavigation();
+    if (view.points.length) view.x = view.transform.rescaleX(d3.scaleTime().domain(view.timeDomain()).range([0, 900]));
+  };
+  view.setCandles(Array.from({length: 720}, (_, i) => candle(start + i * 60)));
+  return view;
+}
+function visibleDomain(view) { return Array.from(view.x.domain(), Number); }
+
+test('toolbar pan directions move a quarter viewport and freeze history until reset', () => {
+  const view = navigable(), initial = visibleDomain(view);
+  assert.equal(view.buttons.at(-1).hidden, true);
+  view.navigate('pan-left');
+  const older = visibleDomain(view);
+  assert.equal(initial[0] - older[0], (initial[1] - initial[0]) / 4);
+  assert.equal(view.buttons.at(-1).hidden, false);
+  view.setCandles([...view.points.slice(1).map(p => candle(p.time / 1000)), candle(start + 720 * 60)]);
+  assert.deepEqual(visibleDomain(view), older);
+  view.navigate('pan-right');
+  assert.deepEqual(visibleDomain(view), initial);
+  assert.equal(view.buttons.at(-1).hidden, false, 'at the latest edge is still a manually anchored view');
+  view.navigate('follow');
+  assert.equal(view.anchor, null);
+  assert.equal(view.transform.k, 1);
+  assert.equal(view.transform.x, 0);
+  assert.equal(view.buttons.at(-1).hidden, true);
+  assert.equal(visibleDomain(view)[0] - initial[0], 60000);
+});
+
+test('toolbar zoom and pan use D3 bounds without altering candles, studies or fills', () => {
+  const view = navigable(), initial = visibleDomain(view);
+  view.fills.push({id: 'original'});
+  const {points, indicatorPoints, fills} = view;
+  view.navigate('zoom-in');
+  assert.equal(view.transform.k, 1.25);
+  const zoomed = visibleDomain(view);
+  assert.equal(zoomed[1] - zoomed[0], (initial[1] - initial[0]) / 1.25);
+  view.navigate('pan-left');
+  assert.equal(zoomed[0] - visibleDomain(view)[0], (zoomed[1] - zoomed[0]) / 4);
+  for (let i = 0; i < 50; i++) view.navigate('zoom-in');
+  assert.equal(view.transform.k, 40);
+  for (let i = 0; i < 70; i++) view.navigate('zoom-out');
+  assert.equal(view.transform.k, 1/12);
+  view.navigate('follow');
+  for (let i = 0; i < 60; i++) view.navigate('pan-left');
+  const oldest = visibleDomain(view);
+  view.navigate('pan-left');
+  assert.deepEqual(visibleDomain(view), oldest);
+  for (let i = 0; i < 60; i++) view.navigate('pan-right');
+  assert.deepEqual(visibleDomain(view), initial);
+  assert.equal(view.points, points);
+  assert.equal(view.indicatorPoints, indicatorPoints);
+  assert.equal(view.fills, fills);
+});
+
+test('empty charts disable navigation and market/interval resets restore live state', () => {
+  const view = navigable();
+  view.navigate('pan-left');
+  view.setCandleInterval(15);
+  assert.equal(view.buttons.at(-1).hidden, true);
+  assert.ok(view.buttons.slice(0, -1).every(b => b.disabled));
+  view.navigate('zoom-in');
+  assert.equal(view.anchor, null);
+  assert.equal(view.transform.k, 1);
+  view.setCandles([candle()]);
+  assert.ok(view.buttons.slice(0, -1).every(b => !b.disabled));
+  view.navigate('pan-left');
+  view.clear();
+  assert.equal(view.buttons.at(-1).hidden, true);
+  assert.equal(view.anchor, null);
+  assert.equal(view.intervalMs, 15 * 60000);
 });
 
 test('session equity remains a bounded line series and retains frequent observations', () => {

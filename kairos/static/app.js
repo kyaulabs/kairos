@@ -7,6 +7,7 @@
   const priceChart = new LiveChart('#chart', 'var(--success)', 'price', Number($('candle-interval').value));
   const equityChart = new LiveChart('#equity-chart', 'var(--accent)', 'equity');
   ChartIndicators.bind(priceChart);
+  priceChart.bindNavigation($('chart-navigation'));
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
@@ -526,7 +527,6 @@
     priceChart.setCandleInterval(Number($('candle-interval').value));
     if (state) restartCandles();
   });
-  $('follow').addEventListener('click', () => priceChart.follow());
   $('bot-market').addEventListener('click', () => {
     if (!state) return;
     chartPair = pairs.find(pair => pair.id === state.settings.pair) || {id: state.settings.pair, symbol: state.settings.pair};

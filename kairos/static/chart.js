@@ -80,7 +80,9 @@ class LiveChart {
     this.svg.call(this.zoom).on('dblclick.zoom', null)
       .on('pointermove.inspect', event => this.inspect(event))
       .on('pointerleave.inspect', () => { this.cross.attr('display', 'none'); this.tip.text(''); })
-      .on('keydown', event => { if (event.key === 'Home' || event.key === 'Escape') this.follow(); });
+      .on('keydown', event => {
+        if (event.key === 'Home' || event.key === 'Escape') { event.preventDefault(); this.follow(); }
+      });
     this.resizeObserver = new ResizeObserver(() => this.draw());
     this.resizeObserver.observe(this.node);
   }
@@ -130,6 +132,36 @@ class LiveChart {
     this.anchor = null;
     this.svg.call(this.zoom.transform, d3.zoomIdentity);
   }
+  bindNavigation(node) {
+    this.navigation = node;
+    for (const button of node.querySelectorAll('[data-chart-action]')) {
+      button.addEventListener('click', () => {
+        this.navigate(button.dataset.chartAction);
+        if (button.dataset.chartAction === 'follow') this.node.focus({preventScroll: true});
+      });
+    }
+    this.updateNavigation();
+  }
+  updateNavigation() {
+    if (!this.navigation) return;
+    for (const button of this.navigation.querySelectorAll('[data-chart-action]')) {
+      if (button.dataset.chartAction === 'follow') button.hidden = this.anchor === null;
+      else button.disabled = !this.points.length;
+    }
+  }
+  navigate(action) {
+    if (action === 'follow') { this.follow(); return; }
+    if (!this.intervalMs || !this.points.length || !this.x) return;
+    if (!['zoom-in', 'zoom-out', 'pan-left', 'pan-right'].includes(action)) return;
+    // Programmatic D3 gestures have no sourceEvent: explicitly pin the current bars.
+    this.anchor ??= this.points.at(-1).time;
+    if (action === 'zoom-in' || action === 'zoom-out') {
+      this.svg.call(this.zoom.scaleBy, action === 'zoom-in' ? 1.25 : .8);
+    } else {
+      const [left, right] = this.x.range();
+      this.svg.call(this.zoom.translateBy, (action === 'pan-left' ? 1 : -1) * (right-left) / (4*this.transform.k), 0);
+    }
+  }
   setCandleInterval(minutes) {
     if (!this.intervals.includes(minutes)) throw new RangeError('Unsupported candle interval');
     this.intervalMs = minutes * 60000;
@@ -147,6 +179,7 @@ class LiveChart {
     return [start, last + Math.max((last-start)*.025, 1000)];
   }
   draw() {
+    this.updateNavigation();
     const width = this.node.clientWidth, height = this.node.clientHeight;
     if (!width || !height) return;
     // SVG coordinates are CSS pixels here. Reserve space using the rendered text size,
