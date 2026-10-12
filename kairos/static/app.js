@@ -13,15 +13,15 @@
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
-  let tickers = {}, connected = false, separateWorker = false;
+  let tickers = {}, connected = false, separateWorker = false, assetNames = {};
   let candleGeneration = 0, candleReceived = 0, candleError = '', candleSource = '';
   let settingsSchema, settingsForm, settingsHelp;
   let historyRevision, historyGeneration = 0, historyFloor = 0;
   const scheduledStrategy = strategy => settingsSchema.strategies[strategy].scheduled;
   const assessmentView = new AssessmentView($('assessment-viz'));
-  const marketPicker = new MarketPicker(request, pair => { chartPair = pair; if (state) render(state); }, markets => {
+  const marketPicker = new MarketPicker(request, pair => saveChartMarket(pair), markets => {
     strategyMarketPicker.setPairs(markets);
-    if (state) updateStrategyMarket();
+    if (state) { updateStrategyMarket(); restoreChartMarket(); }
   });
   const strategyMarketPicker = new StrategyMarketPicker();
   const accountView = new AccountView(request);
@@ -184,7 +184,9 @@
     $('fees-status').classList.toggle('warning', stale);
   }
   function updateChartHeading() {
-    $('chart-symbol').textContent = symbol() || state.settings.pair;
+    const market = chartPair || {symbol: state.settings.pair};
+    $('chart-symbol').textContent = MarketPicker.chartLabel(market, assetNames);
+    $('chart-symbol').title = `${market.symbol}${$('chart-symbol').textContent !== market.symbol ? ' · Base asset name from CoinGecko' : ''}`;
     const interval = $('candle-interval').selectedOptions[0].textContent.replace(/m$/, '');
     const venue = {kraken: 'Kraken', alpaca: 'Alpaca', okx: 'OKX', 'okx-demo': 'OKX'}[state.exchange] || state.exchange;
     $('chart-meta').textContent = `· ${interval} · ${venue}`;
@@ -226,7 +228,7 @@
     $('chart-context').title = chartPair.execution_reason || MarketPicker.kindLabel(chartPair);
     $('chart-context').classList.toggle('browsing', chartPair.id !== botPair.id);
     if (lastMarket !== chartPair.id) {
-      $('chart-market-icons').replaceChildren(MarketPicker.pairIcon(MarketPicker.iconSymbol(chartPair)));
+      $('chart-market-icons').replaceChildren(MarketPicker.pairIcon(MarketPicker.iconSymbol(chartPair).split('/')[0]));
       priceChart.clear(); lastMarket = chartPair.id;
       $('price').textContent = '—'; $('bid-ask').textContent = 'Waiting for prices'; $('feed-age').textContent = '—';
       restartCandles();
@@ -540,14 +542,35 @@
     if (mode === 'trading' && !confirm(warning)) { $('mode').value = state.mode; return; }
     action('mode', {mode, confirmation: mode === 'trading' ? (derivative ? 'ENABLE LIVE FUTURES' : 'ENABLE LIVE TRADING') : ''});
   });
-  $('candle-interval').addEventListener('change', () => {
-    priceChart.setCandleInterval(Number($('candle-interval').value));
+  function applyInterval(value) {
+    if (!settingsSchema) return;
+    $('candle-interval').value = String(value);
+    if (priceChart.intervalMs === Number(value) * 60000) return;
+    priceChart.setCandleInterval(Number(value));
     if (state) { updateChartHeading(); restartCandles(); }
+  }
+  DashboardPreferences.subscribe('candle_interval', applyInterval);
+  $('candle-interval').addEventListener('change', async () => {
+    const value = Number($('candle-interval').value); applyInterval(value);
+    try { await DashboardPreferences.set('candle_interval', value); }
+    catch { applyInterval(DashboardPreferences.get('candle_interval', 1)); }
+  });
+  function restoreChartMarket() {
+    if (!state) return;
+    const saved = DashboardPreferences.get(`chart_market:${state.exchange}`, null) || state.settings.pair;
+    const pair = [...pairs, ...marketPicker.markets].find(item => item.id === saved);
+    if (pair && pair.id !== chartPair?.id) { chartPair = pair; render(state); }
+  }
+  async function saveChartMarket(pair) {
+    if (!state) return;
+    try { await DashboardPreferences.set(`chart_market:${state.exchange}`, pair.id); restoreChartMarket(); }
+    catch { /* The shared preference warning explains the failed save; keep the saved chart. */ }
+  }
+  for (const exchange of ['kraken', 'alpaca', 'okx', 'okx-demo']) DashboardPreferences.subscribe(`chart_market:${exchange}`, () => {
+    if (state?.exchange === exchange) restoreChartMarket();
   });
   $('bot-market').addEventListener('click', () => {
-    if (!state) return;
-    chartPair = pairs.find(pair => pair.id === state.settings.pair) || {id: state.settings.pair, symbol: state.settings.pair};
-    render(state);
+    if (state) saveChartMarket(pairs.find(pair => pair.id === state.settings.pair) || {id: state.settings.pair, symbol: state.settings.pair});
   });
   setInterval(() => {
     updateFeeStatus();
@@ -564,6 +587,7 @@
     $('bid-ask').textContent = `BID ${number(ticker.bid)}  /  ASK ${number(ticker.ask)}`;
   }, 500);
   async function boot() {
+    await DashboardPreferences.ready.catch(() => {}); // Load trading status even if presentation storage is unavailable.
     [settingsSchema, pairs] = await Promise.all([request('settings-schema'), request('pairs')]);
     marketPicker.setExchange(settingsSchema.exchange || 'kraken');
     if (settingsSchema.exchange.startsWith('okx')) {
@@ -588,10 +612,14 @@
     }
     settingsForm = new SettingsForm(form, settingsSchema, pairs);
     settingsHelp = new SettingsHelp($('settings-panel'), form, settingsSchema);
-    SettingsForm.choices($('candle-interval'), settingsSchema.fields.candle_minutes.choices, $('candle-interval').value);
+    SettingsForm.choices($('candle-interval'), settingsSchema.fields.candle_minutes.choices, String(DashboardPreferences.get('candle_interval', 1)));
     priceChart.intervals = Object.keys(settingsSchema.fields.candle_minutes.choices).map(Number);
+    applyInterval(Number($('candle-interval').value));
     strategyMarketPicker.setPairs(pairs);
-    render(await request('state'));
+    const initial = await request('state');
+    chartPair = pairs.find(pair => pair.id === DashboardPreferences.get(`chart_market:${initial.exchange}`, null));
+    render(initial);
+    request('asset-names').then(catalog => { assetNames = catalog.names || {}; updateChartHeading(); }).catch(() => { /* Native tickers remain truthful without optional display metadata. */ });
     marketPicker.poller.start();
     await refreshHistory();
     const stream = new EventSource('/api/events');

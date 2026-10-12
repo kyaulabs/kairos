@@ -43,16 +43,18 @@ Optional locally licensed Font Awesome Pro fonts are not distributed in the rele
 
 ## 🔄 Update
 
-Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md) before updating. Preserve `.env`, the configured `DATA_DIR`, all four exchange databases and private control state and optional font assets. Never reset a portfolio as an update step.
+Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md) before updating. Preserve `.env`, the configured `DATA_DIR`, all four exchange databases, `dashboard.sqlite3` preferences, private control state and optional font assets. Never reset a portfolio as an update step.
+
+For a gateway-only update, first verify that worker code and dependencies are unchanged. Deploy matching gateway/static files and restart only the gateway; leave the worker, its financial stores and authorization untouched. Reload each browser. Use the full shutdown procedure below when worker code or dependencies change.
 
 ### 💻 Local Python server
 
 1. Stop the engine in the dashboard, then stop both the foreground worker and dashboard. Holdings remain; local protection is suspended during the update.
-2. Back up each existing exchange database using the standard library. Adjust `data` if you configured a different `DATA_DIR`. Existing backup names cause this step to stop rather than overwrite a prior backup:
+2. Back up each existing exchange database and the dashboard preference database using the standard library. Adjust `data` if you configured a different `DATA_DIR`. Existing backup names cause this step to stop rather than overwrite a prior backup:
 
    ```sh
    umask 077
-   for database in data/kairos.sqlite3 data/alpaca-paper.sqlite3 data/okx-demo.sqlite3 data/okx-live.sqlite3; do
+   for database in data/kairos.sqlite3 data/alpaca-paper.sqlite3 data/okx-demo.sqlite3 data/okx-live.sqlite3 data/dashboard.sqlite3; do
      test -f "$database" || continue
      backup="${database%.sqlite3}-before-{{VERSION}}.sqlite3"
      test ! -e "$backup" || { echo "Backup already exists: $backup"; exit 1; }

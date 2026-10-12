@@ -1,14 +1,12 @@
-/* Brand preferences are browser-local; they never enter bot settings. */
+/* Shared server-side appearance preferences never enter bot settings. */
 (() => {
   'use strict';
-  const key = 'kairos:appearance';
+  const key = 'appearance';
   const normalize = value => ({
     theme: ['dark', 'light'].includes(value?.theme) ? value.theme : 'dark',
     accent: ['violet', 'green', 'red', 'blue'].includes(value?.accent) ? value.accent : 'violet',
   });
-  let preference;
-  try { preference = normalize(JSON.parse(localStorage.getItem(key))); }
-  catch { preference = normalize(null); }
+  let preference = normalize(DashboardPreferences.get(key, null));
   const root = document.documentElement;
   function apply() {
     root.dataset.theme = preference.theme; root.dataset.accent = preference.accent;
@@ -30,13 +28,14 @@
     if (accent) accent.value = preference.accent;
   }
   apply();
+  DashboardPreferences.subscribe(key, value => { preference = normalize(value); apply(); });
   document.addEventListener('DOMContentLoaded', () => {
     apply();
-    function save(change) {
+    async function save(change) {
       preference = normalize({...preference, ...change}); apply();
       const status = document.getElementById('appearance-status');
-      try { localStorage.setItem(key, JSON.stringify(preference)); status.textContent = 'Appearance saved in this browser; trading settings unchanged.'; }
-      catch { status.textContent = 'Browser storage unavailable; appearance lasts for this page session.'; }
+      try { await DashboardPreferences.set(key, preference); status.textContent = 'Appearance saved on the server; trading settings unchanged.'; }
+      catch { preference = normalize(DashboardPreferences.get(key, null)); apply(); status.textContent = 'Appearance save was not confirmed. Review the server preference warning.'; }
     }
     const toggle = document.getElementById('appearance-theme');
     const menu = document.getElementById('appearance-menu');
@@ -81,11 +80,5 @@
     accent.addEventListener('change', event => {
       save({accent: event.target.value}); menu.hidePopover(); toggle.focus({preventScroll: true});
     });
-  });
-  window.addEventListener('storage', event => {
-    if (event.key !== key && event.key !== null) return;
-    try { preference = normalize(event.newValue ? JSON.parse(event.newValue) : null); }
-    catch { preference = normalize(null); }
-    apply();
   });
 })();

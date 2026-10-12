@@ -20,7 +20,7 @@ The following similarities are intentional and must not be collapsed:
 - Server write flags grant permission; the execution-mode confirmation arms a product; Start begins execution. They are separate safeguards, not redundant settings.
 - Freshness is checked both when accepting data and before execution. Read-only display caches must not become trading inputs.
 - Spot and Futures transports have different authentication, endpoints, rejection semantics and recovery. Their signed requests and accounting stay separate. Read-only account views retain their smaller allowlist.
-- Browser appearance/favorites are local preferences, not saved bot settings. Environment variables hold runtime credentials and permissions, not a second trading configuration.
+- Dashboard appearance/favorites are shared server-side preferences, separate from saved bot settings. Environment variables hold runtime credentials and permissions, not a second trading configuration.
 - The process lock is used independently by the service and smoke command to prevent concurrent ownership. This refactor does not change deployment, nonce ownership or lock behavior.
 
 Saved field names, values, ledger keys and durable program configurations remain unchanged. Migration may supply only already-introduced program/Futures defaults; a missing legacy risk field still prevents startup. Hidden inactive fields retain their saved values. Unsupported combinations remain server-rejected; hiding controls does not grant execution permission. Spot-only capital recovery must be explicitly switched off before changing to another product.
