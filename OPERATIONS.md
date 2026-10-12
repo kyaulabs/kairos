@@ -4,7 +4,7 @@ Kairos supports Kraken, optional Alpaca hosted paper, and isolated OKX U.S. demo
 
 The remaining workspace contains the chart, assessment and bottom tabs for Orders, Activity, Portfolio, Exchange accounts and Equity. Long content scrolls inside panels. The header's sun/moon button toggles dark/light appearance. Right-click, Arrow Down, Shift+F10 or touch-and-hold opens the accent chooser. Fonts and appearance preferences remain browser-local; see [branding](BRANDING.md). Fills are detected during reconciliation, not through a private execution stream.
 
-The Exchange selector changes one active venue at a time. Stop, reconcile and close holdings before switching; each exchange retains its own state and the destination remains paused. [Alpaca setup and limitations](ALPACA.md) covers its credentials, hosted orders, free IEX/crypto feeds and restricted equity strategies. [OKX setup and finite-run authorization](OKX.md) covers its separate demo/live credentials, native currencies, execution-cycle diagnostic and TWAP. OKX startup, Stop and restart never grant trading permission; its demo and live execution remain unverified. The Kraken-specific feeds, fee reads, Dry-run and live procedures below do not describe Alpaca or OKX.
+The Exchange selector changes one active venue at a time. Stop, reconcile and close holdings before switching; each exchange retains its own state and the destination remains paused. [Alpaca setup and limitations](ALPACA.md) covers its credentials, hosted orders, free IEX/crypto feeds and restricted equity strategies. [OKX setup and finite-run authorization](OKX.md) covers its separate demo/live credentials, native currencies, execution-cycle diagnostic and TWAP. OKX startup and restart never grant new trading permission. Eligible demo HTF workers can recover existing, unexpired authorization as described below; Stop always revokes it. Hosted recovery remains unverified. The Kraken-specific feeds, fee reads, Dry-run and live procedures below do not describe Alpaca or OKX.
 
 Product is the single execution-product selector under Strategy. Capital contains paper/live allocations, risk caps, reinvestment and product-specific leverage. Execution displays read-only Kraken account fees or labeled Alpaca planning estimates and contains spread, slippage and freshness limits. DCA/TWAP controls appear with their strategy; model and margin controls appear only where applicable. Unsupported strategies remain labeled, not silently substituted. A checked spot-only recovery switch stays visible until explicitly turned off before switching products. Hidden fields keep their saved values; an inactive draft is not submitted while saving another product or strategy.
 
@@ -74,7 +74,7 @@ For Futures account views alone, use separately issued, read-only Derivatives cr
 
 Reads share a 30-second server cache. They run only when opening an unloaded view, changing sources, or pressing Refresh. Successful snapshots show their timestamp; failed refreshes retain old rows with an explicit warning. History is the first returned page, not a complete export, and each table is capped at 1,000 rows. The API reads the account available to the configured key; there is no wallet/subaccount selector. See the [coverage and roadmap](RETAIL-ROADMAP.md) for omitted endpoints and planned strategies.
 
-Deploy backend and static changes together. Restart only when safe for the running bot, then reload the browser. A restart leaves the selected engine paused, in Kraken Dry-run, Alpaca hosted paper or the isolated OKX environment. Kraken/Alpaca resumption requires explicit Start; OKX requires a new finite preview and confirmation. No funds are converted, transferred, withdrawn, or assigned to a strategy by activating this feature.
+Deploy backend and static changes together. Restart only when safe for the running bot, then reload the browser. A dashboard restart leaves the independent trading worker running. Worker restarts leave Kraken/Alpaca and unsupported OKX runs paused; only eligible OKX Demo HTF runs can recover their existing authorization. Stopped, expired or failed OKX runs require a new finite preview and confirmation. No funds are converted, transferred, withdrawn, or assigned to a strategy by activating this feature.
 
 ## Run locally
 
@@ -100,11 +100,15 @@ install -m 644 "$FONT_AWESOME/fonts/fontawesome/fa-solid-900.woff2" kairos/stati
 
 The Pro files are ignored by Git and must be supplied separately for each deployment. Only install fonts you are licensed to serve. Without them, buttons keep their text icon fallbacks and accessible labels. Do not publish the licensed binaries in the repository.
 
-The app always starts **paused in Dry-run**, even if the previous process was trading. A browser disconnect does not stop a running engine. A process restart does. Graceful service shutdown latches Stop, blocks new starts/submissions, closes dashboard event streams, and reconciles tracked orders before cleanup. Uncertain outcomes remain recorded for operator reconciliation; shutdown never resets holdings or retries an uncertain order submission.
+`kairos` serves the dashboard and API; `kairos-worker` owns the exchanges, SQLite stores and trading loop. Restarting the dashboard or losing its connection does not stop the worker. The gateway forwards requests over an owner-private Unix socket and never retries an action. Stop records a durable generation before forwarding to the worker. If the worker is unavailable, the acknowledgement confirms only that Stop was recorded, not that orders have settled.
+
+A worker restart can recover only a previously authorized, still-running OKX Demo HTF run on the same kernel boot. Recovery preserves the original wall and monotonic deadlines, limits, durable attempts, owned inventory, exit plans and run ID. It reconciles owned orders and native accounting, refreshes books and fees, and retires old entry candidates before evaluation. A changed account, settings or market rules, higher fees, unresolved orders, Stop, expiry or exhausted limits blocks recovery. Other modes remain paused after worker restart. Host reboot never renews or reconstructs a monotonic deadline.
+
+Graceful worker shutdown suspends eligible runs without turning suspension into Stop. Unsupported runs retain the existing Stop/reconciliation path. No shutdown or recovery resets holdings or retries an uncertain submission. Keep `DATA_DIR/restart-control.json` and its lock private; deleting or replacing the control file invalidates old checkpoints. Do not restore old control files or databases to undo Stop.
 
 After an engine error, **Restart engine** replaces Start. It requires confirmation, refreshes execution streams and repeats fee, funding and live-permission checks before resuming the saved mode. It cannot clear uncertain orders or an interrupted cycle; use Reconcile first. Holdings, schedules, candle claims and loss limits remain intact. This restarts the trading engine, not a down web service. If the page cannot connect, restart the service on its host.
 
-**Current run results and signals** shows assessments, hold reasons, filled-order count, recorded trading fees and marked equity change for the current execution run. Start creates a run for the saved settings and execution-source fingerprint. Unchanged pause/resume or service restart retains its ID; changed settings or execution code starts a separate run without resetting money, holdings, daily limits or saved protection. Explicit **New strategy run…** also separates scheduled runs, even with unchanged settings. Marked equity change includes carried holdings and is not realized strategy profit. Trading-fee totals exclude borrowing and funding, and survive paper history deletion.
+**Current run results and signals** shows assessments, hold reasons, filled-order count, recorded trading fees and marked equity change for the current execution run. Start creates a run for the saved settings and execution-source fingerprint. Unchanged pause/resume or service restart retains its ID; changed settings or execution code normally starts a separate run without resetting money, holdings, daily limits or saved protection. Eligible OKX worker recovery instead retains the original run and records both execution revisions in a recovery event. Explicit **New strategy run…** also separates scheduled runs, even with unchanged settings. Marked equity change includes carried holdings and is not realized strategy profit. Trading-fee totals exclude borrowing and funding, and survive paper history deletion.
 
 Orders and new events carry run/configuration/revision identifiers. Order intents preserve exposure, effective caps, valuation time and the HTF decision reason before submission. Fill events keep the original order's identity, including late reconciliation after a run change. Paper resets record the previous run and ledger before discarding that portfolio. Legacy records are not retroactively assigned to a run. API safety rejections and unexpected failures record safe route/status/reason or exception type, never request headers, bodies, query strings, credentials or raw unexpected exception text. Diagnostic IDs link these safe events to the private error log.
 
@@ -130,9 +134,9 @@ The existing variable names are preserved:
 | `ALLOW_FUTURES_TRADING` | Defaults to `false`; Futures require both flags and explicit separate arming |
 | `PUBLIC_ORIGIN` | Exact browser origin, including scheme and nonstandard port |
 | `PORT` | Loopback listener port; defaults to `8000` |
-| `DATA_DIR` | SQLite database and process lock; defaults to `data` |
+| `DATA_DIR` | Worker SQLite stores, ownership lock, private socket and durable Stop control; defaults to `data` |
 
-Only one process may own a data directory. Do not run multiple bot instances against the same Kraken key, share that key with another order manager, or manually spend its allocated balances. Use a dedicated key and preferably a dedicated account/subaccount. External account activity can invalidate the local allocation and order accounting.
+Only one trading worker may own a data directory. Its gateway uses the same directory without opening the trading databases. Do not run multiple bot instances against the same Kraken key, share that key with another order manager, or manually spend its allocated balances. Use a dedicated key and preferably a dedicated account/subaccount. External account activity can invalidate the local allocation and order accounting.
 
 ## Starting capital and continuous operation
 
@@ -291,16 +295,18 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-For a persistent service, install the project and its locked virtual environment under `/srv/kairos`, create an unprivileged `kairos` user, give it ownership of `data`, and restrict `.env` to that user. `deploy/kairos.service` expects those paths and the existing virtual environment. Do not run multiple workers or instances for the same account.
+For a persistent service, install the project and its locked virtual environment under `/srv/kairos`, create an unprivileged `kairos` user, give it ownership of `data`, and restrict `.env` to that user. `deploy/kairos.service` and `deploy/kairos-worker.service` expect those paths and the existing virtual environment. The gateway wants the worker but does not own its shutdown lifecycle. Do not run multiple workers or instances for the same account.
 
 ```sh
 sudo install -o kairos -g kairos -m 700 -d /srv/kairos/data
-sudo cp deploy/kairos.service /etc/systemd/system/
+sudo cp deploy/kairos.service deploy/kairos-worker.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now kairos
+sudo systemctl enable --now kairos-worker kairos
 ```
 
-After a service restart you must explicitly start the engine again. The example configuration must be adapted and tested on the deployment host; it does not provision DNS, TLS certificates, nginx, or users.
+Use `systemctl restart kairos` for a dashboard-only restart. A worker restart has the recovery restrictions above; it can interrupt protection while reconnecting and reconciling. Use `systemctl --user` instead for adapted user units. The examples do not provision DNS, TLS certificates, nginx or users.
+
+Migration from the single-process service needs both units and a controlled handoff. Legacy processes do not persist their original monotonic deadline. An existing run cannot be recovered from its displayed end time alone. A same-run migration requires a separately reviewed in-process checkpoint and must preserve Stop; ordinary shutdown revokes legacy permission. Do not restore an old running report over a stopped or failed one.
 
 ## Verification
 
@@ -331,7 +337,7 @@ node --check kairos/static/accounts.js
 node --check kairos/static/appearance.js
 ```
 
-Stop the app before the bounded integration check so authenticated nonces remain ordered:
+Stop the trading worker before the bounded integration check so authenticated nonces remain ordered:
 
 ```sh
 uv run kairos-smoke --jev

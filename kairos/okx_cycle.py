@@ -326,6 +326,9 @@ async def authorize(e, preview_id, phrase):
     idle(e)
     async with e.lock:
         idle(e)
+        if e.restart_control:
+            control = e.restart_control.read()
+            e.restart_generation = {key: control[key] for key in ("epoch", "generation")}
         proposal = e.store.get("okx-preview:" + str(preview_id))
         if not proposal or proposal["claimed"] or phrase != confirmation(e, proposal["kind"]):
             raise SafetyError(
@@ -375,7 +378,12 @@ async def authorize(e, preview_id, phrase):
                 from kairos.okx_strategy import recheck
 
                 await recheck(e, proposal)
-            if e.stop_generation != proposal["generation"] or e.shutting_down:
+            if (
+                e.stop_generation != proposal["generation"]
+                or e.shutting_down
+                or e.restart_control
+                and not e.restart_control.matches(e.restart_generation)
+            ):
                 raise SafetyError("OKX authorization canceled by Stop before execution")
             e.bind(proof, pair, proposal["allocation"])
             operation.update(
@@ -395,6 +403,7 @@ async def authorize(e, preview_id, phrase):
                 else "finite_twap"
             )
             await e.valuation(enforce=True)
+            e.resumed_run = None  # A new consent follows normal execution-revision rules.
             e.ensure_run()
             if proposal["kind"] in {"twap", "strategy"}:
                 programs.prepare(e)
@@ -403,6 +412,10 @@ async def authorize(e, preview_id, phrase):
 
                 prepare_position(e)
             record(e, operation)
+            if e.restart_control:
+                from kairos import restart
+
+                restart.capture(e)
             if proposal["kind"] == "execution_cycle":
                 e.operation_task = asyncio.create_task(run(e, operation))
         except Exception as exc:
@@ -487,6 +500,10 @@ def execution_evidence(e, operation):
 
 async def report(e, operation, outcome, message):
     e.running, e.armed, e.authorization = False, False, None
+    if e.restart_control:
+        from kairos.restart import CHECKPOINT
+
+        e.store.put(CHECKPOINT, None)
     evidence = execution_evidence(e, operation)
     residual = (
         owned(e, operation)
