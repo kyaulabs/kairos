@@ -5,7 +5,7 @@ const {test} = require('node:test');
 const {runInNewContext} = require('node:vm');
 
 function fixture(saved, blocked = false) {
-  const values = new Map([['kairos:appearance', saved], ['kairos:favorites', '["XXBTZUSD"]']]);
+  const values = new Map([['appearance', saved], ['favorites:kraken', '["XXBTZUSD"]']]);
   const nodes = new Map(), listeners = {}, timers = new Map();
   const root = {dataset: {}};
   const node = id => {
@@ -23,7 +23,12 @@ function fixture(saved, blocked = false) {
     window: {addEventListener: (event, callback) => { listeners[event] = callback; }},
     innerWidth: 360, innerHeight: 640,
     setTimeout: (callback, delay) => { timers.set(1, {callback, delay}); return 1; }, clearTimeout: id => timers.delete(id),
-    localStorage: {getItem: key => { if (blocked) throw new Error('Unavailable'); return values.get(key); }, setItem: (key, value) => { if (blocked) throw new Error('Unavailable'); values.set(key, value); }},
+    DashboardPreferences: {
+      get: (key, fallback) => { try { return JSON.parse(values.get(key)) || fallback; } catch { return fallback; } },
+      set: async (key, value) => { if (blocked) throw new Error('Server unavailable'); values.set(key, JSON.stringify(value)); },
+      subscribe: (key, callback) => { listeners[key] = callback; },
+    },
+    localStorage: {getItem() { assert.fail('No browser storage reads'); }, setItem() { assert.fail('No browser storage writes'); }},
   });
   listeners.DOMContentLoaded();
   return {root, node, values, listeners, timers};
@@ -35,8 +40,8 @@ test('brand mode and accent persist independently without touching favorites or 
   assert.equal(root.dataset.accent, 'red');
   assert.match(node('brand-wordmark').src, /on-light.svg$/);
   node('appearance-accent').listeners.change({target: {value: 'green'}});
-  assert.deepEqual(JSON.parse(values.get('kairos:appearance')), {theme: 'light', accent: 'green'});
-  assert.equal(values.get('kairos:favorites'), '["XXBTZUSD"]');
+  assert.deepEqual(JSON.parse(values.get('appearance')), {theme: 'light', accent: 'green'});
+  assert.equal(values.get('favorites:kraken'), '["XXBTZUSD"]');
   assert.equal(values.size, 2);
 });
 
@@ -50,14 +55,14 @@ test('sun/moon button toggles the theme with matching accessible labels and keep
   assert.match(node('appearance-theme').title,/Switch to dark theme.*Right-click/);
   assert.equal(node('appearance-sun').hidden,true);
   assert.equal(node('appearance-moon').hidden,false);
-  assert.deepEqual(JSON.parse(values.get('kairos:appearance')),{theme:'light',accent:'red'});
+  assert.deepEqual(JSON.parse(values.get('appearance')),{theme:'light',accent:'red'});
   node('appearance-theme').listeners.click();
   assert.equal(root.dataset.theme,'dark');
   assert.equal(root.dataset.accent,'red');
   assert.equal(node('appearance-theme').attributes['aria-label'],'Switch to light theme');
 });
 
-test('corrupt and blocked preference storage cannot prevent branded initialization', () => {
+test('invalid presentation values normalize; failed server saves restore saved appearance', async () => {
   for (const saved of ['malformed', '{"theme":"external-url","accent":"invalid"}']) {
     const {root} = fixture(saved);
     assert.equal(root.dataset.theme, 'dark');
@@ -65,21 +70,21 @@ test('corrupt and blocked preference storage cannot prevent branded initializati
   }
   const {root, node} = fixture(null, true);
   node('appearance-theme').listeners.click();
-  assert.equal(root.dataset.theme, 'light');
-  assert.match(node('appearance-status').textContent, /page session/);
+  await new Promise(setImmediate);
+  assert.equal(root.dataset.theme, 'dark');
+  assert.match(node('appearance-status').textContent, /not confirmed/);
 });
 
-test('cross-tab preference changes update artwork and controls, not unrelated storage', () => {
+test('server preference updates change artwork and controls across devices', () => {
   const {root, node, listeners} = fixture(null);
-  listeners.storage({key: 'kairos:favorites', newValue: '["ETH"]'});
   assert.equal(root.dataset.theme, 'dark');
-  listeners.storage({key: 'kairos:appearance', newValue: '{"theme":"light","accent":"green"}'});
+  listeners.appearance({theme:'light', accent:'green'});
   assert.equal(node('appearance-theme').attributes['aria-label'], 'Switch to dark theme');
   assert.equal(node('appearance-sun').hidden, true);
   assert.equal(node('appearance-moon').hidden, false);
   assert.equal(root.dataset.accent, 'green');
   assert.match(node('brand-icon').src, /on-light.svg$/);
-  listeners.storage({key: null, newValue: null});
+  listeners.appearance(null);
   assert.equal(root.dataset.theme, 'dark');
 });
 
@@ -92,7 +97,7 @@ test('right-click and keyboard expose the hidden accent chooser without changing
   assert.equal(menu.open, true);
   assert.equal(toggle.attributes['aria-expanded'], 'true');
   assert.equal(root.dataset.theme, 'dark');
-  assert.equal(JSON.parse(values.get('kairos:appearance')).accent, 'violet');
+  assert.equal(JSON.parse(values.get('appearance')).accent, 'violet');
   assert.equal(menu.style.left, '170px');
   node('appearance-accent').listeners.change({target: {value: 'blue'}});
   assert.equal(menu.open, false);
@@ -105,7 +110,7 @@ test('right-click and keyboard expose the hidden accent chooser without changing
     menu.listeners.keydown({key: 'Escape', preventDefault() {}});
     assert.equal(menu.open, false);
   }
-  assert.equal(fixture(values.get('kairos:appearance')).root.dataset.accent, 'blue');
+  assert.equal(fixture(values.get('appearance')).root.dataset.accent, 'blue');
 });
 
 test('touch hold opens accents and suppresses the release click, while movement cancels the hold', () => {
