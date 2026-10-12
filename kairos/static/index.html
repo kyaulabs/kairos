@@ -86,8 +86,12 @@
         <span id="chart-context" class="chart-context">Bot market</span>
       </div>
       <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
-      <div id="indicator-legend" class="indicator-legend" aria-label="Price overlay legend" hidden></div>
       <div class="chart-viewport">
+        <div id="indicator-legend" class="indicator-legend" aria-label="Active chart indicators" hidden>
+          <div class="indicator-roll-body"><div id="indicator-rows"></div></div>
+          <button id="indicator-roll" type="button" aria-controls="indicator-rows" aria-expanded="true" aria-label="Hide indicator list" data-tip="Hide indicator list"><span class="icon icon-chevron" aria-hidden="true">⌄</span></button>
+        </div>
+        <p id="indicator-status" role="status" hidden></p>
         <div class="chart-stage" tabindex="0" role="region" aria-label="Scrollable price and indicator panels"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlesticks with optional chart-only indicators and native-unit volume. Drag to pan; Ctrl+scroll or two fingers to zoom. Scroll tall panels with one finger or the mouse wheel. Home or Reset chart to live shows recent candles."></svg></div>
         <div id="chart-navigation" class="chart-navigation" role="group" aria-label="Chart navigation">
           <button type="button" data-chart-action="zoom-out" aria-label="Zoom out" title="Zoom out" disabled><span class="icon icon-minus" aria-hidden="true">−</span></button>
@@ -278,24 +282,32 @@
 </footer>
 <dialog id="chart-indicators" class="indicator-dialog" aria-labelledby="indicator-title" aria-describedby="indicator-help">
   <div class="market-dialog-head"><h2 id="indicator-title">Chart indicators</h2><button id="indicators-close" type="button" aria-label="Close chart indicators"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
-  <fieldset aria-label="Visible indicators">
-    <label><input type="checkbox" data-indicator="volume" checked>Volume</label>
-    <label><input type="checkbox" data-indicator="macd">MACD · 12 / 26 / 9</label>
-    <label><input type="checkbox" data-indicator="bollinger">Bollinger Bands · 20 / 2σ</label>
-    <label><input type="checkbox" data-indicator="rsi">RSI · 14</label>
-    <label><input type="checkbox" data-indicator="sma">Moving averages · SMA 8 / 21</label>
+  <fieldset aria-label="Added indicators">
+    <label><input type="checkbox" data-indicator="volume" checked><span>Volume</span></label>
+    <label><input type="checkbox" data-indicator="macd"><span>MACD · 12 / 26 / 9</span></label>
+    <label><input type="checkbox" data-indicator="bollinger"><span>Bollinger Bands · 20 / 2σ</span></label>
+    <label><input type="checkbox" data-indicator="rsi"><span>RSI · 14</span></label>
+    <label><input type="checkbox" data-indicator="sma"><span>Moving averages · SMA 8 / 21</span></label>
   </fieldset>
   <div class="indicator-warmup">
     <p id="indicator-help">Warm-up <span>candles required</span></p>
     <dl>
-      <div><dt>SMA 8 / 21</dt><dd>8 / 21</dd></div>
-      <div><dt>Bollinger Bands</dt><dd>20</dd></div>
-      <div><dt>RSI</dt><dd>15</dd></div>
-      <div><dt>MACD + signal</dt><dd>34</dd></div>
+      <div><dt>Moving averages</dt><dd data-warmup="sma">8 / 21</dd></div>
+      <div><dt>Bollinger Bands</dt><dd data-warmup="bollinger">20</dd></div>
+      <div><dt>RSI</dt><dd data-warmup="rsi">15</dd></div>
+      <div><dt>MACD + signal</dt><dd data-warmup="macd">34</dd></div>
     </dl>
   </div>
-  <p id="indicator-status" role="status" hidden></p>
 </dialog>
+<dialog id="indicator-config" class="indicator-dialog" aria-labelledby="indicator-config-title" aria-describedby="indicator-config-help">
+  <div class="market-dialog-head"><h2 id="indicator-config-title">Configure indicator</h2><button type="button" data-config-cancel aria-label="Close indicator configuration"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
+  <p id="indicator-config-help">Chart only · close-based calculations on supplied candles. These browser-local settings never change strategy signals or execution.</p>
+  <form id="indicator-config-form">
+    <div id="indicator-fields"></div>
+    <div class="indicator-config-actions"><button id="indicator-config-reset" type="button">Defaults</button><button type="button" data-config-cancel>Cancel</button><button type="submit">Apply</button></div>
+  </form>
+</dialog>
+<div id="indicator-tooltip" class="indicator-tooltip" role="tooltip" popover="manual"></div>
 <dialog id="okx-dialog" class="okx-dialog" aria-labelledby="okx-title" aria-describedby="okx-notice">
   <div class="market-dialog-head"><h2 id="okx-title">OKX finite execution</h2><button id="okx-dialog-stop" type="button" class="danger" title="Revoke permission; cancel only owned working orders; retain holdings">Stop</button><button id="okx-close" type="button" aria-label="Close OKX authorization">×</button></div>
   <p id="okx-notice" class="muted">No trading permission until a completed preview is explicitly authorized.</p>
