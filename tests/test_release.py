@@ -36,6 +36,34 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 release.version(invalid)
 
+    def test_ui_patch_floor_requires_verified_frontend_paths(self):
+        cases = [
+            ("feat(ui): chart controls", "kairos/static/chart.js\ntests/chart.test.cjs", "0.11.1"),
+            ("feat(ui): mixed changes", "kairos/static/app.js\nkairos/engine.py", "0.12.0"),
+            ("feat(ui): unknown diff", "", "0.12.0"),
+            ("feat(ui): renamed backend", "kairos/engine.py\nkairos/static/engine.py", "0.12.0"),
+            ("feat(ui)!: breaking interface", "kairos/static/app.js", "1.0.0"),
+            ("feat(ui): change\n\nBREAKING CHANGE: remove API", "kairos/static/app.js", "1.0.0"),
+            ("feat(engine): restart recovery", "kairos/static/app.js", "0.12.0"),
+            ("feat: new capability", "kairos/static/app.js", "0.12.0"),
+        ]
+        for message, paths, expected in cases:
+            with self.subTest(message=message), patch.object(release, "git", return_value=paths):
+                self.assertEqual(
+                    release.checked_recommendation("0.11.0", [("a" * 40, message)]), expected
+                )
+        with patch.object(release, "git", side_effect=RuntimeError("unavailable history")):
+            with self.assertRaises(RuntimeError):
+                release.checked_recommendation("0.11.0", [("a" * 40, "feat(ui): controls")])
+        # A UI-only commit must never downgrade a separate backend feature.
+        with patch.object(release, "git", return_value="kairos/static/chart.js"):
+            self.assertEqual(
+                release.checked_recommendation(
+                    "0.11.0", [("a" * 40, "feat(ui): controls"), ("b" * 40, "feat: resume engine")]
+                ),
+                "0.12.0",
+            )
+
     def test_notes_use_dark_logo_tagged_instructions_and_real_change_range(self):
         notes = release.notes(
             {

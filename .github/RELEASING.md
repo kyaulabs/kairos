@@ -6,7 +6,7 @@ Work lands in `develop` through reviewed PRs. A release branch is cut from `orig
 
 Use conventional commits and `release/X.Y.Z` branch names, with `vX.Y.Z` tags:
 
-- `feat` recommends a minor release.
+- `feat` recommends a minor release. The exception is `feat(ui)` when the commit changes only `kairos/static/` files and top-level `tests/*.test.cjs` frontend tests; those changes recommend a patch release. The tool checks each commit's changed paths, including both sides of renames. Mixed backend/UI changes still require a minor release, and breaking changes still require a major release.
 - `fix`, `patch`, `perf` and `revert` recommend a patch release.
 - `!` or a `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer recommends a major release, including during `0.x` development.
 - Documentation, tests and maintenance alone do not trigger a version recommendation.
