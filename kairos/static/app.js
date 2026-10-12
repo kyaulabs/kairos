@@ -13,7 +13,7 @@
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
   let state, csrf, chartPair, pairs = [], initialized = false, busy = false, events = [], lastMarket, lastPortfolio;
-  let tickers = {}, connected = false;
+  let tickers = {}, connected = false, separateWorker = false;
   let candleGeneration = 0, candleReceived = 0, candleError = '', candleSource = '';
   let settingsSchema, settingsForm, settingsHelp;
   let historyRevision, historyGeneration = 0, historyFloor = 0;
@@ -207,6 +207,7 @@
       refreshHistory().catch(error => message(`History refresh failed: ${error.message}. Reload to refresh records.`));
     }
     if (next.csrf) csrf = next.csrf;
+    if (next.separate_worker) separateWorker = true;
     if (next.version) {
       $('brand-version').textContent = `v${next.version}`;
       $('brand-version').hidden = false;
@@ -255,7 +256,7 @@
     $('exchange').disabled = busy || state.running || state.recovery_required;
     const stopAvailable = state.running || ((hosted || native) && state.orders?.some(order => !['closed','canceled','expired','rejected'].includes(order.status))) || state.paper_qualification_recovery?.status === 'claimed';
     $('quick-stop').hidden = !stopAvailable;
-    $('quick-stop').disabled = busy || !connected;
+    $('quick-stop').disabled = busy || (!connected && !separateWorker);
     $('reset').hidden = hosted || native;
     $('mode-badge').classList.toggle('live', state.mode === 'trading');
     $('equity').textContent = money(state.equity);
@@ -460,6 +461,7 @@
     if (state) render(state);
     try {
       const next = await request(path, body);
+      if (path === 'stop' && next.stop_recorded) { message(next.message); return; }
       if (path === 'reset-paper') equityChart.clear();
       render(next);
       if (refreshForm) loadForm();
@@ -604,5 +606,15 @@
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });
     for (const kind of ['decision','order','fill','account-fee','account-read','operating-state','scheduled-recovery','candidate','qualification','data-wait','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','okx-operation','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
   }
-  boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); showConnection('disconnected'); });
+  boot().catch(async error => {
+    message(`Unable to initialize: ${error.message}. Reload after checking the server.`); showConnection('disconnected');
+    try {
+      const control = await request('control');
+      if (control.separate_worker && control.stop_available) {
+        csrf = control.csrf; separateWorker = true;
+        $('quick-stop').hidden = false; $('quick-stop').disabled = false;
+        message('Trading worker unavailable or reconciling. Stop still records a durable revocation. Reload when the worker is ready.');
+      }
+    } catch { /* An unavailable gateway cannot acknowledge Stop. Never claim success. */ }
+  });
 })();
