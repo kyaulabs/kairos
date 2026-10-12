@@ -12,6 +12,7 @@ class LiveChart {
     this.points = [];
     this.indicatorPoints = [];
     this.indicators = ChartIndicators.normalize(null);
+    this.indicatorSettings = ChartIndicators.configuration(null);
     this.fills = [];
     this.transform = d3.zoomIdentity;
     const defs = this.svg.append('defs');
@@ -35,7 +36,7 @@ class LiveChart {
       .attr('fill', 'none').attr('stroke', 'var(--info)').attr('stroke-width', 1.2).attr('stroke-dasharray', key === 'middle' ? '1 3' : '4 3')}));
     this.candleGroup = this.plot.append('g').attr('class', 'candles');
     this.averageGroup = this.plot.append('g').attr('class', 'study-sma');
-    this.averageLines = ['sma8', 'sma21'].map((key, i) => ({key, path: this.averageGroup.append('path').attr('class', `study-${key}`)
+    this.averageLines = ['smaFast', 'smaSlow'].map((key, i) => ({key, path: this.averageGroup.append('path').attr('class', `study-${key}`)
       .attr('fill', 'none').attr('stroke', i ? 'var(--warning)' : 'var(--indicator-primary)').attr('stroke-width', 1.6).attr('stroke-dasharray', i ? '6 3' : null)}));
     this.oscillators = {};
     for (const name of ['macd', 'rsi']) {
@@ -114,7 +115,7 @@ class LiveChart {
       (i > 0 && p.time <= points[i-1].time))) throw new Error('Invalid candle data');
     // Replace the snapshot: updates to a forming candle must not append duplicates.
     this.points = points;
-    this.indicatorPoints = ChartIndicators.calculate(points);
+    this.indicatorPoints = ChartIndicators.calculate(points, this.indicatorSettings);
     this.draw();
   }
   fill(event) {
@@ -123,8 +124,12 @@ class LiveChart {
     this.fills = this.fills.slice(-200);
     this.draw();
   }
-  setIndicators(values) {
+  setIndicators(values, settings = this.indicatorSettings) {
     this.indicators = ChartIndicators.normalize(values);
+    const next = ChartIndicators.configuration(settings);
+    const changed = JSON.stringify(next) !== JSON.stringify(ChartIndicators.configuration(this.indicatorSettings));
+    this.indicatorSettings = next;
+    if (changed) this.indicatorPoints = ChartIndicators.calculate(this.points, next);
     const panes = ['volume', 'macd', 'rsi'].filter(key => this.indicators[key]).length;
     this.node.style.setProperty('--extra-chart-panes', Math.max(0, panes - 1));
     this.draw();
@@ -261,7 +266,7 @@ class LiveChart {
     const visibleIndicators = this.indicatorPoints.filter(p => p.time + this.intervalMs > domain[0] && p.time < domain[1]);
     const values = (visible.length ? visible : this.points).flatMap(p => this.intervalMs ? [p.low, p.high] : [p.value]);
     if (this.intervalMs) for (const row of visibleIndicators) {
-      if (this.indicators.sma) values.push(...[row.sma8, row.sma21].filter(Number.isFinite));
+      if (this.indicators.sma) values.push(...[row.smaFast, row.smaSlow].filter(Number.isFinite));
       if (this.indicators.bollinger) values.push(...[row.lower, row.upper].filter(Number.isFinite));
     }
     for (const fill of this.fills) if (fill.time >= domain[0] && fill.time <= domain[1]) values.push(fill.value);
@@ -283,7 +288,7 @@ class LiveChart {
       this.volumeGroup.selectAll('rect').data(visible, d => d.time).join('rect')
         .attr('x', d => this.x(center(d))-bodyWidth/2).attr('width', bodyWidth)
         .attr('y', d => volumeY(d.volume)).attr('height', d => volumeBottom-volumeY(d.volume))
-        .attr('fill', d => d.value >= d.open ? 'var(--success)' : 'var(--danger)').attr('fill-opacity', .5);
+        .attr('fill', d => ChartIndicators.color(this.indicatorSettings.volume[d.value >= d.open ? 'up' : 'down'])).attr('fill-opacity', .5);
       this.volumeAxis.attr('transform', `translate(${width-m.right},0)`)
         .call(d3.axisRight(volumeY).ticks(2).tickFormat(d3.format('.3~s')).tickSize(0).tickPadding(textSize));
       this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-.6*textSize);
@@ -323,7 +328,13 @@ class LiveChart {
     if (this.pointer) this.inspect();
   }
   drawIndicators(visible) {
-    const {margin: m, width, textSize} = this;
+    const {margin: m, width, textSize, indicatorSettings: c} = this;
+    const {color, dash} = ChartIndicators;
+    const style = (line, config, name, width, pattern) => line.attr('stroke', color(config[name]))
+      .attr('stroke-width', config.width === 'default' ? width : config.width).attr('stroke-dasharray', dash(config.style, pattern));
+    this.bandArea.attr('fill', color(c.bollinger.line));
+    for (const {key, path} of this.bandLines) style(path, c.bollinger, 'line', 1.2, key === 'middle' ? '1 3' : '4 3');
+    this.averageLines.forEach(({path}, i) => style(path, c.sma, i ? 'signalColor' : 'line', 1.6, i ? '6 3' : null));
     // Break painted paths at source gaps, without inventing bars or changing period counts.
     const series = [];
     this.indicatorPoints.forEach((point, i, rows) => {
@@ -342,11 +353,13 @@ class LiveChart {
       const panel = this.oscillators[name], {top, bottom} = geometry;
       panel.clip.attr('x', m.left).attr('y', top).attr('width', width-m.left-m.right).attr('height', bottom-top);
       panel.divider.attr('x1', m.left).attr('x2', width).attr('y1', top-2.8*textSize).attr('y2', top-2.8*textSize);
-      panel.label.attr('x', m.left+2).attr('y', top-1.5*textSize).text(name === 'macd' ? 'MACD · 12/26/9' : 'RSI · 14');
+      panel.label.attr('x', m.left+2).attr('y', top-1.5*textSize).text(name === 'macd' ? `MACD · ${c.macd.fast}/${c.macd.slow}/${c.macd.signal}` : `RSI · ${c.rsi.period}`);
+      style(panel.line, c[name], 'line', 1.6, null);
+      if (name === 'macd') style(panel.signal, c.macd, 'signalColor', 1.4, '5 3');
       const ready = visible.some(p => Number.isFinite(p[name === 'macd' ? 'signal' : 'rsi']));
       panel.info.attr('x', m.left+2).attr('y', top-.3*textSize).selectAll('tspan').data(name === 'macd' && ready
-        ? [{text: 'MACD', color: 'var(--indicator-primary)'}, {text: ' · signal (dashed)', color: 'var(--warning)'}]
-        : [{text: ready ? '30 / 70 guides' : `Warm-up · needs ${name === 'macd' ? 34 : 15} bars`, color: 'var(--muted)'}])
+        ? [{text: 'MACD', color: color(c.macd.line)}, {text: ` · signal (${c.macd.style === 'default' ? 'dashed' : c.macd.style})`, color: color(c.macd.signalColor)}]
+        : [{text: ready ? '30 / 70 guides' : `Warm-up · needs ${ChartIndicators.warmup(c)[name]} bars`, color: 'var(--muted)'}])
         .join('tspan').style('fill', p => p.color).text(p => p.text);
       const values = [0, ...visible.flatMap(p => [p.macd, p.signal, p.histogram]).filter(Number.isFinite)];
       const [low, high] = d3.extent(values), pad = Math.max((high-low)*.1, Math.max(Math.abs(low), Math.abs(high))*.05) || 1;
@@ -362,7 +375,7 @@ class LiveChart {
       const barWidth = Math.max(1, Math.min(24, (this.x(this.intervalMs)-this.x(0))*.7));
       panel.bars.selectAll('rect').data(name === 'macd' ? visible.filter(p => Number.isFinite(p.histogram)) : [], p => p.time).join('rect')
         .attr('x', p => center(p)-barWidth/2).attr('width', barWidth).attr('y', p => Math.min(y(0), y(p.histogram)))
-        .attr('height', p => Math.abs(y(p.histogram)-y(0))).attr('fill', p => p.histogram >= 0 ? 'var(--success)' : 'var(--danger)').attr('fill-opacity', .55);
+        .attr('height', p => Math.abs(y(p.histogram)-y(0))).attr('fill', p => color(c.macd[p.histogram >= 0 ? 'up' : 'down'])).attr('fill-opacity', .55);
     }
   }
   inspect(event) {

@@ -17,7 +17,7 @@ import tomllib
 from pathlib import Path
 
 VERSION = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\Z")
-COMMIT = re.compile(r"(?P<type>\w+)(?:\([^\n)]+\))?(?P<breaking>!)?: (?P<title>.+)")
+COMMIT = re.compile(r"(?P<type>\w+)(?:\((?P<scope>[^\n)]+)\))?(?P<breaking>!)?: (?P<title>.+)")
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -41,17 +41,17 @@ def version(value):
     return tuple(map(int, value.split(".")))
 
 
-def recommendation(previous, messages):
+def recommendation(previous, messages, *, ui_patches=()):
     if previous is None:
         return "0.1.0"
     major, minor, patch = version(previous)
     bump = 0
-    for message in messages:
+    for index, message in enumerate(messages):
         match = COMMIT.fullmatch(message.splitlines()[0])
         if (match and match["breaking"]) or re.search(r"(?m)^BREAKING[ -]CHANGE:", message):
             bump = max(bump, 3)
         elif match and match["type"] == "feat":
-            bump = max(bump, 2)
+            bump = max(bump, 1 if index in ui_patches else 2)
         elif match and match["type"] in {"fix", "perf", "patch", "revert"}:
             bump = max(bump, 1)
     return (
@@ -98,6 +98,23 @@ def records(previous, sha):
     return [(parts[i].strip(), parts[i + 1].strip()) for i in range(0, len(parts) - 1, 2)]
 
 
+def checked_recommendation(previous, changes):
+    ui_patches = set()
+    for index, (sha, message) in enumerate(changes):
+        match = COMMIT.fullmatch(message.splitlines()[0])
+        if not match or match["type"] != "feat" or match["scope"] != "ui":
+            continue
+        paths = git(
+            "diff-tree", "--root", "--no-commit-id", "--name-only", "--no-renames", "-r", sha
+        ).splitlines()
+        if paths and all(
+            path.startswith("kairos/static/") or re.fullmatch(r"tests/[^/]+\.test\.cjs", path)
+            for path in paths
+        ):
+            ui_patches.add(index)
+    return recommendation(previous, [message for _, message in changes], ui_patches=ui_patches)
+
+
 def previous_version(target):
     tags = [t[1:] for t in git("tag", "--list", "v*").splitlines() if VERSION.fullmatch(t[1:])]
     older = [t for t in tags if version(t) < version(target)]
@@ -123,7 +140,7 @@ def validate_tree(head, target):
     if previous:
         git("merge-base", "--is-ancestor", f"v{previous}", head)
     changes = records(previous, head)
-    expected = recommendation(previous, [message for _, message in changes])
+    expected = checked_recommendation(previous, changes)
     require(
         expected is not None and version(target) >= version(expected),
         f"Conventional commits require at least {expected or 'a releasable change'}",
@@ -405,7 +422,7 @@ def prepare(target):
     git("fetch", "origin", "develop", "main", "--tags")
     base = git("rev-parse", "origin/develop")
     prior = previous_version(target)
-    expected = recommendation(prior, [message for _, message in records(prior, base)])
+    expected = checked_recommendation(prior, records(prior, base))
     require(
         expected and version(target) >= version(expected),
         f"Recommended minimum version: {expected}",

@@ -125,6 +125,16 @@ test('indicator toggles preserve data, fills, interval and the manually anchored
   assert.equal(view.transform, before.transform);
   assert.deepEqual(domain(view), before.domain);
   assert.equal(view.intervalMs, 60000);
+  view.setIndicators(view.indicators, {bollinger: {period: 3, deviation: 1.5}});
+  assert.equal(view.indicatorPoints[1].middle, null);
+  assert.ok(Number.isFinite(view.indicatorPoints[2].middle));
+  assert.equal(view.points, before.points);
+  assert.equal(view.fills, before.fills);
+  assert.equal(view.transform, before.transform);
+  assert.deepEqual(domain(view), before.domain);
+  // A later snapshot must keep the configured period, not revert to the default.
+  view.setCandles(Array.from({length: 60}, (_, i) => candle(start + i * 60)));
+  assert.ok(Number.isFinite(view.indicatorPoints[2].middle));
 });
 
 test('forming updates recompute studies without altering earlier values or double-counting', () => {
