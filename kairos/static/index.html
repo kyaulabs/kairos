@@ -56,8 +56,6 @@
     </div>
   </div>
   <div class="header-controls">
-    <span id="connection" class="connection" role="status">Connecting</span>
-    <span class="header-separator" aria-hidden="true">·</span>
     <span id="mode-badge" class="pill">DRY-RUN</span>
     <button id="quick-stop" class="appearance-toggle" type="button" hidden aria-label="Stop the selected exchange and cancel tracked orders" title="Stop the selected exchange and cancel tracked orders"><span class="icon icon-stop icon-solid" aria-hidden="true">■</span></button>
     <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" aria-haspopup="dialog" aria-controls="appearance-menu" popovertarget="appearance-menu" popovertargetaction="show" aria-expanded="false" aria-describedby="appearance-help" title="Switch to light theme · Right-click for color schemes"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀︎</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
@@ -80,7 +78,13 @@
   </nav>
   <div class="workspace" data-view="chart">
     <section id="market-panel" class="panel chart-panel" aria-labelledby="chart-title">
-      <div class="panel-head"><h2 id="chart-title"><span class="icon icon-chart" aria-hidden="true">↗</span> Market chart</h2><span id="chart-context" class="chart-context">Bot market</span></div>
+      <div class="panel-head chart-heading">
+        <div class="chart-market"><span id="chart-market-icons" aria-hidden="true"></span><h2 id="chart-title"><span id="chart-symbol">BTC/USD</span><span id="chart-meta">· 1 · —</span></h2><span id="connection" class="connection" role="status" title="Dashboard connection: connecting"><span id="connection-label" class="sr-only">Dashboard connection: connecting</span></span></div>
+        <div id="chart-ohlc" class="chart-ohlc" role="group" aria-label="Candle prices and change from open">
+          <span title="Open">O <b data-candle="open">—</b></span><span title="High">H <b data-candle="high">—</b></span><span title="Low">L <b data-candle="low">—</b></span><span title="Close">C <b data-candle="close">—</b></span><span data-candle="change" title="Close minus open; percentage of open">—</span>
+        </div>
+        <span id="chart-context" class="chart-context">Bot market</span>
+      </div>
       <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
       <div id="indicator-legend" class="indicator-legend" aria-label="Price overlay legend" hidden></div>
       <div class="chart-viewport">

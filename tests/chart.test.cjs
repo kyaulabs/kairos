@@ -227,6 +227,42 @@ test('empty charts disable navigation and market/interval resets restore live st
   assert.equal(view.intervalMs, 15 * 60000);
 });
 
+test('candle readout uses candle open for change, keeps native volume and clears old values', () => {
+  const view = navigable(), fields = Object.fromEntries(['open', 'high', 'low', 'close', 'change'].map(k => [k, {textContent: ''}]));
+  const attributes = {}, node = {dataset: {}, setAttribute(k, v) { attributes[k] = v; },
+    querySelector(selector) { return fields[selector.match(/"(.*?)"/)[1]]; }};
+  let volume;
+  view.volumeUnit = 'BTC'; view.volumeLabel = {text(value) { volume = value; }};
+  const draw = view.draw;
+  view.draw = () => { draw(); view.updateReadout(); };
+  view.bindReadout(node);
+  const down = {...candle(), open: '82878', high: '82890.8', low: '82836.7', close: '82859.2', volume: '119.05224'};
+  const up = {...candle(start+60), open: '100', close: '101'};
+  view.setCandles([down, up]);
+  assert.equal(fields.change.textContent, '+1 (+1.00%)', 'change is not versus the previous candle close');
+  assert.equal(node.dataset.direction, 'up');
+  view.updateReadout(view.points[0]);
+  assert.deepEqual(Object.fromEntries(Object.entries(fields).map(([k,v]) => [k,v.textContent])), {
+    open: '82,878', high: '82,890.8', low: '82,836.7', close: '82,859.2', change: '−18.8 (−0.02%)',
+  });
+  assert.equal(node.dataset.direction, 'down');
+  assert.equal(volume, 'Volume · BTC · 119.05224');
+  assert.ok(attributes['aria-label'].includes(view.candleTime(view.points[0])));
+  assert.ok(attributes['aria-label'].includes('local time'));
+  view.updateReadout();
+  assert.equal(fields.close.textContent, '101', 'leaving inspection restores the latest candle');
+  view.setCandles([down, {...up, close: '100', volume: '0'}]);
+  assert.equal(node.dataset.direction, 'flat');
+  assert.equal(fields.change.textContent, '0 (0.00%)');
+  assert.equal(volume, 'Volume · BTC · 0');
+  view.setCandleInterval(15);
+  assert.ok(Object.values(fields).every(field => field.textContent === '—'));
+  assert.equal(attributes['aria-label'], 'Candle prices unavailable');
+  assert.equal(node.dataset.direction, 'flat');
+  view.setCandles([up]); view.clear();
+  assert.ok(Object.values(fields).every(field => field.textContent === '—'));
+});
+
 test('session equity remains a bounded line series and retains frequent observations', () => {
   const view = chart(null);
   for (let i = 0; i <= 240; i++) view.add(start + i / 2, 100 + i);

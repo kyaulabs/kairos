@@ -8,6 +8,7 @@ class LiveChart {
     this.intervals = []; // Supplied by the server's candle-interval contract at startup.
     this.intervalMs = intervalMinutes === null ? null : intervalMinutes * 60000;
     this.anchor = null;
+    this.pointer = null;
     this.points = [];
     this.indicatorPoints = [];
     this.indicators = ChartIndicators.normalize(null);
@@ -63,6 +64,9 @@ class LiveChart {
     this.crossY = this.cross.append('line');
     this.crossDot = this.cross.append('circle').attr('r', 4).attr('fill', color);
     this.tip = this.svg.append('text').attr('class', 'chart-tip');
+    this.dateBadge = this.svg.append('g').attr('class', 'chart-date').attr('display', 'none').attr('aria-hidden', 'true');
+    this.dateRect = this.dateBadge.append('rect').attr('rx', 3);
+    this.dateText = this.dateBadge.append('text').attr('class', 'chart-tip').attr('text-anchor', 'middle');
     this.zoom = d3.zoom().scaleExtent([this.intervalMs ? 1/12 : 1, 40]).on('zoom', event => {
       if (this.intervalMs && event.sourceEvent && this.anchor === null) this.anchor = this.points.at(-1)?.time ?? null;
       this.transform = event.transform;
@@ -79,10 +83,13 @@ class LiveChart {
     });
     this.svg.call(this.zoom).on('dblclick.zoom', null)
       .on('pointermove.inspect', event => this.inspect(event))
-      .on('pointerleave.inspect', () => { this.cross.attr('display', 'none'); this.tip.text(''); })
+      .on('pointerleave.inspect', () => { this.pointer = null; this.inspect(); })
       .on('keydown', event => {
         if (event.key === 'Home' || event.key === 'Escape') { event.preventDefault(); this.follow(); }
       });
+    this.node.closest('.chart-panel')?.addEventListener('scroll', () => {
+      if (this.pointer) this.inspect();
+    }, {capture: true, passive: true});
     this.resizeObserver = new ResizeObserver(() => this.draw());
     this.resizeObserver.observe(this.node);
   }
@@ -130,7 +137,28 @@ class LiveChart {
   }
   follow() {
     this.anchor = null;
+    this.pointer = null;
     this.svg.call(this.zoom.transform, d3.zoomIdentity);
+  }
+  candleTime(point) {
+    return d3.timeFormat("%a %d %b '%y  %H:%M")(new Date(point.time));
+  }
+  bindReadout(node) {
+    this.readout = node;
+    this.updateReadout();
+  }
+  updateReadout(point = this.points.at(-1)) {
+    if (!this.intervalMs) return;
+    const format = d3.format(',.8~g'), change = point ? point.value-point.open : 0;
+    if (this.readout) {
+      const values = point ? {open: format(point.open), high: format(point.high), low: format(point.low), close: format(point.value),
+        change: `${d3.format(change ? '+,.8~g' : ',.8~g')(change)} (${d3.format(change ? '+.2f' : '.2f')(change/point.open*100)}%)`}
+        : {open: '—', high: '—', low: '—', close: '—', change: '—'};
+      this.readout.dataset.direction = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
+      this.readout.setAttribute('aria-label', point ? `Candle prices at ${this.candleTime(point)} (local time); change from open` : 'Candle prices unavailable');
+      for (const [key, value] of Object.entries(values)) this.readout.querySelector(`[data-candle="${key}"]`).textContent = value;
+    }
+    this.volumeLabel.text(`Volume · ${this.volumeUnit || 'base asset'}${point ? ` · ${format(point.volume)}` : ''}`);
   }
   bindNavigation(node) {
     this.navigation = node;
@@ -186,8 +214,9 @@ class LiveChart {
     // so larger browser fonts do not clip axis prices, badges or the OHLC readout.
     const textSize = parseFloat(getComputedStyle(this.tip.node()).fontSize);
     this.textSize = textSize;
-    const m = this.margin = {top: (this.intervalMs ? (this.indicators.volume ? 6 : 4.5) : 2.5)*textSize, right: 9*textSize, bottom: 2.5*textSize, left: 4};
-    this.cross.attr('display', 'none'); this.tip.text('');
+    const m = this.margin = {top: 2.5*textSize, right: 9*textSize, bottom: 2.5*textSize, left: 4};
+    this.cross.attr('display', 'none'); this.tip.text(''); this.dateBadge.attr('display', 'none');
+    this.updateReadout();
     this.width = width; this.height = height;
     this.svg.attr('viewBox', `0 0 ${width} ${height}`);
     const bottom = height-m.bottom;
@@ -257,7 +286,7 @@ class LiveChart {
         .attr('fill', d => d.value >= d.open ? 'var(--success)' : 'var(--danger)').attr('fill-opacity', .5);
       this.volumeAxis.attr('transform', `translate(${width-m.right},0)`)
         .call(d3.axisRight(volumeY).ticks(2).tickFormat(d3.format('.3~s')).tickSize(0).tickPadding(textSize));
-      this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-.6*textSize).text(`Volume · ${this.volumeUnit || 'base asset'}`);
+      this.volumeLabel.attr('x', m.left+2).attr('y', volumeTop-.6*textSize);
       const bars = this.candleGroup.selectAll('g.candle').data(visible, d => d.time).join(enter => {
         const bar = enter.append('g').attr('class', 'candle');
         bar.append('line'); bar.append('rect');
@@ -291,6 +320,7 @@ class LiveChart {
       .attr('d', d3.symbol().type(d3.symbolTriangle).size(65))
       .attr('transform', d => `translate(${this.x(d.time)},${this.y(d.value)}) rotate(${d.side === 'sell' ? 180 : 0})`)
       .attr('fill', d => d.side === 'buy' ? 'var(--success)' : 'var(--danger)').attr('stroke', 'var(--surface)').attr('stroke-width', 1.5);
+    if (this.pointer) this.inspect();
   }
   drawIndicators(visible) {
     const {margin: m, width, textSize} = this;
@@ -336,9 +366,11 @@ class LiveChart {
     }
   }
   inspect(event) {
-    if (!this.points.length || !this.x) return;
-    const [px, py] = d3.pointer(event, this.node);
-    this.cross.attr('display', 'none'); this.tip.text('');
+    if (event) this.pointer = d3.pointer(event, this.node);
+    this.cross.attr('display', 'none'); this.tip.text(''); this.dateBadge.attr('display', 'none');
+    this.updateReadout();
+    if (!this.pointer || !this.points.length || !this.x) return;
+    const [px, py] = this.pointer;
     if (px < this.margin.left || px > this.width-this.margin.right || py < this.margin.top || py > this.height-this.margin.bottom) return;
     const time = +this.x.invert(px);
     const center = p => p.time + (this.intervalMs || 0)/2;
@@ -350,14 +382,24 @@ class LiveChart {
     this.crossX.attr('x1', x).attr('x2', x).attr('y1', this.margin.top).attr('y2', this.height-this.margin.bottom);
     this.crossY.attr('x1', 0).attr('x2', this.width-this.margin.right).attr('y1', y).attr('y2', y);
     this.crossDot.attr('display', this.intervalMs ? 'none' : null).attr('cx', x).attr('cy', y);
-    const format = d3.format(',.8~g');
-    const lines = this.intervalMs ? [
-      d3.timeFormat('%Y-%m-%d %H:%M')(new Date(point.time)),
-      `O ${format(point.open)}  H ${format(point.high)}`,
-      `L ${format(point.low)}  C ${format(point.value)}`,
-      ...(this.indicators.volume ? [`V ${format(point.volume)} · ${this.volumeUnit || 'base asset'}`] : []),
-    ] : [`${d3.timeFormat('%H:%M:%S')(new Date(point.time))}  ·  ${d3.format(',.8~f')(point.value)}`];
-    this.tip.selectAll('tspan').data(lines).join('tspan').attr('x', 6).attr('y', (_, i) => this.textSize*(1+i*1.5)).text(d => d);
+    if (this.intervalMs) {
+      this.updateReadout(point);
+      this.dateBadge.attr('display', null);
+      this.dateText.text(this.candleTime(point));
+      const labelWidth = this.dateText.node().getComputedTextLength() + this.textSize;
+      const left = Math.max(0, Math.min(this.width-labelWidth, x-labelWidth/2));
+      const svgBox = this.node.getBoundingClientRect(), stageBox = this.node.parentElement.getBoundingClientRect();
+      const panelBox = this.node.closest('.chart-panel').getBoundingClientRect();
+      const bottom = Math.min(stageBox.bottom, panelBox.bottom-1, window.innerHeight)-svgBox.top;
+      // Keep the axis-style label visible when indicator panes or a short chart card scroll.
+      const top = Math.min(this.height-this.margin.bottom, bottom-2*this.textSize-2);
+      this.dateBadge.attr('display', top < 0 ? 'none' : null).attr('transform', `translate(${left},${top})`);
+      this.dateRect.attr('width', labelWidth).attr('height', 2*this.textSize);
+      this.dateText.attr('x', labelWidth/2).attr('y', this.textSize).attr('dy', '.35em');
+    } else {
+      this.tip.attr('x', 6).attr('y', this.textSize)
+        .text(`${d3.timeFormat('%H:%M:%S')(new Date(point.time))}  ·  ${d3.format(',.8~f')(point.value)}`);
+    }
   }
 }
 window.LiveChart = LiveChart;
