@@ -52,13 +52,13 @@ class MarketPicker {
         this.cancelReorder(); this.favoritesOnly = favorites; this.renderRows();
       });
     }
-    window.addEventListener('storage', event => {
-      if (event.key !== this.favoritesKey && event.key !== null) return;
+    for (const exchange of ['kraken', 'alpaca', 'okx', 'okx-demo']) DashboardPreferences.subscribe(`favorites:${exchange}`, () => {
+      if ((this.exchange || 'kraken') !== exchange) return;
       this.cancelReorder(); this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows(); this.poller.refresh();
     });
     this.renderFooter();
   }
-  get favoritesKey() { return this.exchange && this.exchange !== 'kraken' ? `kairos:${this.exchange}:favorites` : 'kairos:favorites'; }
+  get favoritesKey() { return `favorites:${this.exchange || 'kraken'}`; }
   setExchange(exchange) {
     this.exchange = exchange; this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows();
   }
@@ -106,6 +106,10 @@ class MarketPicker {
     const symbol = currency.toUpperCase() === 'XDG' ? 'doge' : currency.toLowerCase();
     return MarketPicker.iconSymbols.has(symbol) ? `/static/vendor/crypto-icons/${symbol}.svg` : null;
   }
+  static chartLabel(market, names) {
+    const symbol = market.symbol || market.id, [base, quote] = symbol.split('/');
+    return (!market.kind || market.kind === 'spot') && quote && names?.[base.toUpperCase()] ? `${names[base.toUpperCase()]}/${quote}` : symbol;
+  }
   static pairIcon(symbol) {
     const pair = document.createElement('span'); pair.className = 'asset-pair'; pair.setAttribute('aria-hidden', 'true');
     for (const currency of symbol.split('/').slice(0, 2)) {
@@ -121,27 +125,20 @@ class MarketPicker {
     }
     return pair;
   }
-  loadFavorites() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(this.favoritesKey) || '[]');
-      return Array.isArray(saved) ? [...new Set(saved.filter(id => typeof id === 'string' && id.length > 0 && id.length <= 64))] : [];
-    } catch { return []; }
-  }
+  loadFavorites() { return DashboardPreferences.get(this.favoritesKey, []); }
   toggleFavorite(id) {
     this.cancelReorder();
     this.favorites = this.favorites.includes(id) ? this.favorites.filter(value => value !== id) : [...this.favorites, id];
     this.saveFavorites();
   }
-  saveFavorites() {
-    const warning = document.getElementById('market-storage-status');
-    try {
-      localStorage.setItem(this.favoritesKey, JSON.stringify(this.favorites));
-      warning.hidden = true;
-    } catch {
-      warning.textContent = 'Browser storage is unavailable. Favorites will last only for this page session.';
-      warning.hidden = false;
-    }
+  async saveFavorites() {
+    const warning = document.getElementById('market-storage-status'), key = this.favoritesKey;
     this.renderFooter(); this.renderRows(); this.poller.refresh();
+    try { await DashboardPreferences.set(key, this.favorites); warning.hidden = true; }
+    catch {
+      if (key === this.favoritesKey) { this.favorites = this.loadFavorites(); this.renderFooter(); this.renderRows(); }
+      warning.textContent = 'Favorites save was not confirmed. Review the server preference warning.'; warning.hidden = false;
+    }
   }
   moveFavorite(id, target, after = false) {
     if (id === target || !this.favorites.includes(id) || !this.favorites.includes(target)) return;

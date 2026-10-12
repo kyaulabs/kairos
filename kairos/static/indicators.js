@@ -1,8 +1,8 @@
-/* Chart-only studies of supplied closes. No execution settings, signals or network IO. */
+/* Chart-only studies of supplied closes. Server-saved presentation, never execution signals. */
 const ChartIndicators = (() => {
   'use strict';
   const defaults = Object.freeze({volume: true, macd: false, bollinger: false, rsi: false, sma: false});
-  const storageKey = 'kairos:chart-indicators';
+  const storageKey = 'indicators';
   const colors = {primary: 'Violet / lilac', info: 'Blue', warning: 'Yellow', success: 'Green', danger: 'Red'};
   const definitions = {
     volume: {name: 'Volume', short: 'VOL', inputs: {}, colors: {up: ['Up bars', 'success'], down: ['Down bars', 'danger']}},
@@ -85,8 +85,7 @@ const ChartIndicators = (() => {
     const legend = $('indicator-legend'), list = $('indicator-rows'), roll = $('indicator-roll');
     const editor = $('indicator-config'), form = $('indicator-config-form'), fields = $('indicator-fields'), tip = $('indicator-tooltip');
     let preference, editing, returnFocus, tipTarget, tipTimer;
-    try { preference = preferences(JSON.parse(localStorage.getItem(storageKey))); }
-    catch { preference = preferences(null); }
+    preference = preferences(DashboardPreferences.get(storageKey, null));
     function hideTip() {
       clearTimeout(tipTimer);
       tipTarget?.removeAttribute('aria-describedby'); tipTarget = null;
@@ -153,10 +152,13 @@ const ChartIndicators = (() => {
       roll.setAttribute('aria-expanded', String(!preference.collapsed));
       roll.dataset.tip = preference.collapsed ? 'Show indicator list' : 'Hide indicator list'; roll.setAttribute('aria-label', roll.dataset.tip);
     }
-    function commit(updateChart = true) {
+    async function commit(updateChart = true) {
       apply(updateChart);
-      try { localStorage.setItem(storageKey, JSON.stringify(preference)); status.hidden = true; status.textContent = ''; }
-      catch { status.hidden = false; status.textContent = 'Browser storage unavailable; chart selections last for this page session.'; }
+      try { await DashboardPreferences.set(storageKey, preference); status.hidden = true; status.textContent = ''; }
+      catch {
+        preference = preferences(DashboardPreferences.get(storageKey, null)); apply();
+        status.hidden = false; status.textContent = 'Indicator save was not confirmed. Review the server preference warning.';
+      }
     }
     roll.addEventListener('click', () => { hideTip(); preference.collapsed = !preference.collapsed; commit(false); });
     function field(label, name, options, value) {
@@ -205,11 +207,10 @@ const ChartIndicators = (() => {
       if (!input.checked) preference.settings[key] = configuration(null)[key];
       commit();
     });
-    window.addEventListener('storage', event => {
-      if (event.storageArea !== localStorage || (event.key !== storageKey && event.key !== null)) return;
-      hideTip();
-      try { preference = preferences(JSON.parse(event.newValue)); }
-      catch { preference = preferences(null); }
+    DashboardPreferences.subscribe(storageKey, value => {
+      const next = preferences(value);
+      if (JSON.stringify(next) === JSON.stringify(preference)) return;
+      hideTip(); preference = next;
       if (editor.open) editor.close(); apply();
     });
     apply();

@@ -10,6 +10,7 @@
   <link rel="alternate icon" href="/static/brand/favicon.ico">
   <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.webmanifest" crossorigin="use-credentials">
+  <script src="/static/preferences.js"></script>
   <script src="/static/appearance.js"></script>
   <link rel="stylesheet" href="/static/brand/palette.css">
   <link rel="stylesheet" href="/static/style.css">
@@ -61,14 +62,15 @@
     <button id="appearance-theme" class="appearance-toggle" type="button" aria-label="Switch to light theme" aria-haspopup="dialog" aria-controls="appearance-menu" popovertarget="appearance-menu" popovertargetaction="show" aria-expanded="false" aria-describedby="appearance-help" title="Switch to light theme · Right-click for color schemes"><span id="appearance-sun" class="icon icon-sun" aria-hidden="true">☀︎</span><span id="appearance-moon" class="icon icon-moon" aria-hidden="true" hidden>☾</span></button>
     <span id="appearance-help" class="sr-only">Right-click, press Arrow Down or Shift+F10, or touch and hold for color schemes.</span>
     <div id="appearance-menu" class="appearance-menu" popover="auto" role="dialog" aria-label="Color scheme">
-      <label>Interface accent<select id="appearance-accent" size="4" title="Interface accent · browser-local"><option value="violet">Violet</option><option value="green">Green</option><option value="red">Red</option><option value="blue">Blue</option></select></label>
+      <label>Interface accent<select id="appearance-accent" size="4" title="Interface accent · shared server preference"><option value="violet">Violet</option><option value="green">Green</option><option value="red">Red</option><option value="blue">Blue</option></select></label>
     </div>
-    <span id="appearance-status" class="sr-only" role="status">Appearance is local to this browser. Gains remain green; losses remain red.</span>
+    <span id="appearance-status" class="sr-only" role="status">Appearance is saved on the server and shared across your devices. Gains remain green; losses remain red.</span>
   </div>
 </header>
 <main class="desk">
   <div class="notices">
     <p id="message" role="status" aria-live="polite"></p>
+    <p id="preferences-status" class="warning" role="status" aria-live="polite" hidden></p>
     <p id="engine-error" class="warning" role="alert" hidden></p>
   </div>
   <nav class="workspace-switcher" aria-label="Workspace panels">
@@ -85,7 +87,6 @@
         </div>
         <span id="chart-context" class="chart-context">Bot market</span>
       </div>
-      <div class="chart-key"><span class="buy">▲ Buy fill</span><span class="sell">▼ Sell fill</span></div>
       <div class="chart-viewport">
         <div id="indicator-legend" class="indicator-legend" aria-label="Active chart indicators" hidden>
           <div class="indicator-roll-body"><div id="indicator-rows"></div></div>
@@ -301,7 +302,7 @@
 </dialog>
 <dialog id="indicator-config" class="indicator-dialog" aria-labelledby="indicator-config-title" aria-describedby="indicator-config-help">
   <div class="market-dialog-head"><h2 id="indicator-config-title">Configure indicator</h2><button type="button" data-config-cancel aria-label="Close indicator configuration"><span class="icon icon-close" aria-hidden="true">×</span></button></div>
-  <p id="indicator-config-help">Chart only · close-based calculations on supplied candles. These browser-local settings never change strategy signals or execution.</p>
+  <p id="indicator-config-help">Chart only · close-based calculations on supplied candles. These shared server-side chart settings never change strategy signals or execution.</p>
   <form id="indicator-config-form">
     <div id="indicator-fields"></div>
     <div class="indicator-config-actions"><button id="indicator-config-reset" type="button">Defaults</button><button type="button" data-config-cancel>Cancel</button><button type="submit">Apply</button></div>
@@ -340,7 +341,7 @@
   <p id="market-storage-status" class="warning" role="status" hidden></p>
   <p id="favorite-order-help" class="panel-note" hidden>Drag a handle to reorder the footer. Or click a handle, then another to move before it. Focus a handle and use ↑ ↓ to move; Esc cancels.</p>
   <span id="favorite-order-status" class="sr-only" role="status"></span>
-  <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Quotes refresh about every 10s; spot/xStocks 24h change about every minute. Market volume is USD turnover; candle volume keeps native units. — means unavailable. Favorites are saved in this browser.</p>
+  <p class="panel-note">↑ ↓ Navigate · Enter Select · Esc Close · Quotes refresh about every 10s; spot/xStocks 24h change about every minute. Market volume is USD turnover; candle volume keeps native units. — means unavailable. Favorites and their order are saved on the server across your devices.</p>
 </dialog>
 </body>
 </html>

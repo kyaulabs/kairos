@@ -3,6 +3,7 @@
 import hmac
 import json
 import os
+import sqlite3
 from importlib.metadata import version
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from aiohttp import web
 from dotenv import load_dotenv
 
 from kairos import diagnostics
+from kairos.asset_names import AssetNames
+from kairos.preferences import Conflict, Preferences
 from kairos.restart import Control
 
 STATIC = Path(__file__).parent / "static"
@@ -34,19 +37,60 @@ async def control_state(request):
     )
 
 
+def authorize_write(request):
+    if (
+        request.headers.get("Origin") != request.app["origin"]
+        or request.content_type != "application/json"
+        or not hmac.compare_digest(
+            request.headers.get("X-CSRF-Token", ""), request.app["control"].read()["csrf"]
+        )
+    ):
+        raise web.HTTPForbidden(text="Origin, content type, or CSRF token rejected")
+
+
+async def preferences(request):
+    if request.method not in {"GET", "HEAD"}:
+        authorize_write(request)
+    store = request.app["preferences"]
+    unavailable = {"error": "Server preference storage unavailable; no dashboard changes saved."}
+    if store is None:
+        return web.json_response(unavailable, status=503)
+    if request.method in {"GET", "HEAD"}:
+        try:
+            result = store.read()
+        except (sqlite3.Error, OSError, ValueError):
+            return web.json_response(unavailable, status=503)
+    else:
+        try:
+            data = await request.json()
+            if not isinstance(data, dict) or set(data) != {"key", "value", "revision"}:
+                raise ValueError
+            result = store.save(data["key"], data["value"], data["revision"])
+        except (ValueError, UnicodeDecodeError):
+            return web.json_response({"error": "Invalid dashboard preference"}, status=400)
+        except (sqlite3.Error, OSError):
+            return web.json_response(unavailable, status=503)
+        except Conflict:
+            return web.json_response(
+                {
+                    "error": "This preference changed on another page. Latest server settings loaded; review and try again."
+                },
+                status=409,
+            )
+    return web.json_response({**result, "csrf": request.app["control"].read()["csrf"]})
+
+
+async def asset_names(request):
+    catalog = request.app["asset_names"]
+    return web.json_response(await catalog.snapshot() if catalog else {"names": {}})
+
+
 async def proxy(request):
     app = request.app
     stopping = request.method == "POST" and request.path == "/api/stop"
     body = await request.read()
     if request.method not in {"GET", "HEAD"}:
-        if (
-            request.headers.get("Origin") != app["origin"]
-            or request.content_type != "application/json"
-            or not hmac.compare_digest(
-                request.headers.get("X-CSRF-Token", ""), app["control"].read()["csrf"]
-            )
-        ):
-            raise web.HTTPForbidden(text="Origin, content type, or CSRF token rejected")
+        authorize_write(request)
         if stopping:
             try:
                 if not isinstance(json.loads(body), dict):
@@ -145,12 +189,22 @@ def create_app(directory=None, origin=None):
     diagnostics.register_secrets(app["control"].read()["csrf"])
     app["version"] = version("kairos-trader")
     app["origin"] = (origin or os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8000")).rstrip("/")
+    try:
+        app["preferences"] = Preferences(directory)
+        app["asset_names"] = AssetNames(app["preferences"])
+    except (sqlite3.Error, OSError):
+        # Optional presentation storage must never take away the independent Stop path.
+        app["preferences"] = None
+        app["asset_names"] = None
     app["socket"] = directory / "engine.sock"
     app["streams"] = set()
     app.cleanup_ctx.append(lifecycle)
     app.on_shutdown.append(shutdown)
     app.on_response_prepare.append(headers)
     app.router.add_get("/api/control", control_state)
+    app.router.add_get("/api/preferences", preferences)
+    app.router.add_post("/api/preferences", preferences)
+    app.router.add_get("/api/asset-names", asset_names)
     app.router.add_route("*", "/api/{path:.*}", proxy)
     app.router.add_get("/", index)
     app.router.add_static("/static/", STATIC, show_index=False)

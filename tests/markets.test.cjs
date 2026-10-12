@@ -5,15 +5,17 @@ const {test} = require('node:test');
 const {runInNewContext} = require('node:vm');
 
 function fixture(saved = null) {
-  const values = new Map(saved === null ? [] : [['kairos:favorites', saved]]);
+  const values = new Map(saved === null ? [] : [['favorites:kraken', saved]]);
   const warning = {hidden: true}, status = {};
   const timers = [];
   const browser = {};
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/vendor/crypto-icons/symbols.js'), 'utf8'), {window: browser});
-  const storage = {getItem: key => values.get(key), setItem: (key, value) => values.set(key, value)};
+  const preferences = {get: (key, fallback) => values.has(key) ? JSON.parse(values.get(key)) : fallback,
+    set: async (key, value) => values.set(key, JSON.stringify(value))};
   const document = {hidden: false, getElementById: id => id === 'favorite-order-status' ? status : warning};
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/markets.js'), 'utf8'), {
-    window: browser, localStorage: storage, URLSearchParams,
+    window: browser, DashboardPreferences: preferences, URLSearchParams,
+    localStorage: {getItem() { assert.fail('No browser storage reads'); }, setItem() { assert.fail('No browser storage writes'); }},
     document,
     setTimeout: (callback, delay) => timers.push({callback, delay}),
   });
@@ -24,7 +26,7 @@ function fixture(saved = null) {
   });
   picker.favorites = picker.loadFavorites();
   runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/strategy-market.js'), 'utf8'), {window: browser});
-  return {picker, values, storage, warning, timers, browser, status, document};
+  return {picker, values, preferences, warning, timers, browser, status, document};
 }
 
 test('exchange favorites stay isolated without replacing the existing Kraken watchlist', () => {
@@ -32,8 +34,8 @@ test('exchange favorites stay isolated without replacing the existing Kraken wat
   picker.setExchange('alpaca');
   assert.deepEqual(Array.from(picker.favorites), []);
   picker.toggleFavorite('alpaca:AAPL');
-  assert.equal(values.get('kairos:favorites'), '["XBTUSD"]');
-  assert.equal(values.get('kairos:alpaca:favorites'), '["alpaca:AAPL"]');
+  assert.equal(values.get('favorites:kraken'), '["XBTUSD"]');
+  assert.equal(values.get('favorites:alpaca'), '["alpaca:AAPL"]');
   picker.setExchange('kraken');
   assert.deepEqual(Array.from(picker.favorites), ['XBTUSD']);
 });
@@ -47,7 +49,7 @@ test('OKX demo/live favorites and currency variants cannot borrow another venue 
   picker.toggleFavorite('okx:BTC-USD:USD');
   picker.setExchange('okx-demo');
   assert.deepEqual(Array.from(picker.favorites), ['okx-demo:BTC-USD:USDC']);
-  assert.equal(values.get('kairos:favorites'), '["XBTUSD"]');
+  assert.equal(values.get('favorites:kraken'), '["XBTUSD"]');
 });
 
 test('Alpaca stocks are scheduled-only rather than tokenized xStocks or HTF markets', () => {
@@ -223,29 +225,24 @@ test('favorites persist across page instances; removing one retains the rest', (
   const {picker, values} = fixture();
   picker.toggleFavorite('XXBTZUSD');
   picker.toggleFavorite('XETHZUSD');
-  const reloaded = fixture(values.get('kairos:favorites'));
+  const reloaded = fixture(values.get('favorites:kraken'));
   assert.deepEqual(Array.from(reloaded.picker.favorites), ['XXBTZUSD', 'XETHZUSD']);
   reloaded.picker.toggleFavorite('XXBTZUSD');
-  assert.deepEqual(JSON.parse(reloaded.values.get('kairos:favorites')), ['XETHZUSD']);
+  assert.deepEqual(JSON.parse(reloaded.values.get('favorites:kraken')), ['XETHZUSD']);
 });
 
-test('corrupt or unavailable storage cannot prevent market browsing', () => {
-  for (const saved of ['not json', '{}', 'null']) {
-    assert.deepEqual(Array.from(fixture(saved).picker.favorites), []);
-  }
-  const {picker, storage} = fixture('["XXBTZUSD","XXBTZUSD",null,12,""]');
-  assert.deepEqual(Array.from(picker.favorites), ['XXBTZUSD']);
-  storage.getItem = () => { throw new Error('Storage denied'); };
-  assert.deepEqual(Array.from(picker.loadFavorites()), []);
+test('a server without saved favorites starts with an empty watchlist', () => {
+  assert.deepEqual(Array.from(fixture().picker.favorites), []);
 });
 
-test('failed persistence warns instead of pretending favorites were saved', () => {
-  const {picker, storage, warning} = fixture();
-  storage.setItem = () => { throw new Error('Quota exceeded'); };
+test('failed server persistence warns and restores the saved favorites', async () => {
+  const {picker, preferences, warning} = fixture();
+  preferences.set = async () => { throw new Error('Server unavailable'); };
   picker.toggleFavorite('XXBTZUSD');
-  assert.deepEqual(Array.from(picker.favorites), ['XXBTZUSD']);
+  await new Promise(setImmediate);
+  assert.deepEqual(Array.from(picker.favorites), []);
   assert.equal(warning.hidden, false);
-  assert.match(warning.textContent, /only for this page session/);
+  assert.match(warning.textContent, /not confirmed/);
 });
 
 test('a healthy venue cannot hide stale prices in another venue’s favorites', () => {
@@ -339,15 +336,15 @@ test('quotes use instrument identity and preserve per-venue age, not display sym
 
 test('manual favorite order persists, keeps hidden/unavailable IDs, and never selects a market', () => {
   const {picker, values, status} = fixture('["BTC","unavailable","ETH","DOGE"]');
-  picker.request = picker.select = () => assert.fail('Reordering must be browser-local');
+  picker.request = picker.select = () => assert.fail('Reordering must not call trading or market-selection APIs');
   picker.moveFavorite('DOGE', 'BTC');
-  assert.deepEqual(JSON.parse(values.get('kairos:favorites')), ['DOGE', 'BTC', 'unavailable', 'ETH']);
+  assert.deepEqual(JSON.parse(values.get('favorites:kraken')), ['DOGE', 'BTC', 'unavailable', 'ETH']);
   assert.match(status.textContent, /position 1 of 4/);
   picker.moveFavorite('BTC', 'ETH', true);
-  assert.deepEqual(Array.from(fixture(values.get('kairos:favorites')).picker.favorites), ['DOGE', 'unavailable', 'ETH', 'BTC']);
-  const saved = values.get('kairos:favorites');
+  assert.deepEqual(Array.from(fixture(values.get('favorites:kraken')).picker.favorites), ['DOGE', 'unavailable', 'ETH', 'BTC']);
+  const saved = values.get('favorites:kraken');
   picker.moveFavorite('BTC', 'BTC'); picker.moveFavorite('not-saved', 'BTC'); picker.moveFavorite('BTC', 'not-saved');
-  assert.equal(values.get('kairos:favorites'), saved);
+  assert.equal(values.get('favorites:kraken'), saved);
 });
 
 test('favorite view follows saved order while All markets keeps its independent sort', () => {
@@ -363,24 +360,25 @@ test('favorite view follows saved order while All markets keeps its independent 
   assert.equal(rows[0].id, 'BTC');
 });
 
-test('click-to-move and cancel preserve storage until a destination is chosen', () => {
+test('click-to-move and cancel preserve server settings until a destination is chosen', () => {
   const {picker, values} = fixture('["BTC","ETH","DOGE"]');
   picker.pickFavorite('DOGE');
-  assert.equal(values.get('kairos:favorites'), '["BTC","ETH","DOGE"]');
+  assert.equal(values.get('favorites:kraken'), '["BTC","ETH","DOGE"]');
   picker.cancelReorder();
   assert.equal(picker.pickedFavorite, null);
   picker.pickFavorite('DOGE'); picker.pickFavorite('BTC');
-  assert.deepEqual(JSON.parse(values.get('kairos:favorites')), ['DOGE', 'BTC', 'ETH']);
+  assert.deepEqual(JSON.parse(values.get('favorites:kraken')), ['DOGE', 'BTC', 'ETH']);
   assert.equal(picker.pickedFavorite, null);
 });
 
-test('reorder remains usable with a visible warning when browser storage fails', () => {
-  const {picker, storage, warning} = fixture('["BTC","ETH"]');
-  storage.setItem = () => { throw new Error('Unavailable'); };
+test('failed reorder restores server order with a visible warning', async () => {
+  const {picker, preferences, warning} = fixture('["BTC","ETH"]');
+  preferences.set = async () => { throw new Error('Unavailable'); };
   picker.moveFavorite('ETH', 'BTC');
-  assert.deepEqual(Array.from(picker.favorites), ['ETH', 'BTC']);
+  await new Promise(setImmediate);
+  assert.deepEqual(Array.from(picker.favorites), ['BTC', 'ETH']);
   assert.equal(warning.hidden, false);
-  assert.match(warning.textContent, /page session/);
+  assert.match(warning.textContent, /not confirmed/);
 });
 
 test('Alpaca chooser volume subscriptions contain only watched chart and favorites', async () => {
@@ -482,4 +480,15 @@ test('favorites footer stays price-only even when USD volume is cached', () => {
   browser.MarketPicker.prototype.updateFreshness.call(picker);
   assert.doesNotMatch(button.title, /volume|turnover|vol /i);
   assert.deepEqual(Array.from(picker.favorites), ['BTC']);
+});
+
+test('chart headings use catalog names only for crypto spot and retain native quote identity', () => {
+  const {browser} = fixture(), label = browser.MarketPicker.chartLabel;
+  const names = {BTC:'Bitcoin', XBT:'Bitcoin', AAPL:'Unrelated crypto token'};
+  assert.equal(label({symbol:'BTC/USDT',kind:'spot'},names),'Bitcoin/USDT');
+  assert.equal(label({symbol:'XBT/USD',kind:'spot'},names),'Bitcoin/USD');
+  assert.equal(label({symbol:'UNKNOWN/USDC',kind:'spot'},names),'UNKNOWN/USDC');
+  assert.equal(label({symbol:'AAPL/USD',kind:'equity'},names),'AAPL/USD');
+  assert.equal(label({symbol:'PF_XBTUSD',kind:'futures'},names),'PF_XBTUSD');
+  assert.equal(label({symbol:'BTC/USDT',kind:'spot'},{}),'BTC/USDT');
 });
