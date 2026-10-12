@@ -26,31 +26,33 @@ test -e .env || install -m 600 .env.example .env
 Configure your private `.env` using `.env.example`. Kraken local Dry-run needs authenticated fee-query access, not order permissions. Optional [Alpaca hosted paper](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/ALPACA.md) needs separate paper credentials, explicit paper-order permission and Start confirmation; live Alpaca is unavailable. Model-assisted strategies also need a Jev key and may incur API charges. Leave both Kraken live-trading flags disabled.
 
 ```sh
+uv run --no-sync kairos-worker  # Keep running in one terminal.
+# In another terminal, from the same checkout:
 uv run --no-sync kairos
 ```
 
-Open <http://127.0.0.1:8000>. The selected engine starts paused: Kraken in Dry-run or Alpaca in hosted paper. Review limits before pressing Start. Do not expose the unauthenticated loopback server to the network.
+Open <http://127.0.0.1:8000>. New installations start paused. An existing eligible OKX Demo HTF run can recover only its original, unexpired authorization after worker reconciliation. Review limits before pressing Start. Do not expose the unauthenticated loopback server to the network.
 
 ### 🌐 nginx and systemd
 
-Use the same checkout and dependency setup, then adapt [`deploy/kairos.service`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/kairos.service) and [`deploy/nginx.conf`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/nginx.conf) for your service account, paths, hostname, certificates and Basic Auth password file. Keep the backend on loopback, protect **all** routes with TLS and authentication, and set `PUBLIC_ORIGIN` to the exact HTTPS origin.
+Use the same checkout and dependency setup, then adapt [`deploy/kairos.service`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/kairos.service), [`deploy/kairos-worker.service`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/kairos-worker.service) and [`deploy/nginx.conf`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/nginx.conf) for your service account, paths, hostname, certificates and Basic Auth password file. Keep the backend on loopback, protect **all** routes with TLS and authentication, and set `PUBLIC_ORIGIN` to the exact HTTPS origin.
 
-Validate nginx configuration with `sudo nginx -t` before reloading it. Follow the [deployment instructions](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md#nginx-and-systemd) to install and start the service. Kairos still starts paused; service startup is not authorization to trade.
+Validate nginx configuration with `sudo nginx -t` before reloading it. Follow the [deployment instructions](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md#nginx-and-systemd) to install and start both services. Dashboard restarts do not stop trading. Worker recovery is restricted to same-boot, previously authorized OKX Demo HTF runs; it never extends a deadline or overrides Stop. Service startup does not grant new permission.
 
 Optional locally licensed Font Awesome Pro fonts are not distributed in the release. Supply them locally or use the bundled icon fallbacks.
 
 ## 🔄 Update
 
-Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md) before updating. Preserve `.env`, the configured `DATA_DIR`, both exchange databases and optional font assets. Never reset a portfolio as an update step.
+Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md) before updating. Preserve `.env`, the configured `DATA_DIR`, all four exchange databases and private control state and optional font assets. Never reset a portfolio as an update step.
 
 ### 💻 Local Python server
 
-1. Stop the engine in the dashboard, then stop the foreground server. Holdings remain; local protection is suspended during the update.
+1. Stop the engine in the dashboard, then stop both the foreground worker and dashboard. Holdings remain; local protection is suspended during the update.
 2. Back up each existing exchange database using the standard library. Adjust `data` if you configured a different `DATA_DIR`. Existing backup names cause this step to stop rather than overwrite a prior backup:
 
    ```sh
    umask 077
-   for database in data/kairos.sqlite3 data/alpaca-paper.sqlite3; do
+   for database in data/kairos.sqlite3 data/alpaca-paper.sqlite3 data/okx-demo.sqlite3 data/okx-live.sqlite3; do
      test -f "$database" || continue
      backup="${database%.sqlite3}-before-{{VERSION}}.sqlite3"
      test ! -e "$backup" || { echo "Backup already exists: $backup"; exit 1; }
@@ -64,6 +66,11 @@ Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/bl
    git fetch origin tag {{TAG}}
    git switch --detach {{TAG}}
    uv sync --locked --no-dev
+   ```
+
+   Start `uv run --no-sync kairos-worker` in one terminal and the dashboard in another:
+
+   ```sh
    uv run --no-sync kairos
    ```
 
@@ -71,9 +78,9 @@ Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/bl
 
 ### 🌐 nginx and systemd
 
-Stop the engine, then stop your installed Kairos service before backing up and updating its checkout using the commands above. Restart that service afterward; use `systemctl --user` for a user unit or `sudo systemctl` for a system unit. Keep the configured service user and filesystem permissions intact. nginx needs no restart for an application-only update; validate and reload it only if its configuration changed.
+Stop the engine, then stop both installed Kairos services before backing up and updating their checkout using the commands above. Install both unit files and reload systemd when migrating from a single-process release. Start both services afterward; use `systemctl --user` for a user unit or `sudo systemctl` for a system unit. Keep the configured service user and filesystem permissions intact. nginx needs no restart for an application-only update; validate and reload it only if its configuration changed.
 
-Verify service health and retained state before resuming the engine. Private diagnostics are in `DATA_DIR/kairos-errors.jsonl`; never publish credentials or unredacted logs in an issue.
+Legacy single-process runs cannot resume from their displayed deadline alone. Same-run migration requires a separately reviewed in-process handoff; ordinary Stop remains final. Never restore old databases or control files to undo Stop. Verify both services and retained state before explicitly authorizing any new run. Private diagnostics are in `DATA_DIR/kairos-errors.jsonl`; never publish credentials or unredacted logs in an issue.
 
 ## ✅ Verification
 

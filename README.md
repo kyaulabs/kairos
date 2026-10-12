@@ -91,10 +91,12 @@ Use your editor to configure `.env` from [.env.example](.env.example). Keep it p
 | `DATA_DIR` | Persistent state directory, default `data` |
 
 ```sh
+uv run kairos-worker  # Keep running in one terminal.
+# In another terminal, from the same checkout:
 uv run kairos
 ```
 
-Open <http://127.0.0.1:8000>. The server binds to loopback and always starts **paused**: Kraken in Dry-run, Alpaca in hosted paper, or OKX in its isolated selected environment without finite trading permission. Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
+Open <http://127.0.0.1:8000>. The dashboard binds to loopback; its independent worker starts **paused** unless recovering an eligible, already-authorized OKX Demo HTF run. Recovery keeps the original deadline and limits, requires reconciliation, and cannot override Stop. See [worker recovery](OPERATIONS.md). Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
 
 ## 🧪 Your first dry-run
 
@@ -155,7 +157,7 @@ The complete supplied brand pack is in [`brand/`](brand/README.md). The applicat
 
 The UI uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with OperatorMonoSSmLig Nerd Font for bold monospace. Font Awesome Pro webfonts are optional, locally supplied assets excluded from Git. See [font setup](OPERATIONS.md#run-locally); missing fonts fall back to system text and text icons.
 
-[deploy/kairos.service](deploy/kairos.service) provides an unprivileged systemd service example. Adapt the hostname, certificates, password file, user, and paths before installing either configuration. Full instructions are in [nginx and systemd](OPERATIONS.md#nginx-and-systemd).
+[deploy/kairos.service](deploy/kairos.service) and [deploy/kairos-worker.service](deploy/kairos-worker.service) provide separate unprivileged dashboard and trading-worker services. Adapt the hostname, certificates, password file, user, and paths before installing either configuration. Full instructions are in [nginx and systemd](OPERATIONS.md#nginx-and-systemd).
 
 Run only one process per data directory and do not share the bot's Kraken key with another order manager. Back up state while the process is stopped; losing the database loses the bot's allocation and reconciliation history.
 
@@ -182,7 +184,7 @@ node --test tests/*.test.cjs
 
 The tests use mocked exchange/model responses and local HTTP fixtures. They cover execution gates, partial fills, uncertain submissions, risk limits, arbitrage recovery, principal recovery, paper margin, and API security. They do not verify live profitability or real-order execution.
 
-For an optional integration check, stop the app first and run `uv run kairos-smoke --jev`. This makes read-only Kraken requests and one billable Jev assessment, but no exchange writes. See [verification](OPERATIONS.md#verification).
+For an optional integration check, stop the trading worker first and run `uv run kairos-smoke --jev`. This makes read-only Kraken requests and one billable Jev assessment, but no exchange writes. See [verification](OPERATIONS.md#verification).
 
 Install [Gitleaks](https://github.com/gitleaks/gitleaks), then enable the repository hooks once per clone:
 

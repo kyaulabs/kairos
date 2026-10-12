@@ -576,7 +576,10 @@ async def shutdown(app):
     engine.shutting_down = True
     app["hub"].close()
     try:
-        await engine.stop()  # Latches Stop before awaiting an in-flight cycle.
+        if app.get("restart_control") and isinstance(engine, OKXEngine):
+            await engine.suspend()
+        else:
+            await engine.stop()  # Latches Stop before awaiting an in-flight cycle.
     except Exception as exc:
         error_id = diagnostics.capture(exc, "shutdown-reconciliation")
         engine.event(
@@ -655,25 +658,39 @@ async def lifecycle(app):
                 "kraken": lambda publish: Engine(store, kraken, jev, publish, futures=futures),
                 "alpaca": alpaca_engine,
                 "okx": lambda publish: OKXEngine(
-                    okx_stores["okx"], okx_clients["okx"], jev, publish
+                    okx_stores["okx"],
+                    okx_clients["okx"],
+                    jev,
+                    publish,
+                    restart_control=app.get("restart_control"),
                 ),
                 "okx-demo": lambda publish: OKXEngine(
-                    okx_stores["okx-demo"], okx_clients["okx-demo"], jev, publish
+                    okx_stores["okx-demo"],
+                    okx_clients["okx-demo"],
+                    jev,
+                    publish,
+                    restart_control=app.get("restart_control"),
                 ),
             },
             default=os.environ.get("KAIROS_EXCHANGE", "kraken"),
         )
         app["exchanges"], app["session"] = desk, session
         app["feed_restart"] = asyncio.Event()
-        feed_task = None
+        feed_task = stop_task = None
         try:
             await desk.initialize()
             feed_task = asyncio.create_task(feeds(app))
+            if app.get("restart_control"):
+                stop_task = asyncio.create_task(watch_stop(app))
             yield
         except Exception as exc:
             diagnostics.capture(exc, "application-lifecycle")
             raise
         finally:
+            if stop_task:
+                stop_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await stop_task
             if feed_task:
                 feed_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -690,11 +707,38 @@ async def lifecycle(app):
             diagnostic_handler.close()
 
 
+async def watch_stop(app):
+    control = app["restart_control"]
+    marker = app["stop_marker"]
+    while True:
+        await asyncio.sleep(0.1)
+        current = None
+        try:
+            current = control.read()
+            if all(current[key] == marker[key] for key in ("epoch", "generation")):
+                continue
+            engine = app["engine"]
+            if isinstance(engine, OKXEngine):
+                await engine.stop(durable=False)  # Observe, never generate another Stop.
+            else:
+                await engine.stop()
+            marker = current  # Do not swallow another Stop received during settlement.
+        except Exception as exc:
+            if current is not None:
+                marker = current  # A failed bounded settlement is not retried indefinitely.
+            diagnostics.capture(exc, "durable-stop")
+            app["engine"].running = False
+            app[
+                "engine"
+            ].last_error = "Durable Stop/reconciliation needs attention; trading blocked"
+            app["engine"].emit_state()
+
+
 async def index(request):
     return web.FileResponse(STATIC / "index.html")
 
 
-def create_app(engine=None, origin=None, futures=None):
+def create_app(engine=None, origin=None, futures=None, *, restart_control=None):
     app = web.Application(middlewares=[security], client_max_size=16 * 1024)
     app["hub"] = Hub()
     app["version"] = version("kairos-trader")
@@ -706,7 +750,9 @@ def create_app(engine=None, origin=None, futures=None):
     app["account_cache"] = {}
     app["account_lock"] = asyncio.Lock()
     app["market_lock"] = asyncio.Lock()
-    app["csrf"] = secrets.token_urlsafe(32)
+    app["restart_control"] = restart_control
+    app["stop_marker"] = restart_control.read() if restart_control else None
+    app["csrf"] = app["stop_marker"]["csrf"] if restart_control else secrets.token_urlsafe(32)
     diagnostics.register_secrets(app["csrf"])
     app["origin"] = (origin or os.environ.get("PUBLIC_ORIGIN", "http://127.0.0.1:8000")).rstrip("/")
     app.on_response_prepare.append(response_headers)
@@ -738,17 +784,25 @@ def create_app(engine=None, origin=None, futures=None):
     return app
 
 
-def main():
+def worker_main():
     # Runtime consumption only; secrets are never returned by an endpoint or logged.
+    from kairos.restart import Control
+
     load_dotenv(override=False)
     os.umask(0o077)
+    directory = Path(os.environ.get("DATA_DIR", "data"))
     web.run_app(
-        create_app(),
-        host="127.0.0.1",
-        port=int(os.environ.get("PORT", "8000")),
+        create_app(restart_control=Control(directory)),
+        path=str(directory / "engine.sock"),
         access_log=None,
-        print=lambda _: print("Kairos listening on loopback; use nginx for authenticated access"),
+        print=lambda _: print("Kairos trading worker on private Unix socket"),
     )
+
+
+def main():
+    from kairos.frontend import main as dashboard_main
+
+    dashboard_main()
 
 
 if __name__ == "__main__":

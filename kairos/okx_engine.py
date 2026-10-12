@@ -13,6 +13,7 @@ from kairos.engine import Engine
 from kairos.fees import FeeUnavailable
 from kairos.okx import OKXBeforeSend, OKXRejected, PendingOKX, PendingOKXBook
 from kairos.okx_reconciliation import bill_evidence
+from kairos.restart import StopRevoked
 from kairos.settings import DEFAULTS, validate_settings
 from kairos.strategies import limit_price
 
@@ -46,7 +47,7 @@ def history_identity(row):
 
 
 class OKXEngine(Engine):
-    def __init__(self, store, client, jev, publish, *, clock=None):
+    def __init__(self, store, client, jev, publish, *, clock=None, restart_control=None):
         if store.get("settings") is None:
             store.put(
                 "settings",
@@ -73,6 +74,9 @@ class OKXEngine(Engine):
         self.authorization = None
         self.authorization_monotonic_deadline = None
         self.operation_task = None
+        self.restart_control = restart_control
+        self.restart_generation = None
+        self.resumed_run = None
         self.account_info = None
         self.account_snapshot = None
         self.account_checked = 0
@@ -98,8 +102,11 @@ class OKXEngine(Engine):
 
     async def initialize(self):
         self.running, self.armed, self.authorization = False, False, None
+        from kairos import restart
+
+        checkpoint = self.store.get(restart.CHECKPOINT) if self.restart_control else None
         current = self.store.get("okx-operation")
-        if current and current.get("status") in {"running", "authorized"}:
+        if not checkpoint and current and current.get("status") in {"running", "authorized"}:
             current.update(
                 status="interrupted",
                 message="Restart revoked permission; reconcile original intents. No operation is replayed.",
@@ -123,7 +130,20 @@ class OKXEngine(Engine):
                 await self.refresh_fees(required=False)
             if self.store.get("okx-account"):
                 await self.reconcile_account()
+            if checkpoint:
+                await restart.restore(self, checkpoint)
         except Exception as exc:
+            if checkpoint:
+                self.store.put(restart.CHECKPOINT, None)
+                self.running, self.armed, self.authorization = False, False, None
+                if current and current.get("status") == "running":
+                    current.update(
+                        status="interrupted",
+                        message="Restart recovery blocked; original permission was not renewed. "
+                        + str(exc),
+                    )
+                    self.store.put("okx-operation", current)
+                    self.store.put("okx-operation:" + current["id"], current)
             self.last_error = (
                 str(exc)
                 if isinstance(exc, SafetyError)
@@ -134,7 +154,8 @@ class OKXEngine(Engine):
         self.event(
             "system",
             {
-                "message": f"OKX {self.client.environment} ready for configuration; paused and unarmed"
+                "message": f"OKX {self.client.environment} ready; "
+                + ("original finite run resumed" if self.running else "paused and unarmed")
             },
         )
         self.emit_state()
@@ -493,6 +514,15 @@ class OKXEngine(Engine):
     def active_run(self):
         run = super().active_run()
         scope = getattr(self, "authorization", None)
+        resumed = getattr(self, "resumed_run", None)
+        if run is None and resumed:
+            candidate = self.store.get(self.run_key())
+            if (
+                candidate
+                and all(candidate.get(key) == value for key, value in resumed.items())
+                and candidate["settings_id"] == self.settings_id()
+            ):
+                run = candidate
         if run and scope and scope["kind"] == "strategy":
             # Reuse signal lifecycle bounds, not the frozen Alpaca trial or its state.
             return {**run, "trial_ends_at": scope["deadline"], "protocol": scope["protocol"]}
@@ -504,6 +534,15 @@ class OKXEngine(Engine):
                 "OKX mode/environment mismatch; local simulated execution is prohibited"
             )
         scope = self.authorization
+        if (
+            self.restart_control
+            and scope
+            and (
+                not self.restart_generation
+                or not self.restart_control.matches(self.restart_generation)
+            )
+        ):
+            raise StopRevoked("Durable Stop revoked trading permission; nothing submitted")
         if (
             not self.running
             or not self.armed
@@ -900,9 +939,52 @@ class OKXEngine(Engine):
             self.store.save_order(order)
             await self.refresh_order(order)  # Acceptance is not terminal cancellation.
 
-    async def stop(self):
+    async def suspend(self):
+        """Worker shutdown retains only a verified, already-issued HTF permission."""
+        from kairos import restart
+
+        checkpoint = self.store.get(restart.CHECKPOINT)
+        if not (
+            self.running
+            and self.armed
+            and restart.eligible(self, self.authorization)
+            and checkpoint
+        ):
+            await self.stop()
+            return
+        try:
+            restart.validate(self, checkpoint)
+        except Exception:
+            await self.stop()  # Expired or invalid permission is not a suspension candidate.
+            return
+        self.shutting_down = True
+        self.running, self.armed = False, False
+        self.htf_review.cancel()
+        if self.task and self.task is not asyncio.current_task():
+            self.task.cancel()
+            await asyncio.gather(self.task, return_exceptions=True)
+        self.authorization = None
+        if self.store.get(restart.CHECKPOINT) != checkpoint or not self.restart_control.matches(
+            checkpoint
+        ):
+            return  # Stop won during cancellation; do not claim permission was retained.
+        self.event(
+            "system",
+            {
+                "message": "Trading worker suspended. Original finite authorization retained for bounded restart reconciliation; no new permission or replay.",
+                "authorization_id": checkpoint["scope"]["id"],
+            },
+        )
+
+    async def stop(self, *, durable=True):
         self.running, self.armed, self.authorization = False, False, None
         self.stop_generation += 1
+        if self.restart_control:
+            from kairos import restart
+
+            self.store.put(restart.CHECKPOINT, None)  # Durable revocation precedes all awaits.
+            if durable:
+                self.restart_control.revoke()
         self.htf_review.cancel()
         if self.operation_task and self.operation_task is not asyncio.current_task():
             self.operation_task.cancel()
@@ -1341,6 +1423,9 @@ class OKXEngine(Engine):
             except Exception as exc:
                 if self.stop_generation != generation:
                     return  # Stop owns cancellation, diagnostics and the final report.
+                if isinstance(exc, StopRevoked):
+                    self.running, self.armed, self.authorization = False, False, None
+                    return  # Durable Stop watcher owns settlement and STOPPED reporting.
                 self.running, self.armed, self.authorization = False, False, None
                 self.last_error = (
                     str(exc)
@@ -1396,6 +1481,13 @@ class OKXEngine(Engine):
             reconciliation=self.store.get("okx-reconciliation"),
             execution_cycle=operation,
             execution_cycle_evidence=execution_evidence(self, operation) if operation else None,
+            restart_recovery={
+                "supported": self.client.environment == "demo"
+                and self.settings["strategy"] == "htf"
+                and bool(self.restart_control),
+                "checkpointed": bool(self.store.get("restart-checkpoint")),
+                "policy": "Same-boot finite demo HTF only; reconcile before resume; original deadlines and limits; Stop always revokes",
+            },
             capabilities={
                 "crypto_spot": "OKX U.S. cash spot; isolated live/demo",
                 "programs": "finite demo strategies; live execution_cycle/TWAP only",

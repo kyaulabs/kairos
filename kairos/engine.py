@@ -50,6 +50,7 @@ EXECUTION_REVISION = hashlib.sha256(
             "okx_account",
             "okx_engine",
             "okx_cycle",
+            "restart",
             "qualification_exit",
             "settlement",
             "exchanges",

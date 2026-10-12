@@ -1,7 +1,7 @@
 [Unit]
-Description=Kairos trading desk
-After=network-online.target
-Wants=network-online.target
+Description=Kairos dashboard and API gateway
+After=network-online.target kairos-worker.service
+Wants=network-online.target kairos-worker.service
 
 [Service]
 Type=simple
