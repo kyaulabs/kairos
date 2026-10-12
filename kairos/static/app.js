@@ -8,6 +8,7 @@
   const equityChart = new LiveChart('#equity-chart', 'var(--accent)', 'equity');
   ChartIndicators.bind(priceChart);
   priceChart.bindNavigation($('chart-navigation'));
+  priceChart.bindReadout($('chart-ohlc'));
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
@@ -182,6 +183,18 @@
     if ($('fees-status').textContent !== text) $('fees-status').textContent = text;
     $('fees-status').classList.toggle('warning', stale);
   }
+  function updateChartHeading() {
+    $('chart-symbol').textContent = symbol() || state.settings.pair;
+    const interval = $('candle-interval').selectedOptions[0].textContent.replace(/m$/, '');
+    const venue = {kraken: 'Kraken', alpaca: 'Alpaca', okx: 'OKX', 'okx-demo': 'OKX'}[state.exchange] || state.exchange;
+    $('chart-meta').textContent = `· ${interval} · ${venue}`;
+  }
+  function showConnection(status) {
+    const label = `Dashboard connection: ${status}`;
+    $('connection-label').textContent = label;
+    $('connection').title = label;
+    $('connection').classList.toggle('connected', status === 'connected');
+  }
   function render(next) {
     if ((state && next.exchange !== state.exchange) || settingsSchema.exchange !== next.exchange || pairs.some(pair => pair.exchange !== next.exchange)) { location.reload(); return; }
     if (historyRevision !== undefined && next.order_history_revision < historyRevision) return;
@@ -212,6 +225,7 @@
     $('chart-context').title = chartPair.execution_reason || MarketPicker.kindLabel(chartPair);
     $('chart-context').classList.toggle('browsing', chartPair.id !== botPair.id);
     if (lastMarket !== chartPair.id) {
+      $('chart-market-icons').replaceChildren(MarketPicker.pairIcon(MarketPicker.iconSymbol(chartPair)));
       priceChart.clear(); lastMarket = chartPair.id;
       $('price').textContent = '—'; $('bid-ask').textContent = 'Waiting for prices'; $('feed-age').textContent = '—';
       restartCandles();
@@ -221,6 +235,7 @@
       equityChart.clear(); priceChart.fills = []; priceChart.draw(); lastPortfolio = portfolio;
     }
     $('market-title').textContent = selected || state.settings.pair;
+    updateChartHeading();
     $('market-open').title = `${selected} · ${MarketPicker.kindLabel(chartPair)} · Chart only`;
     $('mode').value = state.mode;
     const hosted = state.exchange === 'alpaca', native = OKXOperations.enabled(state);
@@ -525,7 +540,7 @@
   });
   $('candle-interval').addEventListener('change', () => {
     priceChart.setCandleInterval(Number($('candle-interval').value));
-    if (state) restartCandles();
+    if (state) { updateChartHeading(); restartCandles(); }
   });
   $('bot-market').addEventListener('click', () => {
     if (!state) return;
@@ -579,15 +594,15 @@
     await refreshHistory();
     const stream = new EventSource('/api/events');
     stream.onopen = async () => {
-      connected = true; $('connection').textContent = 'CONNECTED'; $('connection').classList.add('connected');
+      connected = true; showConnection('connected');
       try { render(await request('state')); await refreshHistory(); }
       catch (error) { message(error.message); }
     };
-    stream.onerror = () => { connected = false; $('connection').textContent = 'RECONNECTING'; $('connection').classList.remove('connected'); if (state) render(state); };
+    stream.onerror = () => { connected = false; showConnection('reconnecting'); if (state) render(state); };
     stream.addEventListener('state', event => render(JSON.parse(event.data)));
     stream.addEventListener('ticker', event => { const ticker = JSON.parse(event.data); tickers[ticker.symbol] = ticker; });
     stream.addEventListener('feed', () => { $('feed-age').textContent = 'Market feed reconnecting'; });
     for (const kind of ['decision','order','fill','account-fee','account-read','operating-state','scheduled-recovery','candidate','qualification','data-wait','engine-error','skip','cycle','liquidation','recovery','mode','settings','system','program','okx-operation','request-error']) stream.addEventListener(kind, event => addEvent(JSON.parse(event.data)));
   }
-  boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); $('connection').textContent = 'DISCONNECTED'; });
+  boot().catch(error => { message(`Unable to initialize: ${error.message}. Reload after checking the server.`); showConnection('disconnected'); });
 })();
