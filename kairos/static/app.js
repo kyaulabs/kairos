@@ -612,6 +612,7 @@
       const control = await request('control');
       if (control.separate_worker && control.stop_available) {
         csrf = control.csrf; separateWorker = true;
+        if (!state) { $('mode-badge').textContent = 'Mode unavailable'; $('mode-badge').classList.remove('live'); }
         $('quick-stop').hidden = false; $('quick-stop').disabled = false;
         message('Trading worker unavailable or reconciling. Stop still records a durable revocation. Reload when the worker is ready.');
       }
