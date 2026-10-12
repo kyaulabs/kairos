@@ -37,8 +37,10 @@ def names_from(rows):
         if not isinstance(row, dict):
             raise ValueError("Invalid asset-name row")
         symbol, name, identifier = row.get("symbol"), row.get("name"), row.get("id")
-        if not all(isinstance(value, str) and value for value in (symbol, name, identifier)):
+        if not all(isinstance(value, str) for value in (symbol, name, identifier)):
             raise ValueError("Invalid asset-name fields")
+        if not all((symbol, name, identifier)):
+            continue  # The public catalog includes assets without a usable ticker or name.
         symbol = symbol.upper()
         if (
             len(symbol) <= 24
@@ -97,6 +99,8 @@ class AssetNames:
                                 if len(body) > 8 * 1024 * 1024:
                                     raise ValueError("Asset-name catalog too large")
                     names = names_from(json.loads(body))
+                    if not names:
+                        raise ValueError("No usable asset names in catalog")
                     self.store.save_names(names, now)
                     self.names, self.fetched = names, now
                 except (aiohttp.ClientError, TimeoutError, ValueError, sqlite3.Error, OSError):

@@ -241,6 +241,15 @@ class AssetNameTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 asset_names.names_from(invalid)
 
+    async def test_blank_catalog_fields_do_not_discard_valid_native_names(self):
+        blank = {"id": "basket-2", "symbol": "", "name": "Basket"}
+        bitcoin = {"id": "bitcoin", "symbol": "btc", "name": "Bitcoin"}
+        self.assertEqual(
+            asset_names.names_from([blank, bitcoin, {**blank, "symbol": "empty", "name": ""}]),
+            {"BTC": "Bitcoin", "XBT": "Bitcoin"},
+        )
+        self.assertEqual(asset_names.names_from([blank]), {})
+
     async def test_server_cache_restart_concurrent_reads_and_provider_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             store = Preferences(directory)
@@ -248,6 +257,8 @@ class AssetNameTests(unittest.IsolatedAsyncioTestCase):
 
             async def provider(request):
                 calls.append(dict(request.headers))
+                if failing[0] == "blank":
+                    return web.json_response([{"id": "basket-2", "symbol": "", "name": "Basket"}])
                 if failing[0]:
                     return web.Response(status=429)
                 return web.json_response([{"id": "bitcoin", "symbol": "btc", "name": "Bitcoin"}])
@@ -279,3 +290,9 @@ class AssetNameTests(unittest.IsolatedAsyncioTestCase):
                     )
                 )
                 self.assertEqual(store.read()["values"], DEFAULTS)
+                failing[0] = "blank"
+                now[0] += 3601
+                retained = await restarted.snapshot()
+                self.assertEqual(retained["names"]["BTC"], "Bitcoin")
+                self.assertEqual(retained["fetched_at"], 200000)
+                self.assertEqual(len(calls), 3)
