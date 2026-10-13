@@ -1,6 +1,6 @@
 # VWAP and Fibonacci strategy improvement plan
 
-Status as of 2026-10-13: the completed collection has been reviewed before strategy changes. The controlled v1/v2 comparison is complete. Entry-economics changes, confirmation ablations and AI experiments have not started. Implementation starts research-only; no strategy registration, deployment, hosted-demo order, live order or paid inference is authorized by this plan.
+Status as of 2026-10-13: the completed collection and controlled v1/v2 comparison are reviewed. Entry-economics diagnostics now reproduce the saved v2 financial results. The first Fib EMA higher-low timing alternative was tested and rejected for advancement; all eight baseline rules remain unchanged. Further timing/economic gates, confirmation ablations and AI experiments have not started. Work remains research-only; no strategy registration, deployment, hosted-demo order, live order or paid inference is authorized by this plan.
 
 Keep all eight independent setups. Improve consistent, economically valid activity before optimizing profitability. Read the [original 11-PDF review](vwap-fibonacci-literature-review.md), [14-PDF supplement](expanded-literature-review.md) and [versioned bibliography](literature-sources.json). Together they cover 25 PDFs, 639 pages and 24 distinct papers; four unavailable full texts are not evidence. [OpenAI Responses and Decisions](ai-decision-experiment.md) remain optional challengers, not prerequisites for the first fixes.
 
@@ -37,7 +37,7 @@ The execution-minute coverage is 87.35%. A missing minute can mean no trades or 
 
 ## 1. Finish entry-economics diagnosis
 
-Recommendation #1, the fair comparison, is done. The next work is recommendation #2: explain and fix insufficient reward remaining at entry before imposing more filters.
+Recommendation #1, the fair comparison, is done. Recommendation #2's diagnostic phase is also complete; timing and economic-eligibility fixes remain. The [entry-economics audit](entry-economics-audit.md) and [experiment history](experiment-history.json) preserve its evidence and the first rejected timing trial.
 
 Prior v2 analysis found 48/146 filled entries with nonpositive modeled net reward at the intended target, 120/146 below 1 net planned R, and 23/45 actual "Target" exits losing money. Reconcile those counts to the preserved matched v2 cases with one shared cost calculation. Do not confuse theoretical target reward with expected profit or count a trigger label as a successful exit.
 
@@ -51,7 +51,7 @@ Add diagnostics without changing signals, sizing or fills:
 
 The assumed base round trip is roughly 42 bps before tick/dust effects: two taker fees, two adverse slippage allowances and the spread. Small structural moves can be untradeable even when the candle pattern is correct.
 
-Acceptance: accounting reconciles, cost attribution explains the flagged entries/exits, and diagnostic-only replay reproduces every saved v2 financial result. If an actual accounting or protective-execution defect is found, fix it separately and replay both signal versions under that corrected executor. Do not compare a corrected challenger with an uncorrected baseline.
+Acceptance: accounting reconciles, cost attribution explains the flagged entries/exits, and diagnostic-only replay reproduces every saved v2 financial result. This gate passed: all 23 losing Target episodes were already cost-negative at entry, 11 needed multiple exit IOCs, and none crossed the stop later in this week. No accounting/protective defect was established. The final diagnostic replay took 21.83 wall seconds and preserved all deterministic financial fields, native execution deltas and sold-share R. If a defect is later found, fix it separately and replay both signal versions under that corrected executor. Do not compare a corrected challenger with an uncorrected baseline.
 
 ## 2. Recover target room without arbitrary targets
 
@@ -68,7 +68,7 @@ Test the earliest completed-candle confirmation that still proves the setup's in
 | `fib-extension` | Whether confirmation delay, rather than lack of breakouts, explains the activity collapse. First measure the acceptance/retest sequence; ablate it in step 3. | Confirmed swing high, genuine breakout, fixed 1.618 extension and invalidation. |
 | `fib-sweep` | Whether the first completed sweep-and-reclaim rejection is enough before another higher-low or micro-break confirmation. | A real sweep below a known swing low, completed reclaim and stop below the sweep. |
 
-These are proposals, not conclusions from the papers. Sequence them using the cost audit. Start with `fib-ema` 5m, which had 13 cost-negative filled plans, then anchored VWAP and confluence. Keep the other setups in the comparison and disclose unchanged cases.
+These are proposals, not conclusions from the papers. The first `fib-ema` trial allowed higher-low recovery as an alternative to the reaction-high break while retaining EMA20 recapture. In the 32-case comparison, 5m positive-target-reward fills rose 3→5, but net return and mean closed R worsened slightly; 15m net return also worsened. It failed the declared advancement rule and was not adopted. All 14 non-EMA case pairs were identical. Preserve that rejected source/report, then predeclare the next single-factor test using the cost audit. Anchored VWAP and confluence remain untested timing hypotheses. Keep every setup in comparisons and disclose unchanged cases.
 
 A net-reward eligibility rule is worth testing after timing improvements, but a blanket `net R ≥ 1` would reject most current v2 entries. First report that counterfactual activity loss. Test one predeclared economic boundary, not a grid of optimized thresholds. An impossible after-cost target cannot be rescued by increasing size or asking AI to approve it.
 
@@ -127,6 +127,8 @@ Local reports are under `/home/kyau/.local/share/kairos-research/vwap-fibonacci/
 - `pilot-v1.{json,html}`: original smaller-capital exploratory run.
 - `pilot-v2-risk-1pct.{json,html}`: refined signal/risk pilot.
 - `fair-v1-v2-1000-risk-1pct.{json,html}`: matched comparison and current baseline.
+- `entry-economics-v2-final.{json,html}` and its verification receipt: diagnostic-only replay with cost/timing attribution; the initial `entry-economics-v2` replay remains preserved.
+- `ema-higher-low-development.{json,html}`: first timing alternative, rejected for advancement; declarations, source hashes and selection are in the experiment history.
 - Apollo `versions/`: preserved original, refined and comparison wheels; comparison runner is archived with its version.
 
 The selected archive is `kairos-vwap-fib-pilot.zip`, SHA-256 `5332ee5fe401c99fd4fd5321e6a4e592e82bb7ad28fc8d83548bdb3d1a55bdb5`, with a provenance receipt. It contains the short pilot and warmup, not the full historical archive. Reports remain owner-private. The original HTF study, stopped at the user's request, stays separate and is not restarted by this plan.
