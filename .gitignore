@@ -17,6 +17,9 @@ dist/
 # Locally licensed Font Awesome Pro webfonts; do not redistribute in Git.
 kairos/static/fonts/*.woff2
 
+# Local research inputs; published reviews live under docs/research/.
+/research/
+
 # Visual Studio cache directory
 */.vs/
 .vs/

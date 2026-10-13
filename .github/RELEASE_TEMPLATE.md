@@ -23,7 +23,7 @@ uv sync --locked --no-dev
 test -e .env || install -m 600 .env.example .env
 ```
 
-Configure your private `.env` using `.env.example`. Kraken local Dry-run needs authenticated fee-query access, not order permissions. Optional [Alpaca hosted paper](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/ALPACA.md) needs separate paper credentials, explicit paper-order permission and Start confirmation; live Alpaca is unavailable. Model-assisted strategies also need a Jev key and may incur API charges. Leave both Kraken live-trading flags disabled.
+Configure your private `.env` using `.env.example`. Kraken local Dry-run needs authenticated fee-query access, not order permissions. Optional [Alpaca hosted paper](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/docs/exchanges/alpaca.md) needs separate paper credentials, explicit paper-order permission and Start confirmation; live Alpaca is unavailable. Model-assisted strategies also need a Jev key and may incur API charges. Leave both Kraken live-trading flags disabled.
 
 ```sh
 uv run --no-sync kairos-worker  # Keep running in one terminal.
@@ -37,13 +37,13 @@ Open <http://127.0.0.1:8000>. New installations start paused. An existing eligib
 
 Use the same checkout and dependency setup, then adapt [`deploy/kairos.service`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/kairos.service), [`deploy/kairos-worker.service`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/kairos-worker.service) and [`deploy/nginx.conf`](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/deploy/nginx.conf) for your service account, paths, hostname, certificates and Basic Auth password file. Keep the backend on loopback, protect **all** routes with TLS and authentication, and set `PUBLIC_ORIGIN` to the exact HTTPS origin.
 
-Validate nginx configuration with `sudo nginx -t` before reloading it. Follow the [deployment instructions](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md#nginx-and-systemd) to install and start both services. Dashboard restarts do not stop trading. Worker recovery is restricted to same-boot, previously authorized OKX Demo HTF runs; it never extends a deadline or overrides Stop. Service startup does not grant new permission.
+Validate nginx configuration with `sudo nginx -t` before reloading it. Follow the [deployment instructions](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/docs/operations/guide.md#nginx-and-systemd) to install and start both services. Dashboard restarts do not stop trading. Worker recovery is restricted to same-boot, previously authorized OKX Demo HTF runs; it never extends a deadline or overrides Stop. Service startup does not grant new permission.
 
 Optional locally licensed Font Awesome Pro fonts are not distributed in the release. Supply them locally or use the bundled icon fallbacks.
 
 ## 🔄 Update
 
-Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/OPERATIONS.md) before updating. Preserve `.env`, the configured `DATA_DIR`, all four exchange databases, `dashboard.sqlite3` preferences, private control state and optional font assets. Never reset a portfolio as an update step.
+Read these notes and the [operations guide](https://github.com/{{REPOSITORY}}/blob/{{TAG}}/docs/operations/guide.md) before updating. Preserve `.env`, the configured `DATA_DIR`, all four exchange databases, `dashboard.sqlite3` preferences, private control state and optional font assets. Never reset a portfolio as an update step.
 
 For a gateway-only update, first verify that worker code and dependencies are unchanged. Deploy matching gateway/static files and restart only the gateway; leave the worker, its financial stores and authorization untouched. Reload each browser. Use the full shutdown procedure below when worker code or dependencies change.
 

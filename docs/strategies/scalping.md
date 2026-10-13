@@ -14,7 +14,7 @@ Start with a flat selected paper portfolio. Select **Bollinger range scalping ·
 | Maximum holding time | 300 seconds | 60–1,800 seconds |
 | Post-exit cooldown | 60 seconds | 0–3,600 seconds |
 
-Spot execution uses a separate public WebSocket book and 1m candle stream, with REST bootstrap/recovery. A later candle bucket, not the clock alone, confirms a streamed candle is complete. Invalid or stale stream books are discarded; fresh REST depth may be used instead. Futures retains its separate REST market-data adapter. Streaming does not change the engine interval or run protection checks while paused. See [execution market data](OPERATIONS.md) for validation and recovery details.
+Spot execution uses a separate public WebSocket book and 1m candle stream, with REST bootstrap/recovery. A later candle bucket, not the clock alone, confirms a streamed candle is complete. Invalid or stale stream books are discarded; fresh REST depth may be used instead. Futures retains its separate REST market-data adapter. Streaming does not change the engine interval or run protection checks while paused. See [execution market data](../operations/guide.md) for validation and recovery details.
 
 The bands use the arithmetic mean and population standard deviation of closing prices in the rolling window. One additional completed candle supplies the preceding window for re-entry confirmation. Missing minutes, an unavailable latest completed candle, invalid OHLC values and inadequate history block execution; the strategy does not forward-fill gaps.
 
