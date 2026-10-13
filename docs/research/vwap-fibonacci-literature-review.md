@@ -1,6 +1,8 @@
 # VWAP and Fibonacci paper review
 
-Reviewed 2026-10-13: every PDF in the local `research/` folder, 11 papers and 221 pages. The review covers the extracted full text, methods, results, tables, limitations and appendix captions. It does not reproduce the authors' experiments or certify their data. Page references below use PDF page numbers.
+Original snapshot reviewed 2026-10-13: the first 11 PDFs in the local `research/` folder, 11 papers and 221 pages. The review covers the extracted full text, methods, results, tables, limitations and appendix captions. It does not reproduce the authors' experiments or certify their data. Page references below use PDF page numbers.
+
+The completed collection now contains 25 PDFs, 639 pages and 24 distinct papers. The [expanded review](expanded-literature-review.md) assesses the 14 additions; the [bibliography](literature-sources.json) records all versions and four unavailable full texts. This document preserves the original findings. Genet v1/v2 are revisions of the same paper, not independent evidence.
 
 The useful evidence is narrower than the titles suggest. Fibonacci papers give mixed evidence for support/resistance effects, often without an executable after-cost test. Five of the six VWAP papers concern executing an already chosen order against a benchmark, not predicting a profitable trade. None establishes profitability for KAIROS's long-only BTC/USDT, 5m/15m, OKX-target strategies.
 
