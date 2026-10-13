@@ -32,6 +32,13 @@ from kairos.backtest import (
 )
 from kairos.domain import BPS, ZERO, Pair, SafetyError, dec, floor
 from kairos.engine import EXECUTION_REVISION, Engine
+from kairos.research_diagnostics import (
+    clock_facts,
+    economics_summary,
+    entry_economics,
+    execution_estimate,
+    exit_economics,
+)
 from kairos.research_signals import RULES, VARIANTS, Signals
 from kairos.settings import DEFAULTS, validate_settings
 from kairos.store import Store
@@ -239,9 +246,7 @@ def stop_risk_plan(
         or min(equity, initial, cash) < 0
     ):
         raise SafetyError("Invalid planned-risk inputs")
-    half = dec(scenario["spread_bps"]) / (2 * BPS)
-    bid = pair.price(stop * (1 - half), "buy")
-    exit_bound = pair.price(bid * (1 - dec(scenario["slippage_bps"]) / BPS), "sell")
+    exit_bound = execution_estimate(pair, stop, "sell", scenario)
     loss_per_gross_unit = entry - (1 - fee) * exit_bound * (1 - fee)
     if exit_bound <= 0 or loss_per_gross_unit <= 0:
         raise SafetyError("Invalid stop execution estimate")
@@ -328,24 +333,116 @@ async def simulate(
     max_position_loss = ZERO
     stop_overruns = 0
     first_price = last_price = halt_at = None
+    candidates, exits = {}, []
+    coverage = {name: Counter() for name in ("hour_UTC", "weekday_UTC", "minute_of_hour")}
+
+    def candidate_record(pending):
+        key = pending["id"]
+        if key not in candidates:
+            facts = pending["facts"]
+            armed_at = pending["armed_at"]
+            candidates[key] = {
+                "candidate_id": key,
+                "armed_at": armed_at,
+                "arm_clock": clock_facts(armed_at),
+                "warmup_arm": armed_at < start,
+                "arming_facts": facts,
+                "arm_reference": facts.get("signal_close"),
+                "arm_stop": str(pending["stop"]),
+                "arm_target": str(pending["target"]) if pending["target"] is not None else None,
+                "expires_at": pending["expires"],
+                "target_room_at_arm": str(pending["target"] - dec(facts["signal_close"]))
+                if pending["target"] is not None
+                else None,
+                "outcome": "pending_at_end",
+            }
+            known_at = facts.get("swing_known_at", facts.get("anchor_known_at", armed_at))
+            history = [
+                r
+                for r in getattr(signals, "rows", ())
+                if known_at <= r[0] + settings["candle_minutes"] * 60 < armed_at
+            ]
+            width = dec(facts["atr"]) * dec(RULES["touch_atr"])
+            levels = {}
+            for name in ("swing_low", "swing_high", "fib_382", "fib_618"):
+                if facts.get(name) is None:
+                    continue
+                level = dec(facts[name])
+                touches = [
+                    r[0] + settings["candle_minutes"] * 60
+                    for r in history
+                    if dec(r[3]) <= level + width and dec(r[2]) >= level - width
+                ]
+                levels[name] = {
+                    "level": str(level),
+                    "known_at": known_at,
+                    "age_seconds": armed_at - known_at,
+                    "prior_touch_bars": len(touches),
+                    "last_touch_at": touches[-1] if touches else None,
+                    "trailing_observed_bars": len(history),
+                    "frozen_zone_half_width": str(width),
+                }
+            candidates[key]["level_context"] = levels
+        return candidates[key]
+
+    def setup_record(setup):
+        key = setup.facts.get("candidate_id", f"{variant}:{setup.closed_at}")
+        if key not in candidates:
+            candidates[key] = {
+                "candidate_id": key,
+                "armed_at": setup.facts.get("armed_at"),
+                "arming_facts": setup.facts.get("arming_facts", {}),
+                "outcome": "confirmed",
+            }
+        return candidates[key]
 
     def observe(row, minute):
         nonlocal signal_count, missed_open
         closed_at = row[0] + settings["candle_minutes"] * 60
         before = dict(getattr(signals, "events", {}))
+        pending = getattr(signals, "pending", None)
         checks, setup = signals.push(row, minute)
         if not start <= closed_at < end:
             return None
         for name, value in getattr(signals, "events", {}).items():
-            lifecycle[name] += value - before.get(name, 0)
+            delta = value - before.get(name, 0)
+            lifecycle[name] += delta
+            if delta and pending and name not in {"armed", "confirmed"}:
+                candidate_record(pending).update(outcome=name, resolved_at=closed_at)
+        current_pending = getattr(signals, "pending", None)
+        if current_pending:
+            candidate_record(current_pending)
         gates["observed_windows"] += 1
         for name, passed in checks.items():
             gates["failed:" + name] += int(not passed)
         if setup:
+            record = candidate_record(pending) if pending else setup_record(setup)
+            arm_reference = record.get("arm_reference")
+            arm_stop = record.get("arm_stop")
+            armed_at = record.get("armed_at")
+            record.update(
+                confirmed_at=setup.closed_at,
+                confirmation_clock=clock_facts(setup.closed_at),
+                confirmation_bars=(setup.closed_at - armed_at) / (settings["candle_minutes"] * 60)
+                if armed_at is not None
+                else None,
+                confirmation_reference=str(setup.reference),
+                confirmation_stop=str(setup.stop),
+                confirmation_target=str(setup.target),
+                confirmation_price_rise=str(setup.reference - dec(arm_reference))
+                if arm_reference is not None
+                else None,
+                confirmation_stop_widening=str(dec(arm_stop) - setup.stop)
+                if arm_stop is not None
+                else None,
+                target_room_at_confirmation=str(setup.target - setup.reference),
+                outcome="confirmed",
+            )
             signal_count += 1
             regimes[setup.facts.get("regime", "unspecified")] += 1
             signals_by_day[str(closed_at // 86400 * 86400)] += 1
             if setup.closed_at != minute:
+                record.update(outcome="missing_next_execution_minute", resolved_at=minute)
                 missed_open += 1
                 reasons["Signal expired: next execution minute absent"] += 1
                 return None
@@ -396,7 +493,20 @@ async def simulate(
                     "reason": position["exit_reason"],
                 }
             )
+        exit_audit = exit_economics(position, engine.orders(), pair, scenario, taker)
+        exit_audit.update(
+            position_id=position["id"],
+            episode_retired=True,
+            cost_negative_at_entry=dec(
+                position["entry_economics"]["net_target_reward_per_gross_unit"]
+            )
+            <= 0,
+        )
+        exits.append(exit_audit)
         if position["sold"]:
+            sold_risk = dec(position["risk_plan"]["filled_stop_risk"]) * (
+                position["sold"] / position["owned"]
+            )
             trades.append(
                 {
                     "opened_at": position["opened_at"],
@@ -409,6 +519,9 @@ async def simulate(
                     "retained_quantity": str(residual),
                     "risk_plan": position["risk_plan"],
                     "risk_breached": position.get("risk_breached", False),
+                    "sold_share_planned_risk": str(sold_risk),
+                    "realized_R": str(dec(exit_audit["net_sold_pnl"]) / sold_risk),
+                    "exit_diagnostics": exit_audit,
                 }
             )
         reasons["Exit complete or residual below native minimum"] += 1
@@ -423,6 +536,8 @@ async def simulate(
             if ts >= end:
                 break
             market.now, market.mid = ts + 1, dec(row[1])
+            for name, value in clock_facts(ts).items():
+                coverage[name][value] += 1
             if first_price is None:
                 first_price = market.mid
                 await engine.initialize()
@@ -455,6 +570,18 @@ async def simulate(
                             if market.now >= position["deadline"]
                             else None
                         )
+                    if position["exit_reason"] and not position.get("exit_trigger"):
+                        position["exit_trigger"] = {
+                            "reason": position["exit_reason"],
+                            "observed_at": market.now,
+                            "mid": str(market.mid),
+                        }
+                    if (
+                        position["exit_reason"] == "Target"
+                        and market.mid <= position["stop"]
+                        and position.get("stop_after_target_at") is None
+                    ):
+                        position["stop_after_target_at"] = market.now
                     if position["exit_reason"]:
                         quantity = floor(position["quantity"], pair.lot)
                         book = await market.book(pair)
@@ -470,6 +597,15 @@ async def simulate(
                             quantity = floor(min(quantity, engine.limits()[0] / bound), pair.lot)
                             try:
                                 order = await engine.place(pair, "sell", quantity, bound, book)
+                                order["execution_observation"] = {
+                                    "mid": str(market.mid),
+                                    "bid": str(book.bids[0][0]),
+                                    "prior_minute_liquidity_remaining": str(
+                                        market.remaining + dec(order["filled"])
+                                    ),
+                                    "first_trigger": position["exit_trigger"],
+                                }
+                                store.save_order(order)
                                 position["quantity"] -= dec(order["filled"])
                                 position["sold"] += dec(order["filled"])
                                 position["proceeds"] += dec(order["cost"]) - dec(order["fee"])
@@ -484,14 +620,38 @@ async def simulate(
                             except SafetyError as exc:
                                 reasons["Exit blocked: " + str(exc)] += 1
                 if offset == 1 and setup:
+                    record = setup_record(setup)
+                    book = await market.book(pair)
+                    bound = limit_price(book, "buy", settings["slippage_bps"])
+                    record.update(
+                        next_open_at=market.now,
+                        next_open_clock=clock_facts(market.now),
+                        next_open_mid=str(market.mid),
+                        next_open_ask=str(book.asks[0][0]),
+                        next_open_entry_bound=str(bound),
+                        target_room_at_entry=str(setup.target - bound),
+                        room_consumed_after_confirmation=str(bound - setup.reference),
+                        next_open_move_from_confirmation=str(market.mid - setup.reference),
+                        entry_spread_and_quote_tick_cost=str(book.asks[0][0] - market.mid),
+                        entry_slippage_and_bound_tick_cost=str(bound - book.asks[0][0]),
+                        previous_minute_present=bool(previous and previous[0] + 60 == ts),
+                        previous_minute_volume=previous[6]
+                        if previous and previous[0] + 60 == ts
+                        else None,
+                        available_liquidity=str(market.remaining),
+                        entry_economics=entry_economics(
+                            pair, bound, setup.stop, setup.target, scenario, taker
+                        ),
+                    )
                     if not engine.running or engine.entries_halted:
+                        record["outcome"] = "blocked_loss_halt"
                         reasons["Signal blocked: latched loss halt"] += 1
                     elif position:
+                        record["outcome"] = "blocked_owned_position"
                         reasons["Signal blocked: active owned position"] += 1
                     else:
-                        book = await market.book(pair)
-                        bound = limit_price(book, "buy", settings["slippage_bps"])
                         if not setup.stop < bound < setup.target:
+                            record["outcome"] = "blocked_price_plan"
                             reasons["Signal blocked: next open outside stop/target plan"] += 1
                         else:
                             await engine.valuation()
@@ -533,6 +693,23 @@ async def simulate(
                                 )
                                 store.save_order(order)
                                 owned = net_quantity(order)
+                                record.update(
+                                    outcome="filled" if owned else "unfilled_IOC",
+                                    requested_quantity=order["volume"],
+                                    filled_quantity=order["filled"],
+                                    entry_economics=entry_economics(
+                                        pair,
+                                        bound,
+                                        setup.stop,
+                                        setup.target,
+                                        scenario,
+                                        taker,
+                                        gross=dec(order["filled"]),
+                                        owned=owned,
+                                    ),
+                                )
+                                order["entry_economics"] = record["entry_economics"]
+                                store.save_order(order)
                                 if owned:
                                     position = {
                                         "id": engine.position_id,
@@ -547,6 +724,7 @@ async def simulate(
                                         "deadline": market.now + RULES["max_hold_seconds"],
                                         "exit_reason": None,
                                         "risk_plan": risk_plan,
+                                        "entry_economics": record["entry_economics"],
                                     }
                                     filled_by_day[str(ts // 86400 * 86400)] += 1
                                 reasons[
@@ -555,6 +733,7 @@ async def simulate(
                                     else "IOC entry had no assumed liquidity"
                                 ] += 1
                             except SafetyError as exc:
+                                record.update(outcome="blocked_entry_safety", blocker=str(exc))
                                 reasons["Entry blocked: " + str(exc)] += 1
                 check_position_risk()
                 held, cash = engine.balance(pair.base), engine.balance(pair.quote)
@@ -585,6 +764,22 @@ async def simulate(
             observe(next_bar, end)
             next_bar = next(bars, None)
         orders = engine.orders()
+        if position:
+            exit_audit = exit_economics(position, orders, pair, scenario, taker)
+            exit_audit.update(
+                position_id=position["id"],
+                episode_retired=False,
+                cost_negative_at_entry=dec(
+                    position["entry_economics"]["net_target_reward_per_gross_unit"]
+                )
+                <= 0,
+            )
+            exits.append(exit_audit)
+        expected = {name: Counter() for name in coverage}
+        for ts in range(start, end, 60):
+            for name, value in clock_facts(ts).items():
+                expected[name][value] += 1
+        closed_R = [dec(t["realized_R"]) for t in trades]
         entries = [o for o in orders if o["side"] == "buy"]
         fills = [o for o in entries if dec(o["filled"])]
         days = (end - start) / 86400
@@ -638,6 +833,29 @@ async def simulate(
             "trades": trades,
             "orders": orders,
             "dust": dust,
+            "diagnostics": {
+                "candidates": list(candidates.values()),
+                "exits": exits,
+                "economics": economics_summary(list(candidates.values()), exits),
+                "clock_coverage": {
+                    name: {
+                        str(value): {
+                            "expected_minutes": count,
+                            "observed_minutes": coverage[name][value],
+                            "missing_minutes": count - coverage[name][value],
+                        }
+                        for value, count in sorted(expected[name].items())
+                    }
+                    for name in expected
+                },
+            },
+            "risk_units": {
+                "closed_trades": len(closed_R),
+                "mean_closed_R": str(sum(closed_R, ZERO) / len(closed_R)) if closed_R else None,
+                "median_closed_R": str(median(closed_R)) if closed_R else None,
+                "total_closed_R": str(sum(closed_R, ZERO)),
+                "definition": "Sold-share net P&L / sold-share actual-fill planned stop risk; retained BTC is excluded, not written off.",
+            },
             "risk": {
                 "percent": str(risk_percent),
                 "stop_management": "bot-managed",
@@ -877,6 +1095,9 @@ def main():
             "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "rules_sha256": hashlib.sha256(
                 Path(__file__).with_name("research_signals.py").read_bytes()
+            ).hexdigest(),
+            "diagnostics_sha256": hashlib.sha256(
+                Path(__file__).with_name("research_diagnostics.py").read_bytes()
             ).hexdigest(),
             "cases": [],
         }

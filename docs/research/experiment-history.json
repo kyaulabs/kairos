@@ -1,0 +1,365 @@
+{
+  "scope": "Continuation of the preserved v1/v2 development experiments. Earlier reports remain separate, immutable references; this is not a claim of complete market-history coverage or independent trials.",
+  "baseline_references": [
+    {
+      "name": "pilot-v1",
+      "artifacts": [
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/pilot-v1.json",
+          "sha256": "00653838dee43dcca2998292b029378ae1c24a791ea841dcd37d7c2d3891f8f6"
+        },
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/pilot-v1.html",
+          "sha256": "5c808179c7e7b13e6df19a35ea2df10913a95640cb0b53de6a89665ef0e2f3de"
+        }
+      ]
+    },
+    {
+      "name": "pilot-v2-risk-1pct",
+      "artifacts": [
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/pilot-v2-risk-1pct.json",
+          "sha256": "e6ecd4a235b0303d24fdb906a99fccf7ad91fb3e94855c76a4533598a06eb316"
+        },
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/pilot-v2-risk-1pct.html",
+          "sha256": "68943d4b87f948b9e4938ab6219f573879914a29bb82fcd5e218d8293605c470"
+        }
+      ]
+    },
+    {
+      "name": "fair-v1-v2-1000-risk-1pct",
+      "artifacts": [
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/fair-v1-v2-1000-risk-1pct.json",
+          "sha256": "b3a00d4b8c8c8f0dc5fbef81acf259443d7a21f9ca58055a0c43a51d56619101"
+        },
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/fair-v1-v2-1000-risk-1pct.html",
+          "sha256": "44c8dd406938b1e34a43c61c24f86b3f0043f464ac7e5754dd50be9a246e49ea"
+        }
+      ]
+    }
+  ],
+  "common_constraints": {
+    "deployment": "research only; no orders, restart or paid inference",
+    "data_role": "previously inspected development week, not holdout",
+    "dependence": "Cases share the same market week; not a combined portfolio or independent market histories",
+    "historical_OKX_execution": "unavailable; received-currency fees, spread, slippage and participation are explicit assumptions",
+    "risk": "At most 1% planned stop risk on min(initial,equity), costs/dust reserved; not a guaranteed loss cap"
+  },
+  "trials": [
+    {
+      "id": "entry-economics-v2-launcher",
+      "status": "aborted before simulation",
+      "reason": "/usr/bin/time unavailable on Apollo; command exited 127 before runner execution",
+      "model_selection": "none",
+      "log": {
+        "path": "/srv/kairos-research/kyau-vwap-fib/versions/entry-economics-v2/launcher-error.log",
+        "sha256": "642bc35c764e1a94978e81bb97b127202f3793c4d986f3c3a61899ace587f956"
+      }
+    },
+    {
+      "id": "entry-economics-v2",
+      "status": "passed diagnostic replay",
+      "declaration": {
+        "trial_id": "entry-economics-v2",
+        "declared_at": "2026-10-13T23:40:29.295418+00:00",
+        "hypothesis": "Diagnostic-only shared cost and causal timing evidence reproduces the saved 16-case v2 financial replay and explains cost-negative entries and losing Target episodes. No signal/stop/execution gate change.",
+        "window": {
+          "start": "2026-06-01",
+          "end_exclusive": "2026-06-08",
+          "role": "previously inspected development week"
+        },
+        "controls": {
+          "independent_cases": 16,
+          "variants": "all eight",
+          "minutes": [
+            5,
+            15
+          ],
+          "capital": "1000",
+          "risk_percent": "1",
+          "scenario": "base",
+          "fees_bps": {
+            "maker": 8,
+            "taker": 10
+          },
+          "execution": "unchanged cash IOC with bot-managed protection"
+        },
+        "acceptance": "Every deterministic original v2 field (including order native deltas and sold-share R) equals saved matched baseline after normalizing random identities; candidate/coverage/risk counts and cost attribution reconcile. No trading/deployment/paid calls.",
+        "sha256": {
+          "kairos/research_backtest.py": "0bd4047c88e0f6ead1f43ca2d82664dcb5b4c9d366264863257097a088052dee",
+          "kairos/research_signals.py": "d68c219e1c41d89a7625bcae0212a7cfecde513bfed747bffad447c6dc5f9d35",
+          "kairos/research_diagnostics.py": "5b24161338eed7c9fcafda348c46aae9d663af8139f6f3272fa2b1d567ee4568",
+          "kairos/backtest_report.py": "d9dbdd30d98764afa983e38b044f2c14acd3ae3943dfaac0da2b3c5c5bae21c9",
+          "/tmp/kairos-economics-diagnostics/verify_replay.py": "1f89881c6862b855b666d15e6150099f00beba99edb33b79bc51cad388189cde",
+          "/tmp/kairos-economics-diagnostics/source.tar.gz": "69b585d6a474626bcafaec2f84b962ab2f61759b70ceb6facba9dfcdfc510afd"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/entry-economics-v2.json",
+          "sha256": "f17cf2cf692517db96235989fe5c267fd39dcb5c01f52b387259b80e30fba905"
+        },
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/entry-economics-v2.html",
+          "sha256": "43f185cc0011d0d1cf585a312e1c59f25437614c1ae7d8b84f7fefec5b24958f"
+        }
+      ],
+      "verification": {
+        "all_16_saved_v2_cases_reproduced": true,
+        "all_saved_deterministic_fields_equal": true,
+        "excluded": [
+          "random order/client/run identities normalized by order index",
+          "runtime",
+          "comparison-only signal/control descriptions",
+          "R definition prose"
+        ],
+        "candidate_and_clock_counts_reconciled": true,
+        "planned_risk_and_sold_share_attribution_reconciled": true,
+        "baseline_sha256": "b3a00d4b8c8c8f0dc5fbef81acf259443d7a21f9ca58055a0c43a51d56619101",
+        "diagnostic_json_sha256": "f17cf2cf692517db96235989fe5c267fd39dcb5c01f52b387259b80e30fba905",
+        "counts": {
+          "filled_plans": 146,
+          "nonpositive_target_reward": 48,
+          "below_one_net_R": 120,
+          "closed_target_episodes": 45,
+          "losing_target_episodes": 23,
+          "losing_targets_cost_negative_at_entry": 23,
+          "losing_targets_negative_on_actual_sold_share_at_target": 23,
+          "losing_targets_with_multiple_IOCs": 11,
+          "losing_targets_crossed_stop": 0,
+          "target_episodes_still_open": 0
+        }
+      },
+      "runtime": {
+        "wall_clock_seconds": 21.000578742008656,
+        "combined_case_seconds": 75.32982079638168
+      },
+      "selection": "No signal/execution rule changed; shared cost calculations and diagnostic evidence retained."
+    },
+    {
+      "id": "ema-higher-low-development",
+      "status": "complete; rejected for advancement",
+      "declaration": {
+        "trial_id": "ema-higher-low-development",
+        "declared_at": "2026-10-13T23:44:04.395477+00:00",
+        "hypothesis": "Allow the first completed higher-low recovery instead of requiring a reaction-high break in Fib EMA, retaining EMA20 recapture, bullish close, rising EMA50, frozen swing/target and all risk/execution controls.",
+        "single_change": {
+          "path": "kairos/research_signals.py",
+          "old": "and micro_break",
+          "new": "and (higher_low or micro_break)",
+          "applies_to": "fib-ema only"
+        },
+        "window": {
+          "start": "2026-06-01",
+          "end_exclusive": "2026-06-08",
+          "role": "previously inspected development week"
+        },
+        "controls": {
+          "independent_cases": 32,
+          "variants": "all eight",
+          "minutes": [
+            5,
+            15
+          ],
+          "capital": "1000",
+          "risk_percent": "1",
+          "scenario": "base",
+          "maker_bps": 8,
+          "taker_bps": 10,
+          "stop_widening_rule": "unchanged; confirmation-time ATR may change actual stop",
+          "target": "same frozen swing high for a shared armed candidate"
+        },
+        "acceptance": "All controls reproduce prior diagnostics and all 14 unaffected setup cases are identical. Advance only if primary 5m retains/increases cost-positive filled activity, has no new risk breaches and improves net outcomes; disclose 15m trade-offs. Reject an inactivity-only loss reduction. No holdout/profitability inference.",
+        "archive_sha256": "5332ee5fe401c99fd4fd5321e6a4e592e82bb7ad28fc8d83548bdb3d1a55bdb5",
+        "control_sha256": "d68c219e1c41d89a7625bcae0212a7cfecde513bfed747bffad447c6dc5f9d35",
+        "challenger_sha256": "d61b034102fe76d6430225acab939c4c27b3d14615a7b42e7b5a19b9ec5ac54e",
+        "executor_sha256": "0bd4047c88e0f6ead1f43ca2d82664dcb5b4c9d366264863257097a088052dee",
+        "runner_sha256": "daadd95f1f635ea9cba2887ed1b9d68d38fce81bb799f043322f32b36b73ac67",
+        "source_archive_sha256": "aec3595d73c3ebd350e5d79a780c4a539c1bfe5a193a52aafcbee098aaa5c115"
+      },
+      "artifacts": [
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/ema-higher-low-development.json",
+          "sha256": "d58a6da1439ce1d5a6c008ccbea83048d3512c98214889ff2d6027f7c3cd3482"
+        },
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/ema-higher-low-development.html",
+          "sha256": "6676e4af630bf48aa05059a190ea67a3817332f98075774efdb6eaf83eff8ffd"
+        }
+      ],
+      "source_directory": "/srv/kairos-research/kyau-vwap-fib/versions/ema-higher-low-development",
+      "verification": {
+        "all_controls_match_diagnostic_baseline": true,
+        "all_14_unchanged_setup_cases_identical": true,
+        "paired_execution_controls_equal": true,
+        "all_requested_planned_risks_within_ceiling": true,
+        "higher_low_fixture_causal_and_frozen_plan": true
+      },
+      "runtime": {
+        "wall_clock_seconds": 39.03720642067492,
+        "combined_case_runtime_seconds": 148.82743394887075
+      },
+      "results": [
+        {
+          "minutes": 5,
+          "policy": "fib-ema",
+          "v1": {
+            "signals": 37,
+            "filled_entries": 16,
+            "active_days": 6,
+            "net_return_pct": "-1.109789126958047200",
+            "mean_closed_R": "-0.4349047693990818330344806709",
+            "cost_positive_fills": 3,
+            "nonpositive_target_reward": 13,
+            "below_one_net_R": 16,
+            "risk_breaches": 0
+          },
+          "v2": {
+            "signals": 42,
+            "filled_entries": 17,
+            "active_days": 6,
+            "net_return_pct": "-1.1149640712651158300",
+            "mean_closed_R": "-0.4433354870642056122600917648",
+            "cost_positive_fills": 5,
+            "nonpositive_target_reward": 12,
+            "below_one_net_R": 17,
+            "risk_breaches": 0
+          }
+        },
+        {
+          "minutes": 15,
+          "policy": "fib-ema",
+          "v1": {
+            "signals": 8,
+            "filled_entries": 5,
+            "active_days": 2,
+            "net_return_pct": "-0.002631931344376900",
+            "mean_closed_R": "-0.2979623061649546527173690795",
+            "cost_positive_fills": 1,
+            "nonpositive_target_reward": 4,
+            "below_one_net_R": 5,
+            "risk_breaches": 0
+          },
+          "v2": {
+            "signals": 10,
+            "filled_entries": 6,
+            "active_days": 2,
+            "net_return_pct": "-0.0919548064527694900",
+            "mean_closed_R": "-0.2831649048964247402894813406",
+            "cost_positive_fills": 1,
+            "nonpositive_target_reward": 5,
+            "below_one_net_R": 6,
+            "risk_breaches": 0
+          }
+        }
+      ],
+      "selection": "Keep baseline: primary 5m cost-positive fills rose from 3 to 5, but marked return and mean closed R did not improve. 15m marked return worsened; no risk breaches. No statistical ranking or profitability claim.",
+      "interpretation": "The declaration uses rising EMA50 as shorthand for the unchanged nonfalling check (current EMA50 >= previous EMA50), not a new strict-slope condition."
+    },
+    {
+      "id": "entry-economics-v2-final",
+      "status": "passed final diagnostic replay",
+      "declaration": {
+        "trial_id": "entry-economics-v2-final",
+        "declared_at": "2026-10-13T23:46:57.991610+00:00",
+        "hypothesis": "Diagnostic-only shared cost and causal timing evidence reproduces the saved 16-case v2 financial replay and explains cost-negative entries and losing Target episodes. No signal/stop/execution gate change.",
+        "window": {
+          "start": "2026-06-01",
+          "end_exclusive": "2026-06-08",
+          "role": "previously inspected development week"
+        },
+        "controls": {
+          "independent_cases": 16,
+          "variants": "all eight",
+          "minutes": [
+            5,
+            15
+          ],
+          "capital": "1000",
+          "risk_percent": "1",
+          "scenario": "base",
+          "fees_bps": {
+            "maker": 8,
+            "taker": 10
+          },
+          "execution": "unchanged cash IOC with bot-managed protection"
+        },
+        "acceptance": "Every deterministic original v2 field (including order native deltas and sold-share R) equals saved matched baseline after normalizing random identities; candidate/coverage/risk counts and cost attribution reconcile. No trading/deployment/paid calls.",
+        "sha256": {
+          "kairos/research_backtest.py": "6b700b597ee7d4d5e30c4b13c027873b6441378442d856dd7536bde96cc407c9",
+          "kairos/research_signals.py": "d68c219e1c41d89a7625bcae0212a7cfecde513bfed747bffad447c6dc5f9d35",
+          "kairos/research_diagnostics.py": "dd8309fa7650bbf66fab85e70419b03a464035bda42633f14a3019a1dc8b296e",
+          "kairos/backtest_report.py": "8d9d17cdff01402793754f9da4f21258907a92b9cb8e33bd1c74e47634eed564",
+          "/tmp/kairos-economics-diagnostics/verify_final_replay.py": "1e5b2d2f0b6aeef1571803f0e17fbf5d258c2afe82729a90ccfe2d6c59e92683",
+          "/tmp/kairos-economics-diagnostics/final-source.tar.gz": "c439ea30de165bdf6407c7a8fe2e843d63a293d208f2de2e9116240891b881af"
+        },
+        "parent_trial": "entry-economics-v2",
+        "reason": "Add separate observed-mid, spread/tick and slippage/tick cost attribution; rename below-minimum residual flag to avoid implying full liquidation. Reverify saved financial fields after these diagnostic-only changes."
+      },
+      "artifacts": [
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/entry-economics-v2-final.json",
+          "sha256": "0bb050e651d03e505e4c32cd6ba93e8a1afeb7341b9750e435dbbb44ec8ef0bc"
+        },
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/entry-economics-v2-final.html",
+          "sha256": "209a1e8af73f3e55ee612f1bdb2c7381044d0fa06f901bf73b0afc6dbef533a2"
+        }
+      ],
+      "verification": {
+        "all_16_saved_v2_cases_reproduced": true,
+        "all_saved_deterministic_fields_equal": true,
+        "excluded": [
+          "random order/client/run identities normalized by order index",
+          "runtime",
+          "comparison-only signal/control descriptions",
+          "R definition prose"
+        ],
+        "candidate_and_clock_counts_reconciled": true,
+        "planned_risk_and_sold_share_attribution_reconciled": true,
+        "baseline_sha256": "b3a00d4b8c8c8f0dc5fbef81acf259443d7a21f9ca58055a0c43a51d56619101",
+        "diagnostic_json_sha256": "0bb050e651d03e505e4c32cd6ba93e8a1afeb7341b9750e435dbbb44ec8ef0bc",
+        "counts": {
+          "filled_plans": 146,
+          "nonpositive_target_reward": 48,
+          "below_one_net_R": 120,
+          "closed_target_episodes": 45,
+          "losing_target_episodes": 23,
+          "losing_targets_cost_negative_at_entry": 23,
+          "losing_targets_negative_on_actual_sold_share_at_target": 23,
+          "losing_targets_with_multiple_IOCs": 11,
+          "losing_targets_crossed_stop": 0,
+          "target_episodes_still_open": 0
+        }
+      },
+      "runtime": {
+        "wall_clock_seconds": 21.82780368020758,
+        "returncode": 0,
+        "combined_case_seconds": 77.16053100116551
+      },
+      "selection": "Retain diagnostic code only. All original financial fields and baseline signals still match; additional metadata attributes price movement, spread/ticks and slippage/ticks.",
+      "verification_runs": [
+        {
+          "status": "initial discovery had one test-loader error",
+          "reason": "The isolated code bundle omitted .github/scripts/release.py; all 722 loaded test methods passed. No code or financial replay failure.",
+          "log": {
+            "path": "/srv/kairos-research/kyau-vwap-fib/versions/entry-economics-v2-final/regression.log",
+            "sha256": "b1c18c43d95c3baaa70d89f6509f9ba12855ec16b275f159b316342a40e725b2"
+          }
+        },
+        {
+          "status": "12 release tests passed after restoring their existing context",
+          "context_archive_sha256": "090ac6bd681499f91ac8e20a2e8ba53041c11705e4c476ae45b5dc092644b4a0",
+          "log": {
+            "path": "/srv/kairos-research/kyau-vwap-fib/versions/entry-economics-v2-final/release-regression.log",
+            "sha256": "c56608d13bab841ce3eb78ca31802cffd39a407cf136c2d15f6eeb6c30c6b6df"
+          }
+        }
+      ]
+    }
+  ],
+  "next_decision": "Predeclare another single-factor timing or economic-eligibility experiment before running. No other week, extension ablation or AI trial has begun."
+}

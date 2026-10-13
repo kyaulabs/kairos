@@ -15,6 +15,14 @@ def stamp(ts):
     return datetime.fromtimestamp(int(ts), UTC).strftime("%Y-%m-%d")
 
 
+def instant(ts):
+    return (
+        datetime.fromtimestamp(int(ts), UTC).strftime("%Y-%m-%d %H:%M:%S")
+        if ts is not None
+        else "—"
+    )
+
+
 def number(value, *, percent=False, signed=False):
     value = dec(value)
     css = "positive" if value > 0 else "negative" if value < 0 else "muted"
@@ -92,6 +100,7 @@ def render(report, json_name):
     cases = report["cases"]
     comparison = []
     activity_rows = []
+    economics_rows = []
     sections = []
     for index, case in enumerate(cases, 1):
         label = f"{case['policy']} · {case['minutes']}m · {case['scenario']['name']}"
@@ -170,6 +179,75 @@ def render(report, json_name):
                 ],
                 "Daily activity; includes no-trade days, not just successful fills.",
             )
+        diagnostic_tables = ""
+        diagnostics = case.get("diagnostics")
+        if diagnostics:
+            economy = diagnostics["economics"]
+            economics_rows.append(
+                [
+                    f'<a href="#case-{index}">{escape(label)}</a>',
+                    str(economy["filled_plans"]),
+                    str(economy["nonpositive_target_reward"]),
+                    str(economy["below_one_net_R"]),
+                    f"{economy['losing_target_episodes']}/{economy['closed_target_episodes']}",
+                    str(economy["losing_targets_with_multiple_IOCs"]),
+                    str(economy["losing_targets_crossed_stop"]),
+                ]
+            )
+            diagnostic_tables = table(
+                [
+                    "Armed (UTC)",
+                    "Confirmed (UTC)",
+                    "Confirmation bars",
+                    "Outcome",
+                    "Net planned R",
+                    "Stop widening",
+                ],
+                [
+                    [
+                        instant(c.get("armed_at")),
+                        instant(c.get("confirmed_at")),
+                        escape(str(c.get("confirmation_bars", "—"))),
+                        escape(c["outcome"]),
+                        number(c["entry_economics"]["net_planned_R"], signed=True)
+                        if c.get("entry_economics", {}).get("net_planned_R") is not None
+                        else "—",
+                        number(c["confirmation_stop_widening"])
+                        if c.get("confirmation_stop_widening") is not None
+                        else "—",
+                    ]
+                    for c in diagnostics["candidates"][-200:]
+                ],
+                "Latest 200 candidates, including expiry, blockers and unfilled IOC orders; full prices and causal facts in JSON.",
+            ) + table(
+                [
+                    "First trigger (UTC)",
+                    "Reason",
+                    "IOC attempts",
+                    "Last-fill delay (s)",
+                    "Average exit",
+                    "Net sold P&L",
+                    "Later stop crossing",
+                ],
+                [
+                    [
+                        instant(e["first_trigger"]["observed_at"] if e["first_trigger"] else None),
+                        escape(
+                            e["first_trigger"]["reason"] if e["first_trigger"] else "Still held"
+                        ),
+                        str(e["IOC_attempts"]),
+                        escape(str(e["last_fill_delay_seconds"])),
+                        number(e["average_exit_fill_price"])
+                        if e["average_exit_fill_price"] is not None
+                        else "—",
+                        number(e["net_sold_pnl"], signed=True),
+                        instant(e["stop_crossed_after_target_at"]),
+                    ]
+                    for e in diagnostics["exits"][-200:]
+                ],
+                "Latest 200 exit episodes; first reason remains latched. Open episodes and retained BTC are not full liquidations.",
+            )
+            diagnostic_tables = f'<details><summary>Entry economics and exit timing</summary>{diagnostic_tables}<p class="muted">Net planned R projects the fixed target under assumed costs, not expected profit. Stop widening is arm stop minus confirmed stop. Prior level contacts count completed bars, not independent bounces. Clock coverage, rounding, sold-share cost attribution and every candidate are in JSON.</p></details>'
         annual = table(
             ["Year", "Net return", "Ending equity", "Closed trades"],
             [
@@ -263,7 +341,7 @@ def render(report, json_name):
 Not exposure-matched: this strategy uses an order cap of {escape(case["settings"]["order_size"])} and exposure cap of {escape(case["settings"]["max_exposure"])}.</p>
 {annual}<details><summary>Why it traded—or waited</summary>{lifecycle}<div class="columns"><div>{gates}</div><div>{reasons}</div></div>
 <p>{"Valid closed-bar setups" if activity else "Distinct multi-bar candidates"}: {case["distinct_candidates"]} · Filled entry orders: {case["filled_entry_orders"]} · Unfilled entry orders: {case["unfilled_entry_orders"]}</p></details>
-<details><summary>Closed trades</summary>{trades}</details>
+{diagnostic_tables}<details><summary>Closed trades</summary>{trades}</details>
 <details><summary>Exact configuration and assumptions</summary><pre>{escape(json.dumps(configuration, indent=2))}</pre></details></section>""")
     assumptions = "".join(f"<li>{escape(item)}</li>" for item in report["assumptions"])
     period = (
@@ -281,8 +359,14 @@ Not exposure-matched: this strategy uses an order cap of {escape(case["settings"
         if activity_rows
         else ""
     )
+    economics_panel = (
+        f'<section class="panel"><h2>Entry economics</h2>{table(["Setup · interval · scenario", "Filled plans", "Nonpositive net target", "Below 1 net R", "Losing / closed Targets", "Losing Targets: multiple IOCs", "Losing Targets: later stop"], economics_rows)}<p class="muted">Counts describe independent cases, not portfolio returns. Attribution overlaps. A Target trigger is not a profitable exit; projections are not expectancy. Diagnostics do not change entry permission or protection.</p></section>'
+        if economics_rows
+        else ""
+    )
     paired_panel = ""
     if report.get("paired_comparison"):
+        names = report.get("comparison_labels", {"v1": "v1", "v2": "v2"})
         paired_rows = []
         for pair in report["paired_comparison"]:
             v1, v2 = pair["v1"], pair["v2"]
@@ -302,7 +386,7 @@ Not exposure-matched: this strategy uses an order cap of {escape(case["settings"
                     else "—",
                 ]
             )
-        paired_panel = f'<section class="panel"><h2>Matched v1 / v2 comparison</h2>{table(["Setup · interval", "Signals v1 / v2", "Filled v1 / v2", "Active days v1 / v2", "Net return v1", "Net return v2", "Mean closed R v1", "Mean closed R v2"], paired_rows)}<p class="muted">Identical capital, execution and risk policy; only signal/price-plan rules differ. Closed R = sold-share net P&amp;L / sold-share planned stop risk of the actual entry fill. Fees are included; retained BTC and open positions remain in portfolio equity, not closed R. Means compare independent runs—not a combined portfolio.</p></section>'
+        paired_panel = f'<section class="panel"><h2>Matched {escape(names["v1"])} / {escape(names["v2"])} comparison</h2>{table(["Setup · interval", f"Signals {names['v1']} / {names['v2']}", f"Filled {names['v1']} / {names['v2']}", f"Active days {names['v1']} / {names['v2']}", f"Net return {names['v1']}", f"Net return {names['v2']}", f"Mean closed R {names['v1']}", f"Mean closed R {names['v2']}"], paired_rows)}<p class="muted">Identical capital, execution and risk policy; only signal/price-plan rules differ. Closed R = sold-share net P&amp;L / sold-share planned stop risk of the actual entry fill. Fees are included; retained BTC and open positions remain in portfolio equity, not closed R. Means compare independent runs—not a combined portfolio.</p></section>'
     scope_note = escape(
         report.get(
             "scope_note",
@@ -317,7 +401,7 @@ Not exposure-matched: this strategy uses an order cap of {escape(case["settings"
 <div class="notice"><strong>Simulated execution—not a live-performance claim.</strong>
 <p>{scope_note}
 Positive results need robustness checks; low activity and losses remain visible.</p></div>
-{paired_panel}{activity_panel}<section class="panel"><h2>Comparison</h2>{table(["Policy · interval · scenario", "Attempts", "Trades", "Net return", "Drawdown", "Fees", "Minute coverage", "Status"], comparison)}
+{paired_panel}{activity_panel}{economics_panel}<section class="panel"><h2>Comparison</h2>{table(["Policy · interval · scenario", "Attempts", "Trades", "Net return", "Drawdown", "Fees", "Minute coverage", "Status"], comparison)}
 <p class="muted">Base and stress vary the assumed price path, spread, slippage and liquidity. Neither reconstructs actual fills. A small sample is not proof of an edge.</p>
 <p><a href="{escape(json_name, quote=True)}">Complete JSON audit data</a></p></section>
 {"".join(sections)}<section class="panel"><h2>What this test does—and does not establish</h2><ul>{assumptions}</ul>
