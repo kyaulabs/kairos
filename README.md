@@ -28,8 +28,8 @@ Kairos is an experimental trading bot for Kraken, Alpaca hosted paper and isolat
 - Use real Kraken data in dry-run without exchange orders; model-assisted strategies use Jev, while Bollinger scalping, DCA, TWAP, and rebalancing need no model calls.
 - Choose the supplied Kairos dark/light brand palettes and violet, green, or red accents without changing the workspace layout or fonts.
 - Open the expandable left settings sidebar from the KAI logo or its Strategy, Capital and Execution icons. The chart, assessments and bottom record tabs remain independent.
-- Use optional [Alpaca hosted paper](ALPACA.md) for USD crypto and long-only, whole-share US stocks/ETFs, with separate state and free market data. Alpaca live trading is unavailable.
-- Use [OKX U.S. cash spot](OKX.md) for explicitly authorized finite execution cycles and TWAP, with separate demo/live credentials, stores and native-currency accounting. Hosted-demo and live execution remain unverified; mocked tests are not qualification.
+- Use optional [Alpaca hosted paper](docs/exchanges/alpaca.md) for USD crypto and long-only, whole-share US stocks/ETFs, with separate state and free market data. Alpaca live trading is unavailable.
+- Use [OKX U.S. cash spot](docs/exchanges/okx.md) for explicitly authorized finite execution cycles and TWAP, with separate demo/live credentials, stores and native-currency accounting. Hosted-demo and live execution remain unverified; mocked tests are not qualification.
 - Monitor D3 candlesticks with aligned volume, candle-colored price badges, pan/zoom, crosshairs, and buy/sell markers. Star markets to keep their prices in the footer across browser sessions.
 - Configure starting capital, order and exposure caps, daily loss limits, and reinvestment; Kraken uses authenticated account fees, while Alpaca clearly labels conservative planning estimates.
 - Persist settings, order intents, fills, and portfolio accounting in SQLite.
@@ -44,9 +44,9 @@ Kairos is an experimental trading bot for Kraken, Alpaca hosted paper and isolat
 | USD linear crypto perpetuals | Separate funding-aware long/short simulation | Gated IOC/post-only orders; dedicated USD collateral |
 | Inverse, dated and other Futures | Browse-only | Execution disabled |
 
-The table above describes Kraken. Alpaca separately supports broker-hosted paper crypto and direct US stocks/ETFs; see [setup and limitations](ALPACA.md). Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](OPERATIONS.md#supported-trading) and the [Kraken CLI review](KRAKEN-CAPABILITIES.md) for verified coverage and integration limitations.
+The table above describes Kraken. Alpaca separately supports broker-hosted paper crypto and direct US stocks/ETFs; see [setup and limitations](docs/exchanges/alpaca.md). Kraken's US stock product is not the same as xStocks. Kairos does not substitute tokenized assets for direct equities or submit guessed stock orders. See [supported trading](docs/operations/guide.md#supported-trading) and the [Kraken CLI review](docs/exchanges/kraken-capabilities.md) for verified coverage and integration limitations.
 
-HTF, market making, DCA and TWAP support qualified linear perpetuals. [Bollinger range scalping](SCALPING.md) supports paper spot and paper linear Futures only. Futures need separate collateral accounting, live credentials and arming; see [Futures operation and limitations](FUTURES.md). Neither live spot nor Futures execution has been verified with real orders.
+HTF, market making, DCA and TWAP support qualified linear perpetuals. [Bollinger range scalping](docs/strategies/scalping.md) supports paper spot and paper linear Futures only. Futures need separate collateral accounting, live credentials and arming; see [Futures operation and limitations](docs/strategies/futures.md). Neither live spot nor Futures execution has been verified with real orders.
 
 The candle chart defaults to 1m bars and refreshes Kraken OHLC snapshots roughly every five seconds, including the forming candle. Its selector offers 1m, 5m, 15m, 30m, 1h, 4h, and 1d bars independently of the strategy interval. Click the pair beside the logo to search spot/FX, margin-eligible crypto, xStocks, and Futures without changing the bot, even while it is running. The D3 assessment panel identifies the bot's configured market and assessment market. It shows model bias, score distribution, signal history and move/cost context; scalping instead shows rolling-window bands and the saved protection plan. These displays are not profitability probabilities.
 
@@ -96,7 +96,7 @@ uv run kairos-worker  # Keep running in one terminal.
 uv run kairos
 ```
 
-Open <http://127.0.0.1:8000>. The dashboard binds to loopback; its independent worker starts **paused** unless recovering an eligible, already-authorized OKX Demo HTF run. Recovery keeps the original deadline and limits, requires reconciliation, and cannot override Stop. See [worker recovery](OPERATIONS.md). Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
+Open <http://127.0.0.1:8000>. The dashboard binds to loopback; its independent worker starts **paused** unless recovering an eligible, already-authorized OKX Demo HTF run. Recovery keeps the original deadline and limits, requires reconciliation, and cannot override Stop. See [worker recovery](docs/operations/guide.md). Do not expose it directly to the network; use [nginx](#-deployment) for authenticated access.
 
 ## 🧪 Your first dry-run
 
@@ -114,7 +114,7 @@ Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Take
 
 | Strategy | Behavior |
 | --- | --- |
-| Higher-timeframe trend | Paper-only passive pullback entries on rolling HTF windows, with cost-qualified swing targets. Jev reviews permitted actions no faster than twice the engine cycle; protection remains independent. Range-reversion signals are observation-only. See [HTF operation](OPERATIONS.md). |
+| Higher-timeframe trend | Paper-only passive pullback entries on rolling HTF windows, with cost-qualified swing targets. Jev reviews permitted actions no faster than twice the engine cycle; protection remains independent. Range-reversion signals are observation-only. See [HTF operation](docs/operations/guide.md). |
 | Bollinger range scalping | Paper-only spot longs / linear Futures longs and shorts. Uses a rolling 1-minute window, band re-entry, trend/cost filters and a durable fixed target, stop and holding deadline. No Jev calls. |
 | Market making | Posts one fee-aware, post-only quote and reconciles it before replacement. Quotes expire after 30 seconds. This is rate-limited market making, not exchange-grade HFT. |
 | Triangular arbitrage | Checks both directions of a BTC/ETH-bridged spot triangle after fees, rounding, depth, and slippage. Jev can veto a computed opportunity. |
@@ -124,9 +124,9 @@ Dry-run uses real feeds; the model-assisted strategies make real Jev calls. Take
 
 Arbitrage legs execute sequentially, not atomically. A failed or partial leg stops the engine with intermediate inventory retained for review. Retail fees may eliminate every observed opportunity.
 
-DCA, TWAP, and rebalancing support paper and explicitly gated live spot. They make no model calls. Run identity, schedules, and confirmed fills persist; completed runs require explicit rearming. See [operation and configuration](OPERATIONS.md#strategies), the [retail roadmap](RETAIL-ROADMAP.md), and the [TradingAgents research review](TRADINGAGENTS-REVIEW.md).
+DCA, TWAP, and rebalancing support paper and explicitly gated live spot. They make no model calls. Run identity, schedules, and confirmed fills persist; completed runs require explicit rearming. See [operation and configuration](docs/operations/guide.md#strategies), the [retail roadmap](docs/engineering/retail-roadmap.md), and the [TradingAgents research review](docs/research/tradingagents-review.md).
 
-Existing spot holdings remain tracked when you change markets, but the newly selected strategy does not automatically trade the previous market's holdings. Paper margin uses separate accounting and does not support triangular arbitrage. Read [strategy details](OPERATIONS.md#strategies) and [margin assumptions](OPERATIONS.md#margin-simulation) before using them.
+Existing spot holdings remain tracked when you change markets, but the newly selected strategy does not automatically trade the previous market's holdings. Paper margin uses separate accounting and does not support triangular arbitrage. Read [strategy details](docs/operations/guide.md#strategies) and [margin assumptions](docs/operations/guide.md#margin-simulation) before using them.
 
 ## 💰 Capital and recovery
 
@@ -134,11 +134,11 @@ HTF has per-position swing targets but no scheduled strategy end. Market making,
 
 For spot portfolios, **Recover original allocation once above 2× equity** can protect the starting allocation. With a $100 start, the bot attempts to reserve $100 only when active equity is greater than $200. It sells enough bot-owned inventory if cash is needed and execution limits permit, then excludes the reserve from future orders and compounds the remainder.
 
-Recovery happens once and persists across restarts. It is a local accounting exclusion, not a separate Kraken wallet or external withdrawal. The cash stays on Kraken for you to withdraw manually. See [capital recovery](OPERATIONS.md#recover-the-original-investment) for timing and limitations.
+Recovery happens once and persists across restarts. It is a local accounting exclusion, not a separate Kraken wallet or external withdrawal. The cash stays on Kraken for you to withdraw manually. See [capital recovery](docs/operations/guide.md#recover-the-original-investment) for timing and limitations.
 
 ## 🔴 Live trading
 
-Keep the server live-write gate disabled until you have reviewed the [operating guide](OPERATIONS.md#dry-run-and-trading) and tested the strategy with paper funds.
+Keep the server live-write gate disabled until you have reviewed the [operating guide](docs/operations/guide.md#dry-run-and-trading) and tested the strategy with paper funds.
 
 1. Install a dedicated trade-capable Kraken key with the required query, order-creation, and cancellation permissions. **Do not grant withdrawal permission.**
 2. Set `ALLOW_LIVE_TRADING=true` and restart. The app still starts paused in Dry-run.
@@ -153,11 +153,11 @@ Stop cancels tracked orders; **it does not sell spot holdings**. Loss limits als
 
 Use [deploy/nginx.conf](deploy/nginx.conf) for TLS, Basic Auth, and unbuffered dashboard events. Protect the entire site, including API routes and static assets. Set `PUBLIC_ORIGIN` to the HTTPS hostname and keep the backend port inaccessible from the network.
 
-The complete supplied brand pack is in [`brand/`](brand/README.md). The application uses its artwork and six palettes while retaining the viewport layout; use the sun/moon toggle and accent dropdown beside the header's execution badge. See [brand integration](BRANDING.md).
+The complete supplied brand pack is in [`brand/`](brand/README.md). The application uses its artwork and six palettes while retaining the viewport layout; use the sun/moon toggle and accent dropdown beside the header's execution badge. See [brand integration](docs/design/branding.md).
 
-The UI uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with OperatorMonoSSmLig Nerd Font for bold monospace. Font Awesome Pro webfonts are optional, locally supplied assets excluded from Git. See [font setup](OPERATIONS.md#run-locally); missing fonts fall back to system text and text icons.
+The UI uses locally installed Neo Sans Pro and OperatorMonoLig Nerd Font, with OperatorMonoSSmLig Nerd Font for bold monospace. Font Awesome Pro webfonts are optional, locally supplied assets excluded from Git. See [font setup](docs/operations/guide.md#run-locally); missing fonts fall back to system text and text icons.
 
-[deploy/kairos.service](deploy/kairos.service) and [deploy/kairos-worker.service](deploy/kairos-worker.service) provide separate unprivileged dashboard and trading-worker services. Adapt the hostname, certificates, password file, user, and paths before installing either configuration. Full instructions are in [nginx and systemd](OPERATIONS.md#nginx-and-systemd).
+[deploy/kairos.service](deploy/kairos.service) and [deploy/kairos-worker.service](deploy/kairos-worker.service) provide separate unprivileged dashboard and trading-worker services. Adapt the hostname, certificates, password file, user, and paths before installing either configuration. Full instructions are in [nginx and systemd](docs/operations/guide.md#nginx-and-systemd).
 
 Run only one process per data directory and do not share the bot's Kraken key with another order manager. Back up state while the process is stopped; losing the database loses the bot's allocation and reconciliation history.
 
@@ -184,7 +184,7 @@ node --test tests/*.test.cjs
 
 The tests use mocked exchange/model responses and local HTTP fixtures. They cover execution gates, partial fills, uncertain submissions, risk limits, arbitrage recovery, principal recovery, paper margin, and API security. They do not verify live profitability or real-order execution.
 
-For an optional integration check, stop the trading worker first and run `uv run kairos-smoke --jev`. This makes read-only Kraken requests and one billable Jev assessment, but no exchange writes. See [verification](OPERATIONS.md#verification).
+For an optional integration check, stop the trading worker first and run `uv run kairos-smoke --jev`. This makes read-only Kraken requests and one billable Jev assessment, but no exchange writes. See [verification](docs/operations/guide.md#verification).
 
 Install [Gitleaks](https://github.com/gitleaks/gitleaks), then enable the repository hooks once per clone:
 
@@ -204,17 +204,17 @@ tests/                   Regression tests and exchange/model fixtures
 deploy/                  Nginx and systemd examples
 .github/workflows/ci.yml Lint and test automation
 .env.example             Environment variable names and safe defaults
-OPERATIONS.md            Detailed setup, execution, recovery, and deployment guide
+docs/                    Organized project guides, reviews, and research plans
 ```
 
 ## 📚 Documentation
 
-- [Operating guide](OPERATIONS.md)
-- [Retail API coverage and strategy roadmap](RETAIL-ROADMAP.md)
-- [Brand integration](BRANDING.md) and [TradingAgents review](TRADINGAGENTS-REVIEW.md)
+- [Documentation index](docs/README.md) and [operating guide](docs/operations/guide.md)
+- [Retail API coverage and strategy roadmap](docs/engineering/retail-roadmap.md)
+- [Brand integration](docs/design/branding.md) and [TradingAgents review](docs/research/tradingagents-review.md)
 - [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
 - [Kraken Exchange API](https://docs.kraken.com/exchange/api-reference/overview)
-- [Alpaca hosted paper setup](ALPACA.md) and [API reference](https://docs.alpaca.markets/us/reference)
+- [Alpaca hosted paper setup](docs/exchanges/alpaca.md) and [API reference](https://docs.alpaca.markets/us/reference)
 - [TypeSafe Jev documentation](https://docs.typesafe.ai/introduction)
 - [Jev Trader](https://github.com/jarrodwatts/jev-trader), the reference project that inspired this bot
 - [Project license](LICENSE), [bundled D3 license](kairos/static/vendor/D3-LICENSE), and [currency icon source/license](kairos/static/vendor/crypto-icons/NOTICE.md)

@@ -9,7 +9,7 @@ Offline fixtures are not OKX executions. Existing hosted-demo cycle and TWAP evi
 1. In the official OKX interface, choose **Trade → Demo Trading → Personal Center → Demo Trading API → Create Demo Trading API Key**. Use a dedicated account context without another order manager. Grant Read and Trade, not Withdraw. Restrict the key to the server's IP where supported. Trade permission alone is not an endpoint restriction; KAIROS separately prohibits transfers, withdrawals, borrowing and account-setting writes.
 2. Inspect **Demo Trading → Assets** for the virtual funds supplied by OKX. Choose an actual funded spending currency. Follow the [official demo guide](https://www.okx.com/en-us/help/how-to-use-demo-trading) if initial virtual funds are unavailable, before binding an account to KAIROS. Do not reset a bound account or adjust its virtual balance to make a failed run pass. KAIROS has no funding/reset API.
 3. Configure cash-spot availability in OKX itself. KAIROS rejects unsupported account modes, borrowing settings/liabilities and conflicting working orders. Pre-existing virtual coins remain unallocated; they need not be sold to begin.
-4. Install the credentials privately using the service's environment configuration. Never paste keys or passphrases into chat, logs or the dashboard. The names in [.env.example](.env.example) are exact:
+4. Install the credentials privately using the service's environment configuration. Never paste keys or passphrases into chat, logs or the dashboard. The names in [.env.example](../../.env.example) are exact:
 
 | Environment | Credentials | Required write gates |
 | --- | --- | --- |
