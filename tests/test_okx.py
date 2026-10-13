@@ -132,6 +132,7 @@ class OKXTransportTests(unittest.IsolatedAsyncioTestCase):
             {"stpMode": "cancel_maker"},
             {"ccy": "USDC"},
             {"sz": ".000100001"},
+            {"attachAlgoOrds": [{"slTriggerPx": "90", "slOrdPx": "-1"}]},
         ):
             with self.assertRaises(SafetyError):
                 await client.request(

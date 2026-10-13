@@ -224,6 +224,33 @@ def entry_context(engine, pair, view, book):
     }
 
 
+def observe_entry(engine, state, view, context):
+    """Persist a closed-history assessment; shared by execution and historical replay."""
+    state["pending_signal"] = context["pending_signal"]
+    if engine.settings.get("htf_policy") == "multibar-v2":
+        old = state.get("candidate")
+        candidate = view.get("candidate")
+        if old and (not candidate or old["id"] != candidate["id"]):
+            state["consumed_candidates"] = (state.get("consumed_candidates", []) + [old["id"]])[
+                -64:
+            ]
+        if candidate and (not old or candidate["id"] != old["id"]):
+            engine.event(
+                "candidate",
+                {
+                    "message": "New closed-bar candidate, not an order authorization",
+                    **candidate,
+                    "structural_gates": view["structural_gates"],
+                },
+            )
+        state.update(candidate=candidate, candidate_window=view["candle_close_time"])
+    state.update(
+        last_candle=f"{engine.settings['candle_minutes']}:{view['candle_close_time']}",
+        entry_signal=context["entry_signal"],
+    )
+    engine.store.put(key(engine), state)
+
+
 def exit_reason(position, held, mark, now, view=None):
     if position.get("exit_reason"):
         return position["exit_reason"]
@@ -395,30 +422,8 @@ async def run(engine):
         context = entry_context(engine, pair, view, book)
         side = context["entry_signal"]
         previous_signal = context["previous_entry_signal"]
-        state["pending_signal"] = context["pending_signal"]
-        if settings.get("htf_policy") == "multibar-v2":
-            old = state.get("candidate")
-            candidate = view.get("candidate")
-            if old and (not candidate or old["id"] != candidate["id"]):
-                state["consumed_candidates"] = (state.get("consumed_candidates", []) + [old["id"]])[
-                    -64:
-                ]
-            if candidate and (not old or candidate["id"] != old["id"]):
-                engine.event(
-                    "candidate",
-                    {
-                        "message": "New closed-bar candidate, not an order authorization",
-                        **candidate,
-                        "structural_gates": view["structural_gates"],
-                    },
-                )
-            state.update(candidate=candidate, candidate_window=view["candle_close_time"])
+        observe_entry(engine, state, view, context)
         entry_ready = context["entry_ready"]
-        state.update(
-            last_candle=f"{settings['candle_minutes']}:{view['candle_close_time']}",
-            entry_signal=side,
-        )
-        engine.store.put(key(engine), state)
         data.update(view)
         data.update(
             mid=str(book.mid),

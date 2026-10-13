@@ -9,6 +9,8 @@ dependencies = ["aiohttp>=3.12,<4", "python-dotenv>=1.1,<2"]
 kairos = "kairos.web:main"
 kairos-worker = "kairos.web:worker_main"
 kairos-smoke = "kairos.smoke:main"
+kairos-backtest = "kairos.backtest:main"
+kairos-research = "kairos.research_backtest:main"
 
 [build-system]
 requires = ["hatchling"]
