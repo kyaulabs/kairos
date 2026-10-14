@@ -348,6 +348,16 @@ def aggregate(cases):
     }
 
 
+def pair_summary(case):
+    return {
+        "signals": case["activity"]["signals"],
+        "filled_entries": case["filled_entry_orders"],
+        "active_days": case["activity"]["days_with_fills"],
+        "net_return_pct": case["net_return_pct"],
+        "mean_closed_R": case["risk_units"]["mean_closed_R"],
+    }
+
+
 def improves(control, challenger):
     a, b = aggregate(control), aggregate(challenger)
     return bool(
@@ -468,6 +478,11 @@ def main():
     p.add_argument("--end", type=date, required=True)
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--workers", type=int, default=4)
+    p.add_argument(
+        "--resume-baseline",
+        type=Path,
+        help="Verified completed #0 checkpoint from a reporting-only failure; new output directory required",
+    )
     args = p.parse_args()
     if args.end <= args.start or not 1 <= args.workers <= 8:
         p.error("Expected a chronological window and 1–8 workers")
@@ -481,6 +496,12 @@ def main():
         "executor_sha256": digest(runner_source.encode()),
         "steps": STEPS,
         "series_source_sha256": digest(Path(__file__).read_bytes()),
+        "resumed_baseline": {
+            "path": str(args.resume_baseline),
+            "sha256": digest(args.resume_baseline.read_bytes()),
+        }
+        if args.resume_baseline
+        else None,
         "controls": {
             "initial": "1000",
             "risk_percent": "1",
@@ -558,7 +579,28 @@ def main():
             trial_signal, trial_runner = profile(signal_source, runner_source, name)
             (stage_dir / "research_signals.py").write_text(trial_signal)
             (stage_dir / "research_backtest.py").write_text(trial_runner)
-            if role == "baseline":
+            if role == "baseline" and args.resume_baseline:
+                saved = json.loads(args.resume_baseline.read_text())
+                frozen = saved["predeclared_series"]
+                for k in ("archive_sha256", "signal_sha256", "executor_sha256", "window"):
+                    assert frozen[k] == declaration[k], ("resume", k)
+                assert len(saved["cases"]) == 32
+                control, challenger = [], []
+                for c in saved["cases"]:
+                    assert c["signal_source_sha256"] == declaration["signal_sha256"]
+                    assert c["executor_source_sha256"] == declaration["executor_sha256"]
+                    clean = {k: v for k, v in c.items() if k != "signal_version"}
+                    (control if c["economic_policy"] == "diagnostic" else challenger).append(clean)
+
+                def order(c):
+                    return c["minutes"], list(base.VARIANTS).index(c["policy"])
+
+                control.sort(key=order)
+                challenger.sort(key=order)
+                assert len(control) == len(challenger) == 16
+                assert len({(c["policy"], c["minutes"]) for c in control}) == 16
+                assert len({(c["policy"], c["minutes"]) for c in challenger}) == 16
+            elif role == "baseline":
                 control = run_window(
                     args.archive,
                     args.start,
@@ -591,20 +633,21 @@ def main():
             else:
                 control = accepted
                 report["cases"] = [{**c, "signal_version": "v1"} for c in control]
-            challenger = run_window(
-                args.archive,
-                args.start,
-                args.end,
-                trial_signal,
-                trial_runner,
-                affected if role not in ("baseline", "stress") else tuple(base.VARIANTS),
-                "stress" if role == "stress" else "base",
-                "positive-target",
-                args.workers,
-                report,
-                path,
-                "v2",
-            )
+            if not (role == "baseline" and args.resume_baseline):
+                challenger = run_window(
+                    args.archive,
+                    args.start,
+                    args.end,
+                    trial_signal,
+                    trial_runner,
+                    affected if role not in ("baseline", "stress") else tuple(base.VARIANTS),
+                    "stress" if role == "stress" else "base",
+                    "positive-target",
+                    args.workers,
+                    report,
+                    path,
+                    "v2",
+                )
             pairs = []
             for a, b in zip(control, challenger, strict=True):
                 assert (a["policy"], a["minutes"]) == (b["policy"], b["minutes"])
@@ -631,16 +674,8 @@ def main():
                     {
                         "policy": a["policy"],
                         "minutes": a["minutes"],
-                        "v1": {
-                            "filled_entries": a["filled_entry_orders"],
-                            "net_return_pct": a["net_return_pct"],
-                            "mean_closed_R": a["risk_units"]["mean_closed_R"],
-                        },
-                        "v2": {
-                            "filled_entries": b["filled_entry_orders"],
-                            "net_return_pct": b["net_return_pct"],
-                            "mean_closed_R": b["risk_units"]["mean_closed_R"],
-                        },
+                        "v1": pair_summary(a),
+                        "v2": pair_summary(b),
                     }
                 )
             report["cases"] = []
@@ -690,6 +725,8 @@ def main():
             (args.output_dir / "history.json").write_text(json.dumps(history, indent=2) + "\n")
             print(json.dumps(summary), flush=True)
         except BaseException as exc:
+            # Preserve the error even if an unfinished comparison cannot render.
+            report.pop("paired_comparison", None)
             report.update(
                 status="failed", error=str(exc), wall_clock_seconds=time.perf_counter() - started
             )

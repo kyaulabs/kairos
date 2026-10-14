@@ -6,10 +6,12 @@ from collections import deque
 from pathlib import Path
 
 from kairos import research_backtest as runner
+from kairos.backtest_report import render
 from kairos.domain import SafetyError, dec
-from kairos.research_series import SIGNALS, STEPS, improves, module, profile
+from kairos.research_series import SIGNALS, STEPS, improves, module, pair_summary, profile
 from kairos.research_signals import Setup
 from tests.test_research_backtest import PAIR, SCENARIO, START, candle
+from tests.test_research_diagnostics import diagnostic_run
 
 
 class ResearchSeriesTests(unittest.TestCase):
@@ -82,6 +84,30 @@ class ResearchSeriesTests(unittest.TestCase):
         self.assertEqual(signals.htf_fast, 100)
         self.assertEqual(signals.htf_index, 1)
         self.assertFalse(getattr(signals, "htf_rising", False))
+
+    def test_completed_paired_report_keeps_signals_active_days_and_economics(self):
+        case = diagnostic_run(economic_policy="positive-target")
+        report = {
+            "status": "complete",
+            "assumptions": runner.ASSUMPTIONS,
+            "start": START,
+            "end": START + 600,
+            "cases": [{**case, "signal_version": "v1"}, {**case, "signal_version": "v2"}],
+            "comparison_labels": {"v1": "accepted", "v2": "challenger"},
+            "paired_comparison": [
+                {
+                    "policy": case["policy"],
+                    "minutes": 5,
+                    "v1": pair_summary(case),
+                    "v2": pair_summary(case),
+                }
+            ],
+        }
+        html = render(report, "paired.json")
+        self.assertIn("Matched accepted / challenger comparison", html)
+        self.assertIn("Signals accepted / challenger", html)
+        self.assertIn("Active days accepted / challenger", html)
+        self.assertIn("Entry economics", html)
 
     def test_unrecognized_source_condition_fails_instead_of_silent_noop(self):
         with self.assertRaises(SafetyError):
