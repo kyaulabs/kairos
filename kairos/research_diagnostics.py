@@ -25,7 +25,9 @@ def execution_estimate(pair, mid, side, scenario):
     return limit_price(book, side, scenario["slippage_bps"])
 
 
-def entry_economics(pair, entry, stop, target, scenario, fee_bps, *, gross=None, owned=None):
+def entry_economics(
+    pair, entry, stop, target, scenario, fee_bps, *, gross=None, owned=None, entry_fee_bps=None
+):
     """Illustrative all-sold unit, plus lot-rounded actual-fill projection when supplied.
 
     No probability/expectancy is implied. Unexecutable residual BTC stays owned;
@@ -34,7 +36,8 @@ def entry_economics(pair, entry, stop, target, scenario, fee_bps, *, gross=None,
     fee = dec(fee_bps) / BPS
     stop_exit = execution_estimate(pair, stop, "sell", scenario)
     target_exit = execution_estimate(pair, target, "sell", scenario)
-    factor = (1 - fee) ** 2
+    buy_fee = fee if entry_fee_bps is None else dec(entry_fee_bps) / BPS
+    factor = (1 - buy_fee) * (1 - fee)
     loss, reward = entry - factor * stop_exit, factor * target_exit - entry
     room = target - entry
     result = {
