@@ -337,6 +337,7 @@ def render(report, json_name):
             "taker_fee_bps": case["taker_fee_bps"],
             "pair_rules": case["pair_rules"],
             **({"economic_policy": case["economic_policy"]} if "economic_policy" in case else {}),
+            **({"entry_execution": case["entry_execution"]} if "entry_execution" in case else {}),
             **({"risk": risk} if risk else {}),
         }
         sections.append(f"""<section class="panel" id="case-{index}"><span class="badge">{escape(state)}</span>
@@ -390,7 +391,7 @@ Not exposure-matched: this strategy uses an order cap of {escape(case["settings"
                     else "—",
                 ]
             )
-        paired_panel = f'<section class="panel"><h2>Matched {escape(names["v1"])} / {escape(names["v2"])} comparison</h2>{table(["Setup · interval", f"Signals {names['v1']} / {names['v2']}", f"Filled {names['v1']} / {names['v2']}", f"Active days {names['v1']} / {names['v2']}", f"Net return {names['v1']}", f"Net return {names['v2']}", f"Mean closed R {names['v1']}", f"Mean closed R {names['v2']}"], paired_rows)}<p class="muted">Identical capital, execution and risk policy; only the declared research rules differ. Closed R = sold-share net P&amp;L / sold-share planned stop risk of the actual entry fill. Fees are included; retained BTC and open positions remain in portfolio equity, not closed R. Means compare independent runs—not a combined portfolio.</p></section>'
+        paired_panel = f'<section class="panel"><h2>Matched {escape(names["v1"])} / {escape(names["v2"])} comparison</h2>{table(["Setup · interval", f"Signals {names['v1']} / {names['v2']}", f"Filled {names['v1']} / {names['v2']}", f"Active days {names['v1']} / {names['v2']}", f"Net return {names['v1']}", f"Net return {names['v2']}", f"Mean closed R {names['v1']}", f"Mean closed R {names['v2']}"], paired_rows)}<p class="muted">{escape(report.get("comparison_note", "Identical capital, execution and risk policy; only the declared research rules differ."))} Closed R = sold-share net P&amp;L / sold-share planned stop risk of the actual entry fill. Fees are included; retained BTC and open positions remain in portfolio equity, not closed R. Means compare independent runs—not a combined portfolio.</p></section>'
     scope_note = escape(
         report.get(
             "scope_note",

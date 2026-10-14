@@ -47,6 +47,14 @@ from kairos.strategies import limit_price
 
 INSTRUMENT = Path(__file__).with_name("research_instrument.json")
 ECONOMIC_POLICIES = ("diagnostic", "positive-target")
+ENTRY_EXECUTIONS = ("ioc", "maker-best-bid-30s")
+MAKER_ASSUMPTIONS = [
+    "Entry is a single offline post-only buy at the observed next-open bid, fixed for 30 seconds; no repricing or taker fallback. Live OKX adapter still permits IOC only; post-only is supported in demo, not authorized here.",
+    "Only a strictly later synthetic path price BELOW the bid before expiry can fund a maker fill. A touch, submission-time quote or crossing after expiry never fills. No historical OKX queue, trade timing or cancellation acknowledgement is reconstructed.",
+    "First eligible crossing consumes preceding-minute liquidity; a partial fill cancels its remainder before owned protection. A crossing through the stop fills first, then triggers protective IOC at the observed adverse price; losing entries are not retrospectively canceled.",
+    "Maker entry fees and taker exit fees use separate received-currency rates. All stops, targets and deadlines remain bot-managed with taker IOC reductions.",
+    "The assumed extrema at seconds 20/40 dominate a 30-second lifetime: OLHC can fill at the low at second 20, whereas OHLC reaches its low after expiry. Zero-fill stress cases are timing sensitivity, not a risk or profitability improvement.",
+]
 ASSUMPTIONS = [
     "Activity-first retrospective pilot, not untouched holdout evidence or a profitability claim; refinements on this sample are tuning.",
     "Kraken XBTUSDT native candles are cross-venue price/volume inputs, NOT historical OKX quotes, depth, queues or fills.",
@@ -71,7 +79,7 @@ ASSUMPTIONS = [
 class ResearchEngine(Engine):
     exchange = "okx-research"
 
-    def __init__(self, store, market, variant):
+    def __init__(self, store, market, variant, entry_execution="ioc"):
         super().__init__(
             store,
             market,
@@ -87,6 +95,9 @@ class ResearchEngine(Engine):
         self.execution_purpose = "offline-vwap-fibonacci-pilot"
         self.sequence = 0
         self.entries_halted = self.reducing = False
+        if entry_execution not in ENTRY_EXECUTIONS:
+            raise SafetyError("Unknown research entry execution")
+        self.entry_execution = entry_execution
 
     def validate_capabilities(self, values):
         if (
@@ -119,14 +130,14 @@ class ResearchEngine(Engine):
             stop_management="bot-managed",
             native_attached_stop=False,
             simulated=True,
-            evidence_source="assumed offline IOC",
+            evidence_source="assumed offline passive" if order["maker"] else "assumed offline IOC",
         )
         order["payload"] = {
             "instId": order["instrument"],
             "tdMode": "cash",
             "clOrdId": order["client_id"],
             "side": order["side"],
-            "ordType": "ioc",
+            "ordType": "post_only" if order["maker"] else "ioc",
             "sz": order["volume"],
             "px": order["price"],
             "tradeQuoteCcy": order["quote"],
@@ -138,8 +149,15 @@ class ResearchEngine(Engine):
         return await super().valuation(enforce=enforce and not self.reducing)
 
     async def place(self, pair, side, volume, price, book, maker=False, **kwargs):
-        if self.mode != "dry-run" or maker:
-            raise SafetyError("Research cannot submit venue orders or passive entries")
+        if self.mode != "dry-run":
+            raise SafetyError("Research cannot submit venue orders")
+        if maker and (
+            self.entry_execution != "maker-best-bid-30s"
+            or side != "buy"
+            or price != book.bids[0][0]
+            or price >= book.asks[0][0]
+        ):
+            raise SafetyError("Research maker entry must be an opted-in best-bid buy")
         if side == "buy" and self.entries_halted:
             raise SafetyError("Latched entry loss halt")
         if side == "sell":
@@ -155,13 +173,13 @@ class ResearchEngine(Engine):
                 raise SafetyError("Research exit must reduce its tracked net BTC only")
         self.reducing = side == "sell"
         try:
-            return await super().place(pair, side, volume, price, book, maker=False, **kwargs)
+            return await super().place(pair, side, volume, price, book, maker=maker, **kwargs)
         finally:
             self.reducing = False
 
     def apply(self, order, volume, cost, fee, status):
-        if order["mode"] != "dry-run" or order["maker"] or dec(order["filled"]):
-            raise SafetyError("Expected one offline IOC accounting checkpoint")
+        if order["mode"] != "dry-run" or dec(order["filled"]):
+            raise SafetyError("Expected one offline fill accounting checkpoint")
         order["status"] = status
         if not volume:
             self.store.save_order(order)
@@ -182,7 +200,7 @@ class ResearchEngine(Engine):
             "fillPx": str(price),
             "fee": str(-fee_native),
             "feeCcy": fee_currency,
-            "execType": "T",
+            "execType": "M" if order["maker"] else "T",
             "billId": str(self.sequence),
             "tradeId": str(self.sequence),
             "fillTime": stamp,
@@ -241,18 +259,22 @@ def stop_risk_plan(
     order_cap,
     exposure_cap,
     risk_percent,
+    *,
+    entry_fee_bps=None,
 ):
     """Exact received-currency fee model; lot-floor risk sizing, not a stop guarantee."""
     risk_percent, fee = dec(risk_percent), dec(fee_bps) / BPS
+    buy_fee = fee if entry_fee_bps is None else dec(entry_fee_bps) / BPS
     if (
         not ZERO < risk_percent <= 1
         or not ZERO <= fee < 1
+        or not ZERO <= buy_fee < 1
         or not ZERO < stop < entry
         or min(equity, initial, cash) < 0
     ):
         raise SafetyError("Invalid planned-risk inputs")
     exit_bound = execution_estimate(pair, stop, "sell", scenario)
-    loss_per_gross_unit = entry - (1 - fee) * exit_bound * (1 - fee)
+    loss_per_gross_unit = entry - (1 - buy_fee) * exit_bound * (1 - fee)
     if exit_bound <= 0 or loss_per_gross_unit <= 0:
         raise SafetyError("Invalid stop execution estimate")
     budget = min(initial, equity) * risk_percent / 100
@@ -260,9 +282,9 @@ def stop_risk_plan(
     available_risk = max(ZERO, budget - dust_risk)
     # A partial IOC or base-denominated buy fee can leave less than the sell
     # minimum owned. Reserve its full purchase cost: it cannot have a stop.
-    potential_dust = pair.minimum * entry / (1 - fee)
+    potential_dust = pair.minimum * entry / (1 - buy_fee)
     sizing_risk = max(ZERO, available_risk - potential_dust)
-    notional = min(order_cap, max(ZERO, exposure_cap - dust_risk), cash / (1 + fee))
+    notional = min(order_cap, max(ZERO, exposure_cap - dust_risk), cash / (1 + buy_fee))
     quantity = floor(min(sizing_risk / loss_per_gross_unit, notional / entry), pair.lot)
     return quantity, {
         "percent": str(risk_percent),
@@ -316,6 +338,7 @@ async def simulate(
     signals=None,
     risk_percent=1,
     economic_policy="diagnostic",
+    entry_execution="ioc",
 ):
     if economic_policy not in ECONOMIC_POLICIES:
         raise SafetyError("Unknown research entry-economic policy")
@@ -326,12 +349,14 @@ async def simulate(
     )
     store = Store(":memory:", clock=lambda: market.now)
     store.put("settings", settings)
-    engine = ResearchEngine(store, market, variant)
+    engine = ResearchEngine(store, market, variant, entry_execution)
+    passive = entry_execution == "maker-best-bid-30s"
+    buy_fee_bps = maker if passive else taker
     signals = signals or Signals(settings["candle_minutes"], variant)
     bars = iter(native_bars)
     next_bar = next(bars, None)
     initial = dec(settings["paper_balance"])
-    previous = position = None
+    previous = position = pending_entry = None
     gates, reasons, lifecycle, regimes = Counter(), Counter(), Counter(), Counter()
     signals_by_day, filled_by_day = Counter(), Counter()
     signal_count = missed_open = processed = exposed = 0
@@ -535,6 +560,73 @@ async def simulate(
         reasons["Exit complete or residual below native minimum"] += 1
         position = None
 
+    def accept_entry(order, setup, record, risk_plan):
+        nonlocal position
+        risk_plan["filled_stop_risk"] = str(
+            dec(order["filled"]) * dec(risk_plan["loss_per_gross_unit"])
+        )
+        order.update(
+            risk_plan=risk_plan,
+            signal_closed_at=setup.closed_at,
+            signal_facts=setup.facts,
+            protection={"stop": str(setup.stop), "target": str(setup.target)},
+        )
+        owned = net_quantity(order)
+        record.update(
+            outcome="filled" if owned else "unfilled_IOC",
+            requested_quantity=order["volume"],
+            filled_quantity=order["filled"],
+            entry_economics=entry_economics(
+                pair,
+                dec(order["price"]),
+                setup.stop,
+                setup.target,
+                scenario,
+                taker,
+                gross=dec(order["filled"]),
+                owned=owned,
+                entry_fee_bps=buy_fee_bps,
+            ),
+        )
+        order["entry_economics"] = record["entry_economics"]
+        if passive and owned:
+            order["first_fill_at"] = market.now
+            record["passive_fill_at"] = market.now
+        store.save_order(order)
+        if owned:
+            position = {
+                "id": order["position_id"],
+                "quantity": owned,
+                "owned": owned,
+                "entry_cost": dec(order["cost"]),
+                "sold": ZERO,
+                "proceeds": ZERO,
+                "opened_at": market.now,
+                "stop": setup.stop,
+                "target": setup.target,
+                "deadline": market.now + RULES["max_hold_seconds"],
+                "exit_reason": None,
+                "risk_plan": risk_plan,
+                "entry_economics": record["entry_economics"],
+            }
+            filled_by_day[str(int(market.now) // 86400 * 86400)] += 1
+        reasons[
+            "Filled passive entry"
+            if passive and owned
+            else "Filled IOC entry"
+            if owned
+            else "IOC entry had no assumed liquidity"
+        ] += 1
+
+    def cancel_entry(outcome):
+        nonlocal pending_entry
+        order, _, record, _ = pending_entry
+        order.update(status="canceled", passive_outcome=outcome, resolved_at=market.now)
+        record.update(outcome=outcome, resolved_at=market.now, filled_quantity="0")
+        store.save_order(order)
+        reasons["Passive entry canceled: " + outcome] += 1
+        pending_entry = None
+
     try:
         for row in minutes_rows:
             ts = row[0]
@@ -568,6 +660,35 @@ async def simulate(
             attempted_exit = False
             for offset, price in zip((1, 20, 40, 59), points, strict=True):
                 market.now, market.mid = ts + offset, dec(price)
+                if pending_entry:
+                    order, resting_setup, record, risk_plan = pending_entry
+                    if market.now >= order["expires"]:
+                        cancel_entry("passive_expired")
+                    elif engine.entries_halted or not engine.running:
+                        cancel_entry("passive_loss_halt")
+                    elif market.now > order["created"] and market.mid < dec(order["price"]):
+                        quantity = market.consume(dec(order["volume"]))
+                        if quantity:
+                            engine.apply(
+                                order,
+                                quantity,
+                                quantity * dec(order["price"]),
+                                ZERO,
+                                "closed" if quantity == dec(order["volume"]) else "canceled",
+                            )
+                            order["passive_observation"] = {
+                                "mid": str(market.mid),
+                                "crossed_at": market.now,
+                                "prior_minute_liquidity_used": str(quantity),
+                                "partial_remainder_canceled": quantity < dec(order["volume"]),
+                                "crossed_through_stop": market.mid <= resting_setup.stop,
+                            }
+                            accept_entry(order, resting_setup, record, risk_plan)
+                            pending_entry = None
+                    if pending_entry and market.mid <= resting_setup.stop:
+                        cancel_entry("passive_invalidated")
+                    elif pending_entry and market.mid >= resting_setup.target:
+                        cancel_entry("passive_target_passed")
                 if position:
                     if not position.get("exit_reason"):
                         position["exit_reason"] = (
@@ -631,7 +752,11 @@ async def simulate(
                 if offset == 1 and setup:
                     record = setup_record(setup)
                     book = await market.book(pair)
-                    bound = limit_price(book, "buy", settings["slippage_bps"])
+                    bound = (
+                        book.bids[0][0]
+                        if passive
+                        else limit_price(book, "buy", settings["slippage_bps"])
+                    )
                     record.update(
                         next_open_at=market.now,
                         next_open_clock=clock_facts(market.now),
@@ -641,20 +766,33 @@ async def simulate(
                         target_room_at_entry=str(setup.target - bound),
                         room_consumed_after_confirmation=str(bound - setup.reference),
                         next_open_move_from_confirmation=str(market.mid - setup.reference),
-                        entry_spread_and_quote_tick_cost=str(book.asks[0][0] - market.mid),
-                        entry_slippage_and_bound_tick_cost=str(bound - book.asks[0][0]),
+                        entry_spread_and_quote_tick_cost=str(
+                            (bound if passive else book.asks[0][0]) - market.mid
+                        ),
+                        entry_slippage_and_bound_tick_cost=str(
+                            ZERO if passive else bound - book.asks[0][0]
+                        ),
                         previous_minute_present=bool(previous and previous[0] + 60 == ts),
                         previous_minute_volume=previous[6]
                         if previous and previous[0] + 60 == ts
                         else None,
                         available_liquidity=str(market.remaining),
                         entry_economics=entry_economics(
-                            pair, bound, setup.stop, setup.target, scenario, taker
+                            pair,
+                            bound,
+                            setup.stop,
+                            setup.target,
+                            scenario,
+                            taker,
+                            entry_fee_bps=buy_fee_bps,
                         ),
                     )
                     if not engine.running or engine.entries_halted:
                         record["outcome"] = "blocked_loss_halt"
                         reasons["Signal blocked: latched loss halt"] += 1
+                    elif pending_entry:
+                        record["outcome"] = "blocked_pending_entry"
+                        reasons["Signal blocked: resting entry"] += 1
                     elif position:
                         record["outcome"] = "blocked_owned_position"
                         reasons["Signal blocked: active owned position"] += 1
@@ -686,6 +824,7 @@ async def simulate(
                                 taker,
                                 *engine.limits(),
                                 risk_percent,
+                                entry_fee_bps=buy_fee_bps,
                             )
                             engine.position_id, engine.reason = (
                                 f"{variant}:{setup.closed_at}",
@@ -694,60 +833,31 @@ async def simulate(
                             try:
                                 if quantity < pair.minimum or quantity * bound < pair.cost_minimum:
                                     raise SafetyError("Risk/funding budget below native minimum")
-                                order = await engine.place(pair, "buy", quantity, bound, book)
-                                risk_plan["filled_stop_risk"] = str(
-                                    dec(order["filled"]) * dec(risk_plan["loss_per_gross_unit"])
+                                order = await engine.place(
+                                    pair, "buy", quantity, bound, book, maker=passive
                                 )
-                                order.update(
-                                    risk_plan=risk_plan,
-                                    signal_closed_at=setup.closed_at,
-                                    signal_facts=setup.facts,
-                                    protection={
-                                        "stop": str(setup.stop),
-                                        "target": str(setup.target),
-                                    },
-                                )
-                                store.save_order(order)
-                                owned = net_quantity(order)
-                                record.update(
-                                    outcome="filled" if owned else "unfilled_IOC",
-                                    requested_quantity=order["volume"],
-                                    filled_quantity=order["filled"],
-                                    entry_economics=entry_economics(
-                                        pair,
-                                        bound,
-                                        setup.stop,
-                                        setup.target,
-                                        scenario,
-                                        taker,
-                                        gross=dec(order["filled"]),
-                                        owned=owned,
-                                    ),
-                                )
-                                order["entry_economics"] = record["entry_economics"]
-                                store.save_order(order)
-                                if owned:
-                                    position = {
-                                        "id": engine.position_id,
-                                        "quantity": owned,
-                                        "owned": owned,
-                                        "entry_cost": dec(order["cost"]),
-                                        "sold": ZERO,
-                                        "proceeds": ZERO,
-                                        "opened_at": market.now,
-                                        "stop": setup.stop,
-                                        "target": setup.target,
-                                        "deadline": market.now + RULES["max_hold_seconds"],
-                                        "exit_reason": None,
-                                        "risk_plan": risk_plan,
-                                        "entry_economics": record["entry_economics"],
-                                    }
-                                    filled_by_day[str(ts // 86400 * 86400)] += 1
-                                reasons[
-                                    "Filled IOC entry"
-                                    if owned
-                                    else "IOC entry had no assumed liquidity"
-                                ] += 1
+                                if passive:
+                                    risk_plan["filled_stop_risk"] = "0"
+                                    order.update(
+                                        risk_plan=risk_plan,
+                                        signal_closed_at=setup.closed_at,
+                                        signal_facts=setup.facts,
+                                        protection={
+                                            "stop": str(setup.stop),
+                                            "target": str(setup.target),
+                                        },
+                                        entry_economics=record["entry_economics"],
+                                    )
+                                    store.save_order(order)
+                                    record.update(
+                                        outcome="passive_pending",
+                                        posted_at=market.now,
+                                        passive_expires_at=order["expires"],
+                                        requested_quantity=order["volume"],
+                                    )
+                                    pending_entry = (order, setup, record, risk_plan)
+                                else:
+                                    accept_entry(order, setup, record, risk_plan)
                             except SafetyError as exc:
                                 record.update(outcome="blocked_entry_safety", blocker=str(exc))
                                 reasons["Entry blocked: " + str(exc)] += 1
@@ -779,6 +889,8 @@ async def simulate(
         while next_bar and next_bar[0] + settings["candle_minutes"] * 60 < end:
             observe(next_bar, end)
             next_bar = next(bars, None)
+        if pending_entry:
+            cancel_entry("passive_study_end")
         orders = engine.orders()
         if position:
             exit_audit = exit_economics(position, orders, pair, scenario, taker)
@@ -800,7 +912,8 @@ async def simulate(
         fills = [o for o in entries if dec(o["filled"])]
         days = (end - start) / 86400
         gaps = [
-            (b["created"] - a["created"]) / 3600 for a, b in zip(fills, fills[1:], strict=False)
+            (b.get("first_fill_at", b["created"]) - a.get("first_fill_at", a["created"])) / 3600
+            for a, b in zip(fills, fills[1:], strict=False)
         ]
         opening = (
             first_price
@@ -815,6 +928,7 @@ async def simulate(
         holding = initial / opening * (1 - dec(taker) / BPS) * closing * (1 - dec(taker) / BPS)
         return {
             "policy": variant,
+            **({"entry_execution": entry_execution} if passive else {}),
             "economic_policy": economic_policy,
             "minutes": settings["candle_minutes"],
             "scenario": scenario,
@@ -903,8 +1017,8 @@ async def simulate(
                 "longest_idle_hours": max(
                     b - a
                     for a, b in zip(
-                        [start, *[o["created"] for o in fills]],
-                        [*[o["created"] for o in fills], end],
+                        [start, *[o.get("first_fill_at", o["created"]) for o in fills]],
+                        [*[o.get("first_fill_at", o["created"]) for o in fills], end],
                         strict=True,
                     )
                 )
@@ -936,6 +1050,7 @@ def execute_case(job):
         taker,
         risk_percent,
         economic_policy,
+        entry_execution,
     ) = job
     started = time.monotonic()
     with ZipFile(archive_path) as archive:
@@ -959,6 +1074,7 @@ def execute_case(job):
                 taker,
                 risk_percent=risk_percent,
                 economic_policy=economic_policy,
+                entry_execution=entry_execution,
             )
         )
     result["runtime_seconds"] = time.monotonic() - started
@@ -1062,6 +1178,7 @@ def main():
         default="diagnostic",
         help="Diagnostic preserves baseline entries; positive-target requires strictly positive modeled net reward at the frozen target. Research only, not expectancy or guaranteed profit.",
     )
+    parser.add_argument("--entry-execution", choices=ENTRY_EXECUTIONS, default="ioc")
     parser.add_argument("--daily-loss", type=decimal, default=dec("12.50"))
     parser.add_argument("--output", type=Path)
     parser.add_argument(
@@ -1120,7 +1237,9 @@ def main():
             "economic_rule": "No economic rejection"
             if args.economic_policy == "diagnostic"
             else "(1-buy BTC fee) * target IOC bound * (1-sell USDT fee) - next-open entry IOC bound > 0; illustrative all-sold unit, not expected profit or a liquidation guarantee",
-            "execution_model": "KAIROS-supported cash IOC limits with bot-managed stops/targets; NOT native attached SL/TP",
+            "execution_model": "Offline best-bid post-only entry / taker IOC exit; NOT authorized live"
+            if args.entry_execution != "ioc"
+            else "KAIROS-supported cash IOC limits with bot-managed stops/targets; NOT native attached SL/TP",
             "status": "running",
             "start": args.start,
             "end": args.end,
@@ -1128,7 +1247,10 @@ def main():
             "historical_final": False,
             "planned_cases": len(args.minutes) * len(args.variants) * len(args.scenarios),
             "members": members,
-            "assumptions": ASSUMPTIONS,
+            "assumptions": [a for a in ASSUMPTIONS if not a.startswith("Next-open marketable")]
+            + MAKER_ASSUMPTIONS
+            if args.entry_execution != "ioc"
+            else ASSUMPTIONS,
             "rules": RULES,
             "variant_labels": VARIANTS,
             "execution_revision": EXECUTION_REVISION,
@@ -1176,6 +1298,7 @@ def main():
                             args.taker_fee_bps,
                             args.risk_percent,
                             args.economic_policy,
+                            args.entry_execution,
                         )
                     )
         write_reports(report, output, create=True)

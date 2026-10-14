@@ -1,0 +1,414 @@
+{
+  "recorded_at": "2026-10-14T21:08:06.006895+00:00",
+  "freeze_commit": "7d8e648e70ce19438fdf89124829d2ce53f826d7",
+  "pilot_cases": 128,
+  "quarter_cases": 128,
+  "comparisons_per_window": 4,
+  "all_64_prior_ioc_controls_reproduced": true,
+  "same_signals_and_frozen_structural_plans_between_execution_arms": true,
+  "new_ai_calls": 0,
+  "results": [
+    {
+      "profile": "original",
+      "scenario": "base",
+      "aggregate": {
+        "ioc": {
+          "independent_cases": 16,
+          "signals": 3886,
+          "filled_entries": 693,
+          "positive_target_fills": 693,
+          "active_case_days": 404,
+          "closed_trades": 624,
+          "mean_closed_R": "-0.4385809581748210539472992796",
+          "mean_case_return_pct": "-2.842686520254688216875",
+          "budget_breaches": 15,
+          "halted_cases": 7,
+          "zero_fill_cases": []
+        },
+        "maker": {
+          "independent_cases": 16,
+          "signals": 3886,
+          "filled_entries": 405,
+          "positive_target_fills": 405,
+          "active_case_days": 304,
+          "closed_trades": 372,
+          "mean_closed_R": "-0.4468651342709769915441496755",
+          "mean_case_return_pct": "-1.470270417703708026125",
+          "budget_breaches": 8,
+          "halted_cases": 6,
+          "zero_fill_cases": []
+        }
+      },
+      "json_sha256": "d4c48b1119e08331e3c99817d61846da138eb48ba683965ee01c49185c0cfa04",
+      "html_sha256": "f616113aa52ccd7444395fcfe449b436fd77fa85a612b73e6d7ff43ba134ba58",
+      "runtime_seconds": 499.62526487605646,
+      "execution_detail": {
+        "IOC": {
+          "attempts": 787,
+          "partial_entries": 628,
+          "unfilled_entries": 94,
+          "maker_outcomes": {
+            "passive_expired": 0,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        },
+        "Maker": {
+          "attempts": 1229,
+          "partial_entries": 366,
+          "unfilled_entries": 824,
+          "maker_outcomes": {
+            "passive_expired": 824,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        }
+      }
+    },
+    {
+      "profile": "original",
+      "scenario": "stress",
+      "aggregate": {
+        "ioc": {
+          "independent_cases": 16,
+          "signals": 3886,
+          "filled_entries": 372,
+          "positive_target_fills": 372,
+          "active_case_days": 251,
+          "closed_trades": 336,
+          "mean_closed_R": "-0.5136901583497275375325493333",
+          "mean_case_return_pct": "-2.009207658434990743000",
+          "budget_breaches": 8,
+          "halted_cases": 3,
+          "zero_fill_cases": []
+        },
+        "maker": {
+          "independent_cases": 16,
+          "signals": 3886,
+          "filled_entries": 0,
+          "positive_target_fills": 0,
+          "active_case_days": 0,
+          "closed_trades": 0,
+          "mean_closed_R": null,
+          "mean_case_return_pct": "0E-7",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-anchored 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-ema 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ]
+        }
+      },
+      "json_sha256": "9127308545e910e5a3f9cf6faa7eeada5898e64e9127c7a7e8283e0d8420175c",
+      "html_sha256": "b94807d57d5d6e9e26dcdabd92d501ca21c01714bd5531226d3130db7786f9b5",
+      "runtime_seconds": 461.50048775877804,
+      "execution_detail": {
+        "IOC": {
+          "attempts": 411,
+          "partial_entries": 330,
+          "unfilled_entries": 39,
+          "maker_outcomes": {
+            "passive_expired": 0,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        },
+        "Maker": {
+          "attempts": 1384,
+          "partial_entries": 0,
+          "unfilled_entries": 1384,
+          "maker_outcomes": {
+            "passive_expired": 1384,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        }
+      }
+    },
+    {
+      "profile": "accepted",
+      "scenario": "base",
+      "aggregate": {
+        "ioc": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 698,
+          "positive_target_fills": 698,
+          "active_case_days": 407,
+          "closed_trades": 628,
+          "mean_closed_R": "-0.4345399843409891362442766417",
+          "mean_case_return_pct": "-2.8181413422331341265625",
+          "budget_breaches": 15,
+          "halted_cases": 7,
+          "zero_fill_cases": []
+        },
+        "maker": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 413,
+          "positive_target_fills": 413,
+          "active_case_days": 310,
+          "closed_trades": 379,
+          "mean_closed_R": "-0.4321734409954016949785086348",
+          "mean_case_return_pct": "-1.402255980508487078625",
+          "budget_breaches": 8,
+          "halted_cases": 6,
+          "zero_fill_cases": []
+        }
+      },
+      "json_sha256": "a12b16a110da382e46578ba957759bc75133e477fe20c01e9991def033858671",
+      "html_sha256": "45be9278eeafdeb03235ecd722e36dfc5c751f8373c11b4fe5522c82b1e32578",
+      "runtime_seconds": 500.40149941900745,
+      "execution_detail": {
+        "IOC": {
+          "attempts": 793,
+          "partial_entries": 633,
+          "unfilled_entries": 95,
+          "maker_outcomes": {
+            "passive_expired": 0,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        },
+        "Maker": {
+          "attempts": 1239,
+          "partial_entries": 373,
+          "unfilled_entries": 826,
+          "maker_outcomes": {
+            "passive_expired": 826,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        }
+      }
+    },
+    {
+      "profile": "accepted",
+      "scenario": "stress",
+      "aggregate": {
+        "ioc": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 376,
+          "positive_target_fills": 376,
+          "active_case_days": 255,
+          "closed_trades": 338,
+          "mean_closed_R": "-0.5117971131052042247208118876",
+          "mean_case_return_pct": "-2.011230248455925323000",
+          "budget_breaches": 8,
+          "halted_cases": 3,
+          "zero_fill_cases": []
+        },
+        "maker": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 0,
+          "positive_target_fills": 0,
+          "active_case_days": 0,
+          "closed_trades": 0,
+          "mean_closed_R": null,
+          "mean_case_return_pct": "0E-7",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-anchored 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-ema 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ]
+        }
+      },
+      "json_sha256": "a5e76d7d4ed278216c08e33ff247626e347d3e3f21bcc313e90a7df95a93bb6a",
+      "html_sha256": "1da89ecfba31510b76d3e082f53eb2c82f9a9b1258bddd46079a601bf0f1d312",
+      "runtime_seconds": 466.00623033894226,
+      "execution_detail": {
+        "IOC": {
+          "attempts": 415,
+          "partial_entries": 334,
+          "unfilled_entries": 39,
+          "maker_outcomes": {
+            "passive_expired": 0,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        },
+        "Maker": {
+          "attempts": 1402,
+          "partial_entries": 0,
+          "unfilled_entries": 1402,
+          "maker_outcomes": {
+            "passive_expired": 1402,
+            "passive_invalidated": 0,
+            "passive_target_passed": 0,
+            "passive_loss_halt": 0
+          }
+        }
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "passive-maker-quarter-attempt-001/COMPLETE.json",
+      "bytes": 87,
+      "sha256": "5ae07bc4b15638121ef4ef3443fc65eaa876aaf88bb9e1fc74f17957d4b38273"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/accepted-base.html",
+      "bytes": 1751495,
+      "sha256": "45be9278eeafdeb03235ecd722e36dfc5c751f8373c11b4fe5522c82b1e32578"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/accepted-base.json",
+      "bytes": 76274281,
+      "sha256": "a12b16a110da382e46578ba957759bc75133e477fe20c01e9991def033858671"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/accepted-stress.html",
+      "bytes": 1549780,
+      "sha256": "1da89ecfba31510b76d3e082f53eb2c82f9a9b1258bddd46079a601bf0f1d312"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/accepted-stress.json",
+      "bytes": 64164607,
+      "sha256": "a5e76d7d4ed278216c08e33ff247626e347d3e3f21bcc313e90a7df95a93bb6a"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/declaration.json",
+      "bytes": 2852,
+      "sha256": "669a833e8a97cd0d6ab1b5cc4101ccbc18200a34258687bc97a99f9c883f95f4"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/original-base.html",
+      "bytes": 1746441,
+      "sha256": "f616113aa52ccd7444395fcfe449b436fd77fa85a612b73e6d7ff43ba134ba58"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/original-base.json",
+      "bytes": 75812405,
+      "sha256": "d4c48b1119e08331e3c99817d61846da138eb48ba683965ee01c49185c0cfa04"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/original-stress.html",
+      "bytes": 1547209,
+      "sha256": "b94807d57d5d6e9e26dcdabd92d501ca21c01714bd5531226d3130db7786f9b5"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/original-stress.json",
+      "bytes": 63805117,
+      "sha256": "9127308545e910e5a3f9cf6faa7eeada5898e64e9127c7a7e8283e0d8420175c"
+    },
+    {
+      "path": "passive-maker-quarter-attempt-001/summary.json",
+      "bytes": 5432,
+      "sha256": "77b37f8cfae3eb8b328e5715ae7233635b92212382aede994ec1ad87c352b497"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/COMPLETE.json",
+      "bytes": 88,
+      "sha256": "e78731cb2bfda7b8e7833a511641066bd6c856875209ddf6fda427e6c6e15d1f"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/accepted-base.html",
+      "bytes": 462736,
+      "sha256": "9f1dd0c8f8ec824baf75f6c70514aebcd1a0224d6db913382ef471080cc51634"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/accepted-base.json",
+      "bytes": 2112627,
+      "sha256": "9b25ed6924f6b549cab50e5bbc7de553214a3fb4e4151b19ce436c1d99d608a7"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/accepted-stress.html",
+      "bytes": 453324,
+      "sha256": "5ee7f02dd872ad5938470105ed4d4a4fa0990b93530b0be85a28822bc27c3e32"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/accepted-stress.json",
+      "bytes": 1715110,
+      "sha256": "28a1a408fa26c1d26d5af5f5a2d6f78d109849f25f797acd4fc11c0a4a96ce34"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/declaration.json",
+      "bytes": 2851,
+      "sha256": "432ca3aef511f18c719a4ba8d6edf6797a4cf839488f2f6f142be9b347f1e0fd"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/original-base.html",
+      "bytes": 462556,
+      "sha256": "872605fc9ea3e12d15121eb58dae8cbc719e7b39c1a810c4397992e1b97205cc"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/original-base.json",
+      "bytes": 2108445,
+      "sha256": "8a2f140766832ad73614f2a0979f929ceffc97d8f56df22c93d9dc14592c388e"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/original-stress.html",
+      "bytes": 453152,
+      "sha256": "96423ab404d32463e03a43442a5c2091bce903250242da00dfa29a5e72f16e1e"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/original-stress.json",
+      "bytes": 1710952,
+      "sha256": "366bfba0c553875154fca86b3ef507b89f761bd3d6a7360363589f2779f300d7"
+    },
+    {
+      "path": "passive-maker-pilot-attempt-001/summary.json",
+      "bytes": 7365,
+      "sha256": "b80664af6c7641eb072c44e424d81059ea0599f1f25f01b95f2f43418c3bc3a2"
+    }
+  ],
+  "selection": "No promotion or re-selection. Maker base reduces marked losses but loses activity; adverse maker is inactive due declared synthetic timing. Not evidence of profitability or reliable 30-second fills.",
+  "failures": [
+    {
+      "phase": "pre-freeze unit lint",
+      "error": "B023: unbound loop market in test clock",
+      "resolution": "Bind test lambda default; tests and lint pass"
+    },
+    {
+      "phase": "pre-freeze signing",
+      "error": "GPG/YubiKey PIN entry timed out",
+      "resolution": "User made signing key available; signed commit succeeded; no hook/signature bypass"
+    }
+  ],
+  "limitations": [
+    "Entry is a single offline post-only buy at the observed next-open bid, fixed for 30 seconds; no repricing or taker fallback. Live OKX adapter still permits IOC only; post-only is supported in demo, not authorized here.",
+    "Only a strictly later synthetic path price BELOW the bid before expiry can fund a maker fill. A touch, submission-time quote or crossing after expiry never fills. No historical OKX queue, trade timing or cancellation acknowledgement is reconstructed.",
+    "First eligible crossing consumes preceding-minute liquidity; a partial fill cancels its remainder before owned protection. A crossing through the stop fills first, then triggers protective IOC at the observed adverse price; losing entries are not retrospectively canceled.",
+    "Maker entry fees and taker exit fees use separate received-currency rates. All stops, targets and deadlines remain bot-managed with taker IOC reductions.",
+    "The assumed extrema at seconds 20/40 dominate a 30-second lifetime: OLHC can fill at the low at second 20, whereas OHLC reaches its low after expiry. Zero-fill stress cases are timing sensitivity, not a risk or profitability improvement."
+  ]
+}

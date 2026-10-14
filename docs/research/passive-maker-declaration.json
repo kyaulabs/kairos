@@ -1,0 +1,38 @@
+{
+  "declared_at": "2026-10-14T20:28:42.890325+00:00",
+  "runner_sha256": "8570bc337106f928a9317306ea18603bc40b2e6f4b7ebad60960806b57f33eec",
+  "archive_sha256": "380165e326961eeddd41dcedd4a6e623479fcd093ed43deaaaa74678e4c63d78",
+  "rule_profiles": [
+    "original positive-target",
+    "accepted positive-target"
+  ],
+  "window": [
+    "2024-02-01",
+    "2024-05-01"
+  ],
+  "pilot_window": [
+    "2024-02-01",
+    "2024-02-03"
+  ],
+  "cases_per_window": 128,
+  "scenarios": [
+    "base",
+    "stress"
+  ],
+  "entry_execution": [
+    "ioc",
+    "maker-best-bid-30s"
+  ],
+  "user_choices": {
+    "scope": "Original and final rules",
+    "maker_entry": "Best bid, 30 seconds",
+    "guide": "Grouped test TOC at completion"
+  },
+  "new_ai_calls": 0,
+  "selection": "None; no re-selection or production promotion",
+  "source_sha256": {
+    "kairos/research_backtest.py": "3db735b311a0aff8aeb1cdef1ced3cd0ff2053db0b34b85710a67309d26fac2e",
+    "kairos/research_diagnostics.py": "bcf8e815dfd65e7690977018d53eadaf445afe87d48a588236c99c40df79844a",
+    "kairos/backtest_report.py": "f8d19c5ca812714f471293818c180e83ffe81a721b653a70b270e8195541599e"
+  }
+}
