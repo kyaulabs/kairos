@@ -77,8 +77,29 @@ class ResearchShadowTests(unittest.TestCase):
         self.assertIn("--ignore-user-config", args)
         self.assertIn("--ephemeral", args)
         self.assertIn("shell_tool", args)
+        self.assertEqual(args[args.index("--model") + 1], "gpt-6-luna")
+        self.assertIn('model_reasoning_effort="low"', args)
         self.assertNotIn("--approve-for-me", args)
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", args)
+
+    def test_requested_sol_high_replaces_only_the_model_and_effort(self):
+        default = command("/bin/codex", Path("schema.json"), Path("answer.json"))
+        requested = command(
+            "/bin/codex",
+            Path("schema.json"),
+            Path("answer.json"),
+            model="gpt-6.1-sol",
+            effort="high",
+        )
+        self.assertEqual(requested[requested.index("--model") + 1], "gpt-6.1-sol")
+        self.assertIn('model_reasoning_effort="high"', requested)
+        self.assertEqual(
+            [(a, b) for a, b in zip(default, requested, strict=True) if a != b],
+            [
+                ("gpt-6-luna", "gpt-6.1-sol"),
+                ('model_reasoning_effort="low"', 'model_reasoning_effort="high"'),
+            ],
+        )
 
     def test_disabled_tool_warning_is_not_a_tool_but_actions_and_failures_stop(self):
         warning = {

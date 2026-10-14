@@ -111,7 +111,7 @@ def samples(report):
     return selected
 
 
-def command(client, schema, output):
+def command(client, schema, output, *, model="gpt-6-luna", effort="low"):
     args = [
         client,
         "exec",
@@ -124,7 +124,7 @@ def command(client, schema, output):
         "--color",
         "never",
         "--model",
-        "gpt-6-luna",
+        model,
         "--output-schema",
         str(schema),
         "--output-last-message",
@@ -138,7 +138,7 @@ def command(client, schema, output):
         "-c",
         'web_search="disabled"',
         "-c",
-        'model_reasoning_effort="low"',
+        f"model_reasoning_effort={json.dumps(effort)}",
         "-c",
         "mcp_servers={}",
     ]
@@ -199,6 +199,8 @@ def main():
     p.add_argument("--report", type=Path, required=True)
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--max-invocations", type=int, default=32)
+    p.add_argument("--model", choices=("gpt-6-luna", "gpt-6.1-sol"), default="gpt-6-luna")
+    p.add_argument("--effort", choices=("low", "medium", "high"), default="low")
     p.add_argument("--approve-subscription-usage", action="store_true")
     args = p.parse_args()
     if not args.approve_subscription_usage:
@@ -225,7 +227,8 @@ def main():
         "declared_at": datetime.now(UTC).isoformat(),
         "max_invocations": args.max_invocations,
         "client_version": subprocess.check_output([client, "--version"], env=env).decode().strip(),
-        "model_alias": "gpt-6-luna",
+        "model_alias": args.model,
+        "reasoning_effort": args.effort,
         "authentication": "official Codex ChatGPT sign-in",
         "report_sha256": digest(report_bytes),
         "source_sha256": digest(Path(__file__).read_bytes()),
@@ -249,7 +252,7 @@ def main():
         }
         try:
             run = subprocess.run(
-                command(client, schema, output),
+                command(client, schema, output, model=args.model, effort=args.effort),
                 cwd=work,
                 env=env,
                 input=PROMPT + json.dumps(sample["input"], sort_keys=True),
