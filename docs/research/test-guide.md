@@ -1,40 +1,35 @@
 # Research test guide
 
-Use this guide to choose a test group rather than treating every report as one experiment. The themed offline `index.html` is in the protected quarter report directory locally and on Apollo. Keep it with its report folders so relative links work. It links 44 original HTML reports in six groups, including six invalid reports, and renders this guide plus all three current results documents.
+Open the protected offline `index.html`. It now starts with **Latest test group**, followed by earlier groups in reverse chronological order. Each group opens a short list of dated tests, also newest first. Charts and detailed results are on the test pages, not the landing page.
 
-The short version: the latest maker entries lose less money in the base simulation, but trade much less often. The accepted rules average −1.4023% with maker entries versus −2.8181% with IOC entries. Neither is profitable. Adverse maker execution gets no fills because the synthetic low arrives after expiry, so its flat balance proves nothing about profitability or safety.
+The latest group is **Passive maker vs taker, full quarter**, last recorded **2026-10-14 21:07:01 UTC**. It contains four comparisons covering 128 independent cases. Accepted-rule base maker entries average −1.4023%, versus −2.8181% for IOC entries, but fills fall from 698 to 413. Neither arm is profitable; adverse maker execution has no fills under the declared timing assumptions.
 
-## Contents
+## Run history
 
-- [Maker versus taker entries](#maker-versus-taker-entries)
-- [Quarter strategy sequence](#quarter-strategy-sequence)
-- [AI shadow comparisons](#ai-shadow-comparisons)
-- [Execution pilots](#execution-pilots)
-- [Invalid and superseded attempts](#invalid-and-superseded-attempts)
-- [Earlier short-window research](#earlier-short-window-research)
+| Last recorded (UTC) | Test group | Reports |
+| --- | --- | ---: |
+| 2026-10-14 21:07:01 | [Passive maker vs taker, full quarter](passive-maker-comparison.md) | 4 |
+| 2026-10-14 20:34:22 | Passive maker execution pilot | 4 |
+| 2026-10-14 17:14:49 | [GPT-6.1 Sol / high shadow and financial control](sol-high-shadow.md) | 2 |
+| 2026-10-14 05:50:46 | [GPT-6 Luna / low shadow and financial control](three-month-series.md) | 2 |
+| 2026-10-14 04:46:39 | [Corrected quarter strategy sequence](three-month-series.md) | 17 |
+| 2026-10-14 02:58:13 | Invalid quarter attempt 003 | 2 |
+| 2026-10-14 02:51:55 | Invalid quarter attempt 002 | 2 |
+| 2026-10-14 02:29:30 | Invalid quarter attempt 001 | 2 |
+| 2026-10-14 00:53:42 | Earlier pilots and short-window comparisons | 9 |
 
-## Maker versus taker entries
+These are execution/report records, not the historical price-data dates. Each test page shows its price-data window separately. AI times come from the last completed response. Other times come from the original Apollo report's save time, with the report hash checked against the local archive. Local copy times and page-regeneration times do not determine test order. The offline `navigation.json` records every timestamp and its source.
 
-[Declaration and results](passive-maker-comparison.md). This requested comparison holds the original and accepted signal rules fixed and changes entry execution. It includes all eight setups at 5m/15m, base/adverse assumptions, maker entry fees and taker protective exits. All 128 full-quarter cases and 128 short pilot cases completed; all 64 archived IOC controls reproduced. No maker profile was promoted. A flat account caused by missed maker fills is not an improvement.
+## Charts and audit data
 
-## Quarter strategy sequence
+Test pages use a pinned, locally bundled Chart.js 4.5.1 browser build with its MIT license and acquisition receipt. They work offline without adding an application dependency. Financial views show marked return, filled entries and daily marked equity; controls select the interval, execution scenario and equity-chart setup. Missing dates remain gaps. AI views show classification counts, not trading performance or prediction accuracy.
 
-[Rules, chronology and results](three-month-series.md), [outcome provenance](three-month-outcome.json). Use corrected attempt 004 only: 17 deterministic paired stages on February–April 2024. Only two small ablations met the declared base-execution criteria. The accepted stack remains negative and did not improve both adverse primary outcomes.
+Every test page links to its original, unchanged HTML report and JSON audit. Exact values remain available in tables without JavaScript. The four Markdown guides/results documents are rendered on a separate summaries-and-methods page, with original `.md` links. The archive still contains 44 original reports, including six clearly labelled invalid reports; derived chart views are not new tests.
 
-## AI shadow comparisons
+## Reading the evidence
 
-[Initial shadow within the quarter](three-month-series.md), [Sol/high rerun](sol-high-shadow.md), [rerun provenance](sol-high-shadow-outcome.json). The initial stage used 32 official subscription client invocations across three attempts, with 30 completed annotations in the final attempt. The separately requested Sol/high rerun completed 30 more on identical inputs. Reference agreement is not accuracy, expected profit or permission to trade. Financial replays reproduced all 16 controls; neither model changed execution.
-
-## Execution pilots
-
-The maker pilot uses February 1–2 of the same quarter to check fills, timing, native fees and risk before the full replay. It is not a holdout or a strategy-selection stage. Unit tests use small constructed examples to check behavior; they are not historical performance evidence.
-
-## Invalid and superseded attempts
-
-Quarter attempts 001–003 are not valid strategy evidence. They exposed rendering, serialization and machine-clock fee freshness problems. Attempt 004 restarted fresh after the executor repair. Keep invalid reports visible in their own group, not mixed with completed financial evidence. Initial AI client/model/event-observer failures are preserved separately in their raw receipts.
-
-## Earlier short-window research
-
-The offline earlier-studies group contains nine byte-identical HTML/audit pairs, including the original pilots, matched-risk comparison, entry-cost reproductions, rejected timing trial and positive-target studies. Reproductions are not independent experiments. The quarter results supersede neither the provenance nor the limitations of earlier studies. See the [entry-cost audit](entry-economics-audit.md), [positive-target comparison](positive-target-eligibility.md), [chronological June declaration](positive-target-validation.json) and [experiment history](experiment-history.json). Differently sized original v1/v2 pilots are not controlled financial comparisons. June data was already traversed; it is not an untouched holdout. The older HTF replay uses a different strategy and accounting model and must not be pooled with the eight VWAP/Fibonacci setups.
-
-All cases are independent accounts, not a portfolio. Kraken candles are proxies for OKX U.S. spot, not historical OKX fills. Planned risk is not a guaranteed realized-loss ceiling. No report authorizes live trading, deployment, leverage, a halt reset or additional AI usage.
+- Use corrected quarter attempt 004, not attempts 001–003. The invalid attempts exposed renderer, serialization and machine-clock fee-freshness problems.
+- Maker pilots, CLI checks and diagnostic reproductions are implementation evidence, not independent strategy experiments. Flat equity from missed entries is not improvement.
+- Earlier original v1/v2 pilots used different sizing; the [matched-risk history](experiment-history.json) identifies the controlled comparison. Previously traversed June data is not an untouched holdout.
+- All eight setups at both intervals remain. Independent accounts are not a portfolio. Kraken candles are proxies, not historical OKX fills; planned risk is not a guaranteed realized-loss ceiling.
+- AI agreement is not accuracy or profit. Nothing in the guide authorizes trading, deployment, leverage, a halt reset or further inference.
