@@ -22,7 +22,9 @@ These are execution/report records, not the historical price-data dates. Each te
 
 ## Charts and audit data
 
-Test pages use a pinned, locally bundled Chart.js 4.5.1 browser build with its MIT license and acquisition receipt. They work offline without adding an application dependency. Financial views show marked return, filled entries and daily marked equity; controls select the interval, execution scenario and equity-chart setup. Missing dates remain gaps. AI views show classification counts, not trading performance or prediction accuracy.
+Test pages use a pinned, locally bundled Chart.js 4.5.1 browser build with its MIT license and acquisition receipt. They work offline without adding an application dependency. Financial views show marked return, filled entries and daily marked equity; controls select the interval, price-path scenario and equity-chart setup. Missing dates remain gaps. AI views show classification counts, not trading performance or prediction accuracy.
+
+Each maker comparison contains **16 maker-entry cases plus 16 matched IOC controls**, not 16 IOC-only cases. Maker cases are shown by default; **Chart arm** selects maker entries, IOC controls or both. The entry-evidence panel counts actual archived `post_only` buy orders and filled entries, with expandable order records. Maker buys use the maker fee and recorded simulated `M` fill role; all owned exits remain taker IOC. The maker case table is shown first, with IOC controls separately collapsed. The unchanged archived comparison lists its IOC controls first; it is not a maker-only report.
 
 Every test page links to its original, unchanged HTML report and JSON audit. Exact values remain available in tables without JavaScript. The four Markdown guides/results documents are rendered on a separate summaries-and-methods page, with original `.md` links. The archive still contains 44 original reports, including six clearly labelled invalid reports; derived chart views are not new tests.
 
