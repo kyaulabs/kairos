@@ -5,6 +5,7 @@ import json
 import unittest
 from collections import deque
 from pathlib import Path
+from unittest.mock import patch
 
 from kairos import research_backtest as runner
 from kairos.backtest_report import render
@@ -93,6 +94,13 @@ class ResearchSeriesTests(unittest.TestCase):
         self.assertEqual(signals.htf_fast, 100)
         self.assertEqual(signals.htf_index, 1)
         self.assertFalse(getattr(signals, "htf_rising", False))
+
+    def test_research_financials_do_not_depend_on_machine_fee_clock(self):
+        baseline = diagnostic_run(economic_policy="positive-target")
+        with patch("kairos.fees.time.time", side_effect=range(1000000, 2000000, 100)):
+            accelerated = diagnostic_run(economic_policy="positive-target")
+        self.assertEqual(canonical(baseline), canonical(accelerated))
+        self.assertFalse(any("fees missing or stale" in k for k in accelerated["decision_reasons"]))
 
     def test_archived_case_round_trip_matches_in_memory_decimal_rules(self):
         case = diagnostic_run(economic_policy="positive-target")

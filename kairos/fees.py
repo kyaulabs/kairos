@@ -18,8 +18,9 @@ class FeeUnavailable(SafetyError):
 
 
 class AccountFees:
-    def __init__(self, spot, futures):
+    def __init__(self, spot, futures, *, clock=None):
         self.spot, self.futures = spot, futures
+        self.clock = clock or (lambda: time.time())
         self.rates, self.errors, self.attempts = {}, {}, {}
         self.failures = {}
         self.hosted_paper = getattr(spot, "hosted_paper", False) is True
@@ -34,7 +35,7 @@ class AccountFees:
 
     async def refresh(self, pairs, *, force=False):
         pairs = list({pair.id: pair for pair in pairs}.values())
-        now = time.time()
+        now = self.clock()
         due = [
             pair
             for pair in pairs
@@ -91,7 +92,7 @@ class AccountFees:
 
     def rate(self, pair, maker=False):
         row = self.rates.get(pair.id)
-        if pair.id in self.errors or not row or not 0 <= time.time() - row["received"] < MAX_AGE:
+        if pair.id in self.errors or not row or not 0 <= self.clock() - row["received"] < MAX_AGE:
             retryable, error_id = self.failures.get(pair.id, (False, None))
             raise FeeUnavailable(
                 f"{self.name} fees missing or stale; refresh before trading",
@@ -125,7 +126,7 @@ class AccountFees:
                     "received": None,
                 },
             )
-            fresh = row["received"] is not None and 0 <= time.time() - row["received"] < MAX_AGE
+            fresh = row["received"] is not None and 0 <= self.clock() - row["received"] < MAX_AGE
             rows.append(
                 {
                     **row,
