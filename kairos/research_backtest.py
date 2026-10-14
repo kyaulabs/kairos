@@ -32,6 +32,7 @@ from kairos.backtest import (
 )
 from kairos.domain import BPS, ZERO, Pair, SafetyError, dec, floor
 from kairos.engine import EXECUTION_REVISION, Engine
+from kairos.fees import AccountFees
 from kairos.research_diagnostics import (
     clock_facts,
     economics_summary,
@@ -79,6 +80,9 @@ class ResearchEngine(Engine):
             clock=lambda: market.now,
         )
         self.settings["strategy"] = variant
+        market.fee_name = "Research assumed"
+        market.fee_source = "Offline constant fee scenario; not historical account evidence"
+        self.fees = AccountFees(market, None, clock=self.clock)
         self.position_id, self.reason = None, ""
         self.execution_purpose = "offline-vwap-fibonacci-pilot"
         self.sequence = 0
@@ -540,6 +544,7 @@ async def simulate(
             if ts >= end:
                 break
             market.now, market.mid = ts + 1, dec(row[1])
+            await engine.refresh_fees()
             for name, value in clock_facts(ts).items():
                 coverage[name][value] += 1
             if first_price is None:

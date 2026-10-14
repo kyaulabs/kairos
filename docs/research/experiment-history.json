@@ -467,5 +467,18 @@
       "selection": "Retain an opt-in necessary cost boundary, not a production selection or activity solution. Mean return and pooled R remain negative, minute coverage is 76.04%, and eight of 16 gated cases have at most two fills. Preserve zero-fill reversion 15m and worse-return pairs. Do not broaden history or retune this frozen rule; next research is one entry-location/timing factor on development data."
     }
   ],
-  "next_decision": "Predeclare one entry-location/timing improvement on development data while preserving the necessary cost boundary, structural levels and protective reductions. Sparse cases and poor minute coverage do not justify broader history, production promotion or AI inference. Do not retune the completed frozen comparison."
+  "three_month_series": {
+    "window": "2024-02-01 through exclusive 2024-05-01",
+    "receipt": "three-month-outcome.json",
+    "results": "three-month-series.md",
+    "completed_paired_reports": 17,
+    "accepted_base_development_factors": ["1e-ema-recapture-ablation", "2b-extension-acceptance"],
+    "invalid_prior_attempts": 3,
+    "reason": "Reporting/serialization failures exposed machine-time fee-cache nondeterminism; rerun all financial cases with simulated fee clock and per-observed-minute refresh.",
+    "subscription_shadow_invocations": 32,
+    "final_shadow_annotations": 30,
+    "post_shadow_financial_cases_reproduced": 16,
+    "selection": "Research development candidates only. Still negative; adverse marked return worsens slightly. No production or AI-veto promotion. Every rejected/control/failed attempt remains archived."
+  },
+  "next_decision": "Do not deploy or claim alpha. Preserve the fixed-quarter outcomes and failed attempts. Any further selection needs separately declared data and criteria; the base-selected stack did not improve both adverse primary outcomes. Historical shadow agreement does not justify a model veto or backdated fills."
 }
