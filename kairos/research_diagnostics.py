@@ -135,6 +135,9 @@ def economics_summary(candidates, exits):
     ratios = [dec(p["net_planned_R"]) for p in plans if p["net_planned_R"] is not None]
     return {
         "candidate_outcomes": dict(Counter(c["outcome"] for c in candidates)),
+        "economic_rejections": sum(
+            c.get("outcome") == "blocked_target_economics" for c in candidates
+        ),
         "filled_plans": len(plans),
         "nonpositive_target_reward": sum(
             dec(p["net_target_reward_per_gross_unit"]) <= 0 for p in plans

@@ -23,7 +23,7 @@ class SingleSignal(ScheduledSignals):
         return checks, Setup(setup.variant, START, setup.reference, setup.stop, self.target, {})
 
 
-def diagnostic_run(data=None, *, target=105):
+def diagnostic_run(data=None, *, target=105, economic_policy="diagnostic"):
     minutes, bars = data or fixture()
     return asyncio.run(
         simulate(
@@ -36,6 +36,7 @@ def diagnostic_run(data=None, *, target=105):
             START,
             START + 600,
             signals=SingleSignal(target),
+            economic_policy=economic_policy,
         )
     )
 

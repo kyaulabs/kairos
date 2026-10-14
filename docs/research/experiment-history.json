@@ -359,7 +359,22 @@
           }
         }
       ]
+    },
+    {
+      "id": "positive-target-development",
+      "status": "complete; eligible for a frozen chronological check only",
+      "receipt": "positive-target-validation.json",
+      "record_location": "development field in the signed freeze receipt",
+      "selection": "Retain the opt-in zero-reward boundary for a separate check. All 98 previously positive-target fills remain, while total fills fall 146 to 98. Aggregate return and mean closed R improve but stay negative; Fib confluence 15m has no fills and is retained. Default diagnostic remains unchanged. No additional valid activity was recovered."
+    },
+    {
+      "id": "positive-target-chronological-2026-06-08",
+      "status": "frozen before validation data selection; replay not started",
+      "receipt": "positive-target-validation.json",
+      "window": "2026-06-08 to exclusive 2026-06-15",
+      "role": "Frozen chronological comparison, not untouched holdout; older broad HTF tests traversed this period.",
+      "selection": "Do not retune the rule after opening this week. Record coverage and every result, including sparse/zero-fill cases and failures."
     }
   ],
-  "next_decision": "Predeclare another single-factor timing or economic-eligibility experiment before running. No other week, extension ablation or AI trial has begun."
+  "next_decision": "Audit the declared next week, then run the frozen 32-case comparison. No broader history, extension ablation or AI trial is authorized by this record."
 }

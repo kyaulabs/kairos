@@ -42,6 +42,7 @@ class ResearchRiskTests(unittest.TestCase):
                 main()
         self.assertEqual(stopped.exception.code, 0)
         self.assertIn("--risk-percent", output.getvalue())
+        self.assertIn("--economic-policy", output.getvalue())
         self.assertIn("1%", output.getvalue())
 
     def test_fee_inclusive_stop_sizing_reserves_dust_and_scales_down_with_equity(self):
