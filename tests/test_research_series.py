@@ -1,6 +1,7 @@
 """Regression checks for sequential research and its causal single factors."""
 
 import asyncio
+import json
 import unittest
 from collections import deque
 from pathlib import Path
@@ -8,7 +9,15 @@ from pathlib import Path
 from kairos import research_backtest as runner
 from kairos.backtest_report import render
 from kairos.domain import SafetyError, dec
-from kairos.research_series import SIGNALS, STEPS, improves, module, pair_summary, profile
+from kairos.research_series import (
+    SIGNALS,
+    STEPS,
+    canonical,
+    improves,
+    module,
+    pair_summary,
+    profile,
+)
 from kairos.research_signals import Setup
 from tests.test_research_backtest import PAIR, SCENARIO, START, candle
 from tests.test_research_diagnostics import diagnostic_run
@@ -84,6 +93,11 @@ class ResearchSeriesTests(unittest.TestCase):
         self.assertEqual(signals.htf_fast, 100)
         self.assertEqual(signals.htf_index, 1)
         self.assertFalse(getattr(signals, "htf_rising", False))
+
+    def test_archived_case_round_trip_matches_in_memory_decimal_rules(self):
+        case = diagnostic_run(economic_policy="positive-target")
+        saved = json.loads(json.dumps(case, default=str))
+        self.assertEqual(canonical(case), canonical(saved))
 
     def test_completed_paired_report_keeps_signals_active_days_and_economics(self):
         case = diagnostic_run(economic_policy="positive-target")

@@ -14,6 +14,7 @@ import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from decimal import Decimal
 from pathlib import Path
 from types import ModuleType
 from zipfile import ZipFile
@@ -427,6 +428,8 @@ def canonical(case):
         )
 
     def walk(value):
+        if isinstance(value, Decimal):
+            return str(value)
         if isinstance(value, str):
             return mapping.get(value, value)
         if isinstance(value, dict):
@@ -435,7 +438,7 @@ def canonical(case):
                 for k, v in value.items()
                 if k not in {"runtime_seconds", "signal_source_sha256", "executor_source_sha256"}
             }
-        if isinstance(value, list):
+        if isinstance(value, list | tuple):
             return [walk(v) for v in value]
         return value
 
@@ -479,6 +482,11 @@ def main():
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--workers", type=int, default=4)
     p.add_argument(
+        "--resume-step",
+        type=Path,
+        help="Complete challenger checkpoint from a comparison-only failure; exact profile hashes required",
+    )
+    p.add_argument(
         "--resume-baseline",
         type=Path,
         help="Verified completed #0 checkpoint from a reporting-only failure; new output directory required",
@@ -496,6 +504,12 @@ def main():
         "executor_sha256": digest(runner_source.encode()),
         "steps": STEPS,
         "series_source_sha256": digest(Path(__file__).read_bytes()),
+        "resumed_step": {
+            "path": str(args.resume_step),
+            "sha256": digest(args.resume_step.read_bytes()),
+        }
+        if args.resume_step
+        else None,
         "resumed_baseline": {
             "path": str(args.resume_baseline),
             "sha256": digest(args.resume_baseline.read_bytes()),
@@ -633,7 +647,29 @@ def main():
             else:
                 control = accepted
                 report["cases"] = [{**c, "signal_version": "v1"} for c in control]
-            if not (role == "baseline" and args.resume_baseline):
+            saved_step = json.loads(args.resume_step.read_text()) if args.resume_step else None
+            if saved_step and saved_step["trial"]["name"] == name:
+                assert (
+                    saved_step["predeclared_series"]["archive_sha256"]
+                    == declaration["archive_sha256"]
+                )
+                assert saved_step["start"] == args.start and saved_step["end"] == args.end
+                challenger = [
+                    {k: v for k, v in c.items() if k != "signal_version"}
+                    for c in saved_step["cases"]
+                    if c["signal_version"] == "v2"
+                ]
+                assert len(challenger) == 16
+                assert len({(c["policy"], c["minutes"]) for c in challenger}) == 16
+                for c in challenger:
+                    expected_signal = trial_signal if c["policy"] in affected else signal_source
+                    expected_runner = trial_runner if c["policy"] in affected else runner_source
+                    assert c["signal_source_sha256"] == digest(expected_signal.encode())
+                    assert c["executor_source_sha256"] == digest(expected_runner.encode())
+                challenger.sort(
+                    key=lambda c: (c["minutes"], list(base.VARIANTS).index(c["policy"]))
+                )
+            elif not (role == "baseline" and args.resume_baseline):
                 challenger = run_window(
                     args.archive,
                     args.start,
@@ -662,7 +698,9 @@ def main():
                     "observed_minutes",
                     "missing_minutes",
                 ):
-                    assert a[k] == b[k], (name, k)
+                    assert canonical({"orders": [], "value": a[k]}) == canonical(
+                        {"orders": [], "value": b[k]}
+                    ), (name, k)
                 if role != "baseline" and a["policy"] not in affected:
                     assert canonical(a) == canonical(b), (
                         name,
