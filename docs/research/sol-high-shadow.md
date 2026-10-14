@@ -20,7 +20,30 @@ After shadow, rerun the unchanged accepted financial profile over February 1–e
 
 Archive a branded HTML comparison, JSON provenance and financial-verification report. Add the new reports and rendered Markdown results to the existing offline contents page without replacing earlier artifacts.
 
-Results are pending at this declaration.
+## Results
+
+The new run completed all 30 invocations with `gpt-6.1-sol` and requested effort `high`; no failures, application retries or API-key fallback occurred. Input order, candidate IDs, prompt, schema and source-report hash exactly match the prior completed 30-input run.
+
+| Measure | Luna / low | Sol / high |
+| --- | ---: | ---: |
+| Completed invocations | 30/30 | 30/30 |
+| Regime reference agreement | 10/30 | 16/30 |
+| Room-quality reference agreement | 23/30 | 25/30 |
+| Median request latency | 3.57 s | 12.72 s |
+| 95th-percentile latency, nearest rank | 9.02 s | 21.29 s |
+| Summed request latency | 123.36 s | 419.86 s |
+| Reported input tokens | 303,307 | 324,007 |
+| Reported cached input tokens | 153,344 | 42,240 |
+| Reported output tokens | 2,443 | 6,681 |
+| Reported reasoning output tokens | 0 | 4,250 |
+
+The configurations agree with each other on 24/30 regime labels and 22/30 quality labels. Higher reference agreement does not establish more accurate classifications or a profitable trading rule. Latency includes the client process and validation. Vendor context and caching differ despite identical user inputs; reasoning usage is reported separately, not added again to output tokens. No dollar-cost estimate is inferred from API pricing for subscription usage.
+
+After shadow, all 16 full-quarter financial/control cases reproduced the accepted profile in 263.98 seconds. Mean case return remains −2.8181%, with 15 modeled budget breaches and seven halted cases; no annotations changed execution. Apollo DNS initially failed before replay launch. The user supplied a VPN route, its existing SSH host key was verified, and the replay then succeeded.
+
+The branded comparison is `7-sol-high-shadow-attempt-001/7-sol-high-comparison.html`; its financial control is `quarter-2024-feb-apr-sol-high-financial/7-shadow-financial.html`. Both are under the existing quarter archive locally and Apollo's isolated reports directory. The offline index includes these reports and this rendered Markdown. [Outcome provenance](sol-high-shadow-outcome.json) records metrics, equality receipts and hashes for all 102 new research artifacts. The prior results and original outcome manifest remain unchanged.
+
+Retain this as a configuration comparison only. No model veto, production selection, deployment or alpha claim follows.
 
 ## Reproduction
 

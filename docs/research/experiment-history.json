@@ -480,5 +480,20 @@
     "post_shadow_financial_cases_reproduced": 16,
     "selection": "Research development candidates only. Still negative; adverse marked return worsens slightly. No production or AI-veto promotion. Every rejected/control/failed attempt remains archived."
   },
-  "next_decision": "Do not deploy or claim alpha. Preserve the fixed-quarter outcomes and failed attempts. Any further selection needs separately declared data and criteria; the base-selected stack did not improve both adverse primary outcomes. Historical shadow agreement does not justify a model veto or backdated fills."
+  "sol_high_shadow": {
+    "receipt": "sol-high-shadow-outcome.json",
+    "results": "sol-high-shadow.md",
+    "freeze_commit": "33ed4510f471be610bc34f37da44e482ac4f0e64",
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "new_authorized_invocations": 30,
+    "completed": 30,
+    "same_prior_inputs_prompt_schema_and_report": true,
+    "sample_cases": 15,
+    "post_shadow_financial_cases_reproduced": 16,
+    "regime_reference_agreement": "16/30 versus Luna/low 10/30",
+    "quality_reference_agreement": "25/30 versus Luna/low 23/30",
+    "selection": "Configuration comparison only: both model and effort change. Higher reference agreement is not accuracy or alpha. No veto selected; no backdated execution or production promotion."
+  },
+  "next_decision": "Do not deploy or claim alpha. Preserve all fixed-quarter/model configurations and failures. Any further inference needs a separately approved cap; strategy selection needs declared data and criteria. The base-selected stack did not improve both adverse primary outcomes. Historical shadow agreement does not justify a model veto or backdated fills."
 }
