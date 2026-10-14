@@ -2,7 +2,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from kairos.research_shadow import command, environment, payload, samples, validate_answer
+from kairos.research_shadow import (
+    command,
+    environment,
+    payload,
+    samples,
+    validate_answer,
+    validate_events,
+)
 
 
 class ResearchShadowTests(unittest.TestCase):
@@ -72,6 +79,24 @@ class ResearchShadowTests(unittest.TestCase):
         self.assertIn("shell_tool", args)
         self.assertNotIn("--approve-for-me", args)
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", args)
+
+    def test_disabled_tool_warning_is_not_a_tool_but_actions_and_failures_stop(self):
+        warning = {
+            "type": "item.completed",
+            "item": {"type": "error", "message": "Code mode host disabled; fail closed"},
+        }
+        complete = {"type": "turn.completed"}
+        self.assertEqual(validate_events([warning, complete]), [warning["item"]["message"]])
+        for event in (
+            {"type": "error"},
+            {"type": "turn.failed"},
+            {"type": "item.completed", "item": {"type": "command_execution"}},
+            {"type": "item.completed", "item": {"type": "mcp_tool_call"}},
+        ):
+            with self.assertRaises(ValueError):
+                validate_events([event, complete])
+        with self.assertRaises(ValueError):
+            validate_events([warning])
 
     def test_refusal_extra_fields_and_invalid_categories_are_not_permissions(self):
         for value in (

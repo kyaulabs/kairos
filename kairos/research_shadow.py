@@ -179,6 +179,21 @@ def validate_answer(answer):
     return answer
 
 
+def validate_events(events):
+    warnings = []
+    for event in events:
+        if event.get("type") in ("turn.failed", "error"):
+            raise ValueError("Client reported failed/incomplete response")
+        item = event.get("item")
+        if item and item.get("type") == "error":
+            warnings.append(item.get("message", "Client item warning"))
+        elif item and item.get("type") not in ("agent_message", "reasoning"):
+            raise ValueError("Unexpected tool event; shadow batch stopped")
+    if not any(e.get("type") == "turn.completed" for e in events):
+        raise ValueError("No completed model turn")
+    return warnings
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--report", type=Path, required=True)
@@ -247,13 +262,9 @@ def main():
             if run.returncode:
                 raise ValueError(f"Codex exit {run.returncode}; no retry or fallback")
             events = [json.loads(line) for line in run.stdout.splitlines() if line.strip()]
-            for event in events:
-                if event.get("type") in ("turn.failed", "error"):
-                    raise ValueError("Client reported failed/incomplete response")
-                item = event.get("item")
-                if item and item.get("type") not in ("agent_message", "reasoning"):
-                    raise ValueError("Unexpected tool event; shadow batch stopped")
+            warnings = validate_events(events)
             result.update(
+                client_warnings=warnings,
                 answer=validate_answer(json.loads(output.read_text())),
                 usage=[e.get("usage") for e in events if e.get("type") == "turn.completed"],
                 status="complete",
