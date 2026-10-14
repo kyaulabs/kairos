@@ -361,6 +361,12 @@
       ]
     },
     {
+      "id": "positive-target-test-assertion",
+      "status": "corrected verification assertion; not a strategy variant",
+      "failure": "An initial focused test compared equivalent numeric string representations and failed. The assertion was corrected to compare Decimal values; the economic rule and execution implementation were not changed for this failure.",
+      "evidence": "Initial failure described in the conversation tool output. A standalone raw failure log was not retained; the saved focused.log records the successful 44-test run."
+    },
+    {
       "id": "positive-target-development",
       "status": "complete; eligible for a frozen chronological check only",
       "receipt": "positive-target-validation.json",
@@ -369,12 +375,97 @@
     },
     {
       "id": "positive-target-chronological-2026-06-08",
-      "status": "frozen before validation data selection; replay not started",
+      "status": "complete; directional criterion passed, but no broad-history or production advancement",
       "receipt": "positive-target-validation.json",
+      "signed_freeze_commit": "9c1e6049a6bc44e6ca683825f850be18e9c20bf5",
+      "declaration": {
+        "declared_at": "2026-10-14T00:45:04.808213+00:00",
+        "path": "/srv/kairos-research/kyau-vwap-fib/versions/positive-target-validation-2026-06-08/predeclared.json",
+        "sha256": "7c81d2cf9a3aa907bdc6e76388194a896eb711cfae0ea000405bb1c8aa8d9173"
+      },
       "window": "2026-06-08 to exclusive 2026-06-15",
       "role": "Frozen chronological comparison, not untouched holdout; older broad HTF tests traversed this period.",
-      "selection": "Do not retune the rule after opening this week. Record coverage and every result, including sparse/zero-fill cases and failures."
+      "selected_input": {
+        "bytes": 207242,
+        "sha256": "718df4d7c45fc53a49b29a33e70fb38d4567336bf8c08528a1158bc4eeb417b5",
+        "receipt_sha256": "033d30d3c2fabf463eb126925b81432247d27248a4ea5b58f7db9674927a6603"
+      },
+      "minute_coverage": {
+        "selected_rows_including_warmup": 7666,
+        "study_observed": 7665,
+        "study_expected": 10080,
+        "study_missing": 2415,
+        "coverage_pct": 76.04166666666666,
+        "first_study_open": 1780876800,
+        "last_study_open": 1781481540,
+        "nonadjacent_observed_transitions": 1561
+      },
+      "artifacts": [
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/positive-target-validation-2026-06-08.json",
+          "sha256": "6883c3721678602529b5b5212235fbf5359c9c57710f3b5e63ba279c8b5faa88"
+        },
+        {
+          "path": "/srv/kairos-research/kyau-vwap-fib/reports/positive-target-validation-2026-06-08.html",
+          "sha256": "f1e162db9c05459e81551abc759a689e11d4b8f18f471e59747f553e346aa7d0"
+        }
+      ],
+      "aggregates": {
+        "diagnostic": {
+          "independent_cases": 16,
+          "signals": 313,
+          "filled_entries": 146,
+          "positive_target_fills": 74,
+          "economic_rejections": 0,
+          "closed_trades": 128,
+          "mean_closed_R": "-0.5611435115377060681162897896",
+          "mean_case_return_pct": "-0.203252186758596841950",
+          "budget_breaches": 0,
+          "zero_fill_cases": []
+        },
+        "positive-target": {
+          "independent_cases": 16,
+          "signals": 313,
+          "filled_entries": 74,
+          "positive_target_fills": 74,
+          "economic_rejections": 100,
+          "closed_trades": 66,
+          "mean_closed_R": "-0.4711384885835861005119904148",
+          "mean_case_return_pct": "-0.100291786661737095500",
+          "budget_breaches": 0,
+          "zero_fill_cases": [
+            "vwap-reversion 15m"
+          ]
+        }
+      },
+      "verification": {
+        "signed_source_freeze_matches": true,
+        "same_signals_and_causal_price_plans": true,
+        "paired_execution_controls_equal": true,
+        "all_gated_fills_positive_projected_target_reward": true,
+        "all_requested_risks_within_ceiling": true,
+        "coverage_matches_audit": true,
+        "retained_all_74_positive_filled_candidate_ids_exactly": true
+      },
+      "wall_clock_seconds": 40.58412215998396,
+      "combined_case_runtime_seconds": 156.12556166946888,
+      "chronological_criterion_passed": true,
+      "cli_verification": {
+        "case": "vwap-reclaim 5m positive-target",
+        "matches_frozen_matched_financial_and_diagnostic_fields": true,
+        "artifacts": [
+          {
+            "path": "/srv/kairos-research/kyau-vwap-fib/reports/positive-target-cli-smoke.json",
+            "sha256": "46be95f8a6dc21c6bd19f53c8a675cc0a44674b534daf57f6cb60142928c32d3"
+          },
+          {
+            "path": "/srv/kairos-research/kyau-vwap-fib/reports/positive-target-cli-smoke.html",
+            "sha256": "b56df4f3cd5d1f45f06b0e4e9e7722bb6a135cda899d0652a41dfd922d2032f6"
+          }
+        ]
+      },
+      "selection": "Retain an opt-in necessary cost boundary, not a production selection or activity solution. Mean return and pooled R remain negative, minute coverage is 76.04%, and eight of 16 gated cases have at most two fills. Preserve zero-fill reversion 15m and worse-return pairs. Do not broaden history or retune this frozen rule; next research is one entry-location/timing factor on development data."
     }
   ],
-  "next_decision": "Audit the declared next week, then run the frozen 32-case comparison. No broader history, extension ablation or AI trial is authorized by this record."
+  "next_decision": "Predeclare one entry-location/timing improvement on development data while preserving the necessary cost boundary, structural levels and protective reductions. Sparse cases and poor minute coverage do not justify broader history, production promotion or AI inference. Do not retune the completed frozen comparison."
 }
