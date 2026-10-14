@@ -34,7 +34,24 @@ Require every full-quarter IOC case to reproduce the corresponding corrected att
 
 Archive the declaration, source/runner hashes, four paired HTML/JSON reports and pilot separately under the protected research roots. At completion, revise the [test guide](test-guide.md) and themed offline contents page into groups for the quarter sequence, maker execution, AI shadow, pilot checks and invalid attempts. Preserve earlier report bytes. No additional AI invocation is included or authorized.
 
-Results are pending at this declaration.
+## Results
+
+All 128 pilot cases and 128 full-quarter cases completed. All 64 fresh full-quarter IOC controls reproduced their archived case fields after the existing identity normalization. Signal counts and frozen structural plans matched between entry-execution arms. [Outcome provenance](passive-maker-outcome.json) hashes all 22 new report/declaration artifacts; the [signed declaration](passive-maker-declaration.json) retains the pre-run choices.
+
+| Frozen rules and execution | IOC fills → maker fills | Active case-days | Mean case return | Pooled closed R |
+| --- | ---: | ---: | ---: | ---: |
+| Original, base | 693 → 405 | 404 → 304 | −2.8427% → −1.4703% | −0.4386 → −0.4469 |
+| Accepted, base | 698 → 413 | 407 → 310 | −2.8181% → −1.4023% | −0.4345 → −0.4322 |
+| Original, adverse | 372 → 0 | 251 → 0 | −2.0092% → 0% | −0.5137 → unavailable |
+| Accepted, adverse | 376 → 0 | 255 → 0 | −2.0112% → 0% | −0.5118 → unavailable |
+
+These are averages across independent $1,000 accounts, not portfolio returns. At base execution, maker entries reduce marked losses, but useful activity falls substantially. Original-rule closed R worsens; accepted-rule closed R improves slightly but remains negative. Both base maker profiles retain activity in all 16 cases. Modeled budget breaches fall from 15 to eight and halted cases from seven to six, not to zero.
+
+The adverse maker arms have zero fills in every case because their low is reached after the declared expiry. Their flat balances, zero closed trades and zero breaches are inactivity, not improved protection or successful trading. This coarse timing dependence prevents a robust maker-execution conclusion.
+
+No rule, lifetime or fill threshold was changed after observing these results. Lower fees are not the only difference: maker entry price, fill eligibility, sizing and subsequent cash/ownership paths also change. Do not attribute the return difference to fees alone. No maker profile is promoted, no AI call ran, and production trading remains unchanged.
+
+The completed offline guide groups 44 original HTML reports into maker comparisons, quarter sequence, AI shadow/control replays, execution pilots, earlier short-window studies and invalid attempts. Six reports remain clearly labelled invalid; reproductions and short pilots are not independent performance evidence.
 
 ## Reproduction
 

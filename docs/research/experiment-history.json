@@ -495,5 +495,23 @@
     "quality_reference_agreement": "25/30 versus Luna/low 23/30",
     "selection": "Configuration comparison only: both model and effort change. Higher reference agreement is not accuracy or alpha. No veto selected; no backdated execution or production promotion."
   },
-  "next_decision": "Do not deploy or claim alpha. Preserve all fixed-quarter/model configurations and failures. Any further inference needs a separately approved cap; strategy selection needs declared data and criteria. The base-selected stack did not improve both adverse primary outcomes. Historical shadow agreement does not justify a model veto or backdated fills."
+  "passive_maker_comparison": {
+    "receipt": "passive-maker-outcome.json",
+    "declaration": "passive-maker-declaration.json",
+    "results": "passive-maker-comparison.md",
+    "guide": "test-guide.md",
+    "freeze_commit": "7d8e648e70ce19438fdf89124829d2ce53f826d7",
+    "pilot_cases": 128,
+    "quarter_cases": 128,
+    "prior_ioc_case_controls_reproduced": 64,
+    "entry": "Single next-open best-bid post-only buy, 30 seconds, strict subsequent crossing, prior-minute liquidity, no repricing or taker fallback",
+    "exit": "Owned taker IOC reductions; frozen bot-managed protection and existing loss latches",
+    "new_ai_calls": 0,
+    "accepted_base_fills": "IOC 698 versus maker 413",
+    "accepted_base_mean_return_pct": "IOC -2.8181413422331341265625 versus maker -1.402255980508487078625",
+    "adverse_maker": "All 16 cases inactive per rule profile under the declared 20/40-second extrema and 30-second expiry",
+    "selection": "No promotion. Base marked losses decrease but activity falls; adverse inactivity is not improvement, and minute proxies cannot establish real 30-second fill probabilities.",
+    "offline_guide": "44 HTML reports in six groups, including six invalid attempts; source Markdown rendered inline and original reports unchanged"
+  },
+  "next_decision": "Do not deploy or claim alpha. Preserve all strategy, model and execution configurations and failures. Any further inference needs separately approved usage; strategy or maker-timing selection needs declared data and criteria. Base maker returns remain negative, activity falls and adverse maker is inactive. Better maker execution evidence needs trade/book data or separately authorized forward paper observations, not candle-touch fills. Historical AI agreement does not justify a veto or backdated trades."
 }
