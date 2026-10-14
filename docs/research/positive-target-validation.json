@@ -1,0 +1,117 @@
+{
+  "trial_id": "positive-target-chronological-2026-06-08",
+  "frozen_at": "2026-10-14T00:41:06.506032+00:00",
+  "status": "frozen before selecting or opening validation candles; outcomes recorded separately in experiment history",
+  "signed_history": "The first Git commit introducing this receipt is the signed freeze. Its hash must be recorded in the validation declaration before data selection.",
+  "development": {
+    "trial_id": "positive-target-development",
+    "declaration_path": "/srv/kairos-research/kyau-vwap-fib/versions/positive-target-development/predeclared.json",
+    "declaration_sha256": "fed170dd766896a6c9dc221d1bb198ea63d3d6548a8f02c45efc39fd8b01545e",
+    "comparison_runner_sha256": "3d669944dfee5500c8c0171ce09add0c38a9bbd8f51e18fcb62f2001b07f7efd",
+    "source_archive_sha256": "c52f7c7fbf55b248b25b2f146d759ee719907fa494a30a81fd6f68bf2b0be391",
+    "artifacts": [
+      {
+        "path": "/srv/kairos-research/kyau-vwap-fib/reports/positive-target-development.json",
+        "sha256": "fc37a2bf4c066ea591e82866b369c0b77c1c66aa34d88f4c758df7874e479be1"
+      },
+      {
+        "path": "/srv/kairos-research/kyau-vwap-fib/reports/positive-target-development.html",
+        "sha256": "399b35378e5c6184f52c05f43be4336250c6da3aa80bc527d06e8b9498008d1f"
+      }
+    ],
+    "aggregates": {
+      "diagnostic": {
+        "independent_cases": 16,
+        "signals": 242,
+        "filled_entries": 146,
+        "positive_target_fills": 98,
+        "economic_rejections": 0,
+        "closed_trades": 123,
+        "mean_closed_R": "-0.5131291939065375183509932098",
+        "mean_case_return_pct": "-0.37834949139568819625",
+        "budget_breaches": 0,
+        "zero_fill_cases": []
+      },
+      "positive-target": {
+        "independent_cases": 16,
+        "signals": 242,
+        "filled_entries": 98,
+        "positive_target_fills": 98,
+        "economic_rejections": 60,
+        "closed_trades": 81,
+        "mean_closed_R": "-0.4949955384838379160421699994",
+        "mean_case_return_pct": "-0.277607669250849880625",
+        "budget_breaches": 0,
+        "zero_fill_cases": [
+          "fib-confluence 15m"
+        ]
+      }
+    },
+    "verification": {
+      "all_controls_reproduce_saved_final_v2_fields": true,
+      "same_signals_and_frozen_plans": true,
+      "identical_execution_and_risk_controls": true,
+      "all_gated_fills_have_positive_modeled_target_reward": true,
+      "all_requested_risks_within_ceiling": true
+    },
+    "wall_clock_seconds": 40.11900418577716,
+    "combined_case_runtime_seconds": 155.25534698273987,
+    "retained_positive_filled_candidate_ids_exactly": true,
+    "selection": "Eligible for chronological check only: all 98 prior positive-target fills retained, aggregate return and closed R improved, no breaches. Still negative; no new valid activity recovered. Fib confluence 15m inactive, retained rather than removed."
+  },
+  "validation": {
+    "start": "2026-06-08",
+    "end_exclusive": "2026-06-15",
+    "role": "Frozen chronological comparison, not an untouched holdout; older broad HTF tests traversed this period.",
+    "past_usage_audit": "All prior VWAP/Fibonacci reports and the June HTF smoke test cover June 1\u20138. Older HTF cases span January 2020\u2013July 2026; no June 8\u201315-specific result informed this eligibility rule. No fresh validation candles have been selected or exposed before this freeze.",
+    "variants": [
+      "vwap-pullback",
+      "vwap-reclaim",
+      "vwap-anchored",
+      "vwap-reversion",
+      "fib-confluence",
+      "fib-ema",
+      "fib-extension",
+      "fib-sweep"
+    ],
+    "minutes": [
+      5,
+      15
+    ],
+    "policies": [
+      "diagnostic",
+      "positive-target"
+    ],
+    "independent_cases": 32,
+    "initial": "1000",
+    "risk_percent": "1",
+    "daily_loss": "12.50",
+    "order_cap": "1000",
+    "exposure_cap": "1000",
+    "maker_fee_bps": "8",
+    "taker_fee_bps": "10",
+    "scenario": {
+      "path": "OLHC",
+      "spread_bps": "2",
+      "slippage_bps": "10",
+      "participation": ".01",
+      "name": "base"
+    },
+    "native_warmup_days": 2,
+    "preceding_execution_minutes": 1,
+    "max_hold_seconds": 14400,
+    "entry_boundary": "(1-buy BTC fee) * tick-rounded target sell IOC bound * (1-sell USDT fee) - next-open buy IOC bound > 0",
+    "unchanged": "All signal rules, confirmation-time stop widening, frozen targets, sizing, loss latches, ownership, dust and bot-managed reductions; no forced terminal liquidation.",
+    "data_audit": "Prepare only the selected week plus warmup from the existing Kraken native archive. Audit hashes, chronological adjacency and observed/missing minute coverage before replay. Do not interpolate gaps or substitute another week.",
+    "continuation_criterion": "Retain at least the new diagnostic control positive-target filled activity; improve both mean independent-case marked return and pooled mean closed R; do not increase modeled risk-budget breaches. Preserve all eight cases, and disclose sparse/zero-fill cases and all risk/exit evidence. A pass is not statistical alpha or production approval; a failure cannot prompt retuning this frozen rule."
+  },
+  "source_sha256": {
+    "kairos/research_backtest.py": "cba79bf9b6e30c7786559ace7835aa735f2b4fa57f0f3549c190d5fd6e977168",
+    "kairos/research_diagnostics.py": "8ec7c1888558abe0eb99dc8a8d90e74e4f67a7037c43511b3757523b76b646eb",
+    "kairos/research_signals.py": "d68c219e1c41d89a7625bcae0212a7cfecde513bfed747bffad447c6dc5f9d35",
+    "kairos/backtest_report.py": "99232ad55213cfba5c9ad96894c710607496e3b25fbf39588189d1d77a91da81",
+    "pyproject.toml": "676da970a370969b831f42f8f6125ad188221c756fed45a778c8b5cf3ed5b465",
+    "uv.lock": "7b20989840ab205e2423d92275b1e1d8612d240c93e670da64b5cb71d5b646be"
+  },
+  "permissions": "Research-only: no deployment, restart, exchange orders or paid inference. Default diagnostic remains unchanged."
+}

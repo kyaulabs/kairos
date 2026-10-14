@@ -45,6 +45,7 @@ from kairos.store import Store
 from kairos.strategies import limit_price
 
 INSTRUMENT = Path(__file__).with_name("research_instrument.json")
+ECONOMIC_POLICIES = ("diagnostic", "positive-target")
 ASSUMPTIONS = [
     "Activity-first retrospective pilot, not untouched holdout evidence or a profitability claim; refinements on this sample are tuning.",
     "Kraken XBTUSDT native candles are cross-venue price/volume inputs, NOT historical OKX quotes, depth, queues or fills.",
@@ -310,7 +311,10 @@ async def simulate(
     *,
     signals=None,
     risk_percent=1,
+    economic_policy="diagnostic",
 ):
+    if economic_policy not in ECONOMIC_POLICIES:
+        raise SafetyError("Unknown research entry-economic policy")
     if not ZERO < dec(risk_percent) <= 1:
         raise SafetyError("Planned risk must be positive and no greater than 1%")
     market = HistoricalMarket(
@@ -653,6 +657,13 @@ async def simulate(
                         if not setup.stop < bound < setup.target:
                             record["outcome"] = "blocked_price_plan"
                             reasons["Signal blocked: next open outside stop/target plan"] += 1
+                        elif (
+                            economic_policy == "positive-target"
+                            and dec(record["entry_economics"]["net_target_reward_per_gross_unit"])
+                            <= ZERO
+                        ):
+                            record["outcome"] = "blocked_target_economics"
+                            reasons["Signal blocked: nonpositive modeled target reward"] += 1
                         else:
                             await engine.valuation()
                             dust_quantity = engine.balance(pair.base)
@@ -799,6 +810,7 @@ async def simulate(
         holding = initial / opening * (1 - dec(taker) / BPS) * closing * (1 - dec(taker) / BPS)
         return {
             "policy": variant,
+            "economic_policy": economic_policy,
             "minutes": settings["candle_minutes"],
             "scenario": scenario,
             "start": start,
@@ -907,7 +919,19 @@ async def simulate(
 
 
 def execute_case(job):
-    archive_path, pair, settings, scenario, variant, start, end, maker, taker, risk_percent = job
+    (
+        archive_path,
+        pair,
+        settings,
+        scenario,
+        variant,
+        start,
+        end,
+        maker,
+        taker,
+        risk_percent,
+        economic_policy,
+    ) = job
     started = time.monotonic()
     with ZipFile(archive_path) as archive:
         result = asyncio.run(
@@ -929,6 +953,7 @@ def execute_case(job):
                 maker,
                 taker,
                 risk_percent=risk_percent,
+                economic_policy=economic_policy,
             )
         )
     result["runtime_seconds"] = time.monotonic() - started
@@ -1026,6 +1051,12 @@ def main():
     parser.add_argument(
         "--exposure-cap", type=decimal, help="Defaults to starting capital; unleveraged spot only"
     )
+    parser.add_argument(
+        "--economic-policy",
+        choices=ECONOMIC_POLICIES,
+        default="diagnostic",
+        help="Diagnostic preserves baseline entries; positive-target requires strictly positive modeled net reward at the frozen target. Research only, not expectancy or guaranteed profit.",
+    )
     parser.add_argument("--daily-loss", type=decimal, default=dec("12.50"))
     parser.add_argument("--output", type=Path)
     parser.add_argument(
@@ -1066,7 +1097,7 @@ def main():
                 for name in sorted({"XBTUSDT_1.csv", *(f"XBTUSDT_{m}.csv" for m in args.minutes)})
             }
         report = {
-            "title": "VWAP + Fibonacci · refined / 1% planned risk",
+            "title": f"VWAP + Fibonacci · {args.economic_policy} / 1% planned risk",
             "scope_note": "Eight new research-only setups. Activity first; no parameter sweep, Jev calls or live strategy registration.",
             "trade_description": "Closed strategy episodes; retained sub-minimum BTC is reported separately, never written off. Full fills and native fees are in JSON.",
             "source": str(args.archive),
@@ -1080,6 +1111,10 @@ def main():
                 "fees_slippage_included": True,
                 "guaranteed": False,
             },
+            "economic_policy": args.economic_policy,
+            "economic_rule": "No economic rejection"
+            if args.economic_policy == "diagnostic"
+            else "(1-buy BTC fee) * target IOC bound * (1-sell USDT fee) - next-open entry IOC bound > 0; illustrative all-sold unit, not expected profit or a liquidation guarantee",
             "execution_model": "KAIROS-supported cash IOC limits with bot-managed stops/targets; NOT native attached SL/TP",
             "status": "running",
             "start": args.start,
@@ -1135,6 +1170,7 @@ def main():
                             args.maker_fee_bps,
                             args.taker_fee_bps,
                             args.risk_percent,
+                            args.economic_policy,
                         )
                     )
         write_reports(report, output, create=True)

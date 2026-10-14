@@ -106,6 +106,8 @@ def render(report, json_name):
         label = f"{case['policy']} · {case['minutes']}m · {case['scenario']['name']}"
         if case.get("signal_version"):
             label = f"{case['signal_version']} · {label}"
+        if case.get("economic_policy") == "positive-target":
+            label = f"positive-target · {label}"
         total = case["observed_minutes"] + case["missing_minutes"]
         coverage = case["observed_minutes"] / total * 100 if total else 0
         risk = case.get("risk")
@@ -187,6 +189,7 @@ def render(report, json_name):
                 [
                     f'<a href="#case-{index}">{escape(label)}</a>',
                     str(economy["filled_plans"]),
+                    str(economy.get("economic_rejections", 0)),
                     str(economy["nonpositive_target_reward"]),
                     str(economy["below_one_net_R"]),
                     f"{economy['losing_target_episodes']}/{economy['closed_target_episodes']}",
@@ -333,6 +336,7 @@ def render(report, json_name):
             "maker_fee_bps": case["maker_fee_bps"],
             "taker_fee_bps": case["taker_fee_bps"],
             "pair_rules": case["pair_rules"],
+            **({"economic_policy": case["economic_policy"]} if "economic_policy" in case else {}),
             **({"risk": risk} if risk else {}),
         }
         sections.append(f"""<section class="panel" id="case-{index}"><span class="badge">{escape(state)}</span>
@@ -360,7 +364,7 @@ Not exposure-matched: this strategy uses an order cap of {escape(case["settings"
         else ""
     )
     economics_panel = (
-        f'<section class="panel"><h2>Entry economics</h2>{table(["Setup · interval · scenario", "Filled plans", "Nonpositive net target", "Below 1 net R", "Losing / closed Targets", "Losing Targets: multiple IOCs", "Losing Targets: later stop"], economics_rows)}<p class="muted">Counts describe independent cases, not portfolio returns. Attribution overlaps. A Target trigger is not a profitable exit; projections are not expectancy. Diagnostics do not change entry permission or protection.</p></section>'
+        f'<section class="panel"><h2>Entry economics</h2>{table(["Setup · interval · scenario", "Filled plans", "Economic rejections", "Nonpositive net target", "Below 1 net R", "Losing / closed Targets", "Losing Targets: multiple IOCs", "Losing Targets: later stop"], economics_rows)}<p class="muted">Counts describe independent cases, not portfolio returns. Attribution overlaps. A Target trigger is not a profitable exit; projections are not expectancy. Diagnostic policy preserves baseline entries; positive-target is an opt-in research entry gate, never a delay to owned protection.</p></section>'
         if economics_rows
         else ""
     )
@@ -386,7 +390,7 @@ Not exposure-matched: this strategy uses an order cap of {escape(case["settings"
                     else "—",
                 ]
             )
-        paired_panel = f'<section class="panel"><h2>Matched {escape(names["v1"])} / {escape(names["v2"])} comparison</h2>{table(["Setup · interval", f"Signals {names['v1']} / {names['v2']}", f"Filled {names['v1']} / {names['v2']}", f"Active days {names['v1']} / {names['v2']}", f"Net return {names['v1']}", f"Net return {names['v2']}", f"Mean closed R {names['v1']}", f"Mean closed R {names['v2']}"], paired_rows)}<p class="muted">Identical capital, execution and risk policy; only signal/price-plan rules differ. Closed R = sold-share net P&amp;L / sold-share planned stop risk of the actual entry fill. Fees are included; retained BTC and open positions remain in portfolio equity, not closed R. Means compare independent runs—not a combined portfolio.</p></section>'
+        paired_panel = f'<section class="panel"><h2>Matched {escape(names["v1"])} / {escape(names["v2"])} comparison</h2>{table(["Setup · interval", f"Signals {names['v1']} / {names['v2']}", f"Filled {names['v1']} / {names['v2']}", f"Active days {names['v1']} / {names['v2']}", f"Net return {names['v1']}", f"Net return {names['v2']}", f"Mean closed R {names['v1']}", f"Mean closed R {names['v2']}"], paired_rows)}<p class="muted">Identical capital, execution and risk policy; only the declared research rules differ. Closed R = sold-share net P&amp;L / sold-share planned stop risk of the actual entry fill. Fees are included; retained BTC and open positions remain in portfolio equity, not closed R. Means compare independent runs—not a combined portfolio.</p></section>'
     scope_note = escape(
         report.get(
             "scope_note",
