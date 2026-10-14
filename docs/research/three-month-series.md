@@ -41,4 +41,39 @@ The clock repair injects simulated time into the existing fee-cache checks and r
 
 OpenAI's public Codex authentication guide distinguishes ChatGPT sign-in from Platform API-key billing. Subscription authentication is supported for Codex clients; it does not establish subscription access to the general Responses or Decisions endpoints. Verify a documented Codex client route before the AI stage, ask for usage approval, and let the official client manage OAuth. Do not extract tokens or call undocumented consumer endpoints. The ordinary billing-help request returned HTTP 403; no access controls were bypassed. Historical AI assessment also has pretraining and response-timing contamination risks and cannot be backdated into next-open fills.
 
-Source plans and selection receipts are recorded before strategy outcomes. Results are pending at this freeze. The [experiment history](experiment-history.json) records subsequent completion, rejected candidates and the final accepted research profile. Existing baseline signal files and production strategy registration remain untouched.
+Source plans and selection receipts were recorded before strategy outcomes. The corrected series completed 17 paired reports in 5,092.27 summed step-wall seconds. Each candidate replayed all 16 independent cases over the fixed quarter; unchanged-family financial equality and common execution controls passed. Baseline signal files and production strategy registration remain untouched.
+
+## Results
+
+| Stage | Carry forward | Positive-target fills | Mean case return | Pooled closed R |
+| --- | --- | ---: | ---: | ---: |
+| #0 diagnostic reference | Existing reference | 677 of 1,145 total fills | −3.4096% | −0.4786R |
+| #0 positive-target control | Fixed research cost boundary | 693 | −2.8427% | −0.4386R |
+| 1a pullback recovery | No | 692 | −2.8553% | −0.4406R |
+| 1b reclaim closed arming candle | No | 755 | −3.5387% | −0.4545R |
+| 1c band recovery | No | 702 | −2.8748% | −0.4403R |
+| 1d confluence recovery | No | 702 | −2.8526% | −0.4402R |
+| 1e EMA20 recapture ablation | Base development only | 696 | −2.8297% | −0.4365R |
+| 1f sweep recovery | No | 698 | −2.8572% | −0.4374R |
+| 2a extension volume ablation | No | 770 | −3.0952% | −0.4320R |
+| 2b extension acceptance-distance ablation | Base development only | 698 | −2.8181% | −0.4345R |
+| 2c extension retest ablation | No | 701 | −2.8606% | −0.4352R |
+| 3a generic retracements | Evidence control, not replacement | 694 | −2.8219% | −0.4315R |
+| 3b unweighted mean | Evidence control, not replacement | 787 | −2.9463% | −0.4624R |
+| 3c simple reversal | Evidence control, not replacement | 634 | −2.5602% | −0.4227R |
+| 4a context strata | Descriptive; unchanged execution | 698 | −2.8181% | −0.4345R |
+| 4b completed 60m trend | No | 686 | −2.8258% | −0.4406R |
+| 5 favorable-move ATR trail | No | 704 | −2.8376% | −0.4359R |
+| 6 adverse original / accepted stack | Robustness criterion fails | 372 / 376 | −2.0092% / −2.0112% | −0.5137R / −0.5118R |
+
+Only 1e and 2b met the declared base-execution criteria, in that order. The combined gain is 0.024545 percentage points of mean case return, five positive-target fills and three active case-days (404→407). Fifteen modeled loss-budget breaches and seven halted cases remain. All requested planned risk stays within the ceiling; observed losses are not capped. The existing positive-target boundary itself increases quarter breach count from 13 to 15 versus diagnostic, so the short-week evidence is not a general risk improvement.
+
+The accepted stack's adverse marked return worsens slightly despite improved pooled R. Retain its exported sources as development candidates, not a robust or profitable strategy. Simple reversal improves mean return/R but reduces valid activity and increases halted cases; it fails the carry-forward criterion. Unweighted means increase activity but worsen net outcomes. Trailing protection reduces breaches from 15 to 13 but worsens return/R. None is silently selected. Context strata describe dependence, not fitted gates or independent observations.
+
+The user then approved at most 32 subscription shadow invocations. The first was rejected before inference because GPT-5.4 is retired for ChatGPT-authenticated Codex. The second used the documented GPT-6 Luna alias and returned a valid annotation, but the observer mistook a disabled-tool startup warning for a tool action. Both attempts and raw responses remain archived. After separating warnings from actions, a newly frozen 30-invocation attempt completed all 30; total invocations across attempts are 32. No API keys, API billing, token extraction, model tools or order authority were used. The official client manages its existing OAuth session.
+
+The final annotations agree with the simple deterministic regime reference in 10/30 cases and room-quality reference in 23/30. Agreement is not accuracy, calibrated probability or demonstrated economic value. One completed response was repeated across attempts; these are not independent observations. GPT-6 Luna is a model alias, not an immutable snapshot. Historical timestamps, reused development data and possible pretraining contamination prevent prospective inference claims. No model veto is selected.
+
+After the shadow stage, all 16 accepted-profile financial cases were rerun over the same quarter and reproduced their archived financial/control fields. Runtime was 265.81 seconds. Shadow results are never backdated into next-open fills. This verification has its own branded HTML/JSON; the annotated shadow report adds no trading result.
+
+[Three-month outcome](three-month-outcome.json) records every aggregate, parent, report/source hash, invalid attempt and shadow receipt. [Experiment history](experiment-history.json) links the selection. The local archive is `/home/kyau/.local/share/kairos-research/vwap-fibonacci/quarter-2024-feb-apr/`; Apollo reports remain under `/srv/kairos-research/kyau-vwap-fib/reports/`. Reports are protected local files, not committed research data.
