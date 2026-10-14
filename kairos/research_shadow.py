@@ -124,7 +124,7 @@ def command(client, schema, output):
         "--color",
         "never",
         "--model",
-        "gpt-5.4",
+        "gpt-6-luna",
         "--output-schema",
         str(schema),
         "--output-last-message",
@@ -183,10 +183,13 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--report", type=Path, required=True)
     p.add_argument("--output-dir", type=Path, required=True)
+    p.add_argument("--max-invocations", type=int, default=32)
     p.add_argument("--approve-subscription-usage", action="store_true")
     args = p.parse_args()
     if not args.approve_subscription_usage:
         p.error("Explicit subscription usage approval required; disabled by default")
+    if not 1 <= args.max_invocations <= 32:
+        p.error("Invocation cap must be between 1 and 32")
     client = shutil.which("codex")
     if not client:
         p.error("Official Codex CLI required")
@@ -199,15 +202,15 @@ def main():
     report_bytes = args.report.read_bytes()
     report = json.loads(report_bytes)
     assert report["status"] == "complete"
-    inputs = samples(report)
+    inputs = samples(report)[: args.max_invocations]
     assert len(inputs) <= 32
     schema = args.output_dir.resolve() / "schema.json"
     schema.write_text(json.dumps(SCHEMA, indent=2) + "\n")
     declaration = {
         "declared_at": datetime.now(UTC).isoformat(),
-        "max_invocations": 32,
+        "max_invocations": args.max_invocations,
         "client_version": subprocess.check_output([client, "--version"], env=env).decode().strip(),
-        "model_alias": "gpt-5.4",
+        "model_alias": "gpt-6-luna",
         "authentication": "official Codex ChatGPT sign-in",
         "report_sha256": digest(report_bytes),
         "source_sha256": digest(Path(__file__).read_bytes()),
