@@ -1,6 +1,6 @@
 # AI candidate critique and second opinion
 
-This replaces generic regime/quality annotations with one setup-specific assessment containing both a thesis critique and a bounded `permit`/`abstain` recommendation. It is implemented for offline preparation and mocked tests. No new model call, trading result, entry veto or deployment has been authorized or run. The previous 62-invocation research allocation is exhausted.
+This replaces generic regime/quality annotations with one setup-specific assessment containing both a thesis critique and a bounded `permit`/`abstain` recommendation. It defaults to offline preparation. After mocked tests, an auth-only SDK check recognized the existing ChatGPT session without starting a model turn or login. A separate [16-invocation pilot](ai-assessment-pilot.md) is now approved and predeclared; the previous 62-invocation allocation remains exhausted. No trading result, entry veto or deployment is authorized.
 
 The old annotations did not assist trading: neither model changed a signal, fill or protective action. Higher agreement with a deterministic reference did not measure prediction accuracy or incremental return. Their source, prompts, failures and reports remain historical evidence; they are not this new experiment's baseline results.
 
@@ -51,7 +51,7 @@ uv run python -m kairos.research_shadow \
 
 Default preparation creates private declaration/schema/request data and a `prepared_no_inference` summary without importing or starting the SDK. Duplicate candidates, excess batches and existing output directories are rejected rather than silently resampled or overwritten. The synthetic unit-test fixtures exercise the protocol; they are not real trade examples or model responses.
 
-A future approved run would need the `codex-research` extra and `--approve-subscription-usage`, plus a newly authorized model/effort, input/request budget and frozen sampling/evaluation plan. Do not run it under the exhausted earlier allocation. SDK startup, account inspection and model behavior have not been exercised against a real session in this work; tests use an injected fake SDK. The installed SDK's public method signatures are checked without constructing a client.
+Inference needs the `codex-research` extra and `--approve-subscription-usage`, plus a separately approved model/effort, invocation budget and frozen sampling/evaluation plan. Do not run it under an exhausted allocation. The new pilot has its own 16-call allowance. Real SDK startup and ChatGPT account recognition passed on 2026-10-15 UTC without model turns; model behavior is not yet tested. Unit tests use an injected fake SDK, and the installed SDK's public method signatures are also checked.
 
 Before an economic experiment, compare unchanged deterministic controls with this challenger and a predeclared activity-matched suppression control. Score net outcomes, missed opportunities, activity, costs, retained holdings, latency, abstentions and risk failures; fewer trades alone are not success. Preserve all eight setups at both intervals. Historical data/pretraining contamination remains a limitation; prospective shadow observations require separate authorization. No profitability or promotion follows from this contract.
 
