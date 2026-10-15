@@ -41,8 +41,33 @@ Verify frozen arming/confirmation plans across all arms, native post-only/IOC ro
 
 Report after-cost marked returns, sold-share closed R, attempts, fills, active days, fees, exposure, halts/breaches, retained BTC and baseline opportunities suppressed. Compare AI with baseline, availability, primary suppression and all sensitivity seeds. Use the existing conservative descriptive improvement rule (no reduced positive-target fills/active days, no increased zero-fill cases or breaches, strictly better mean return and pooled closed R) against each primary comparator. Undefined R or inactive adverse maker execution cannot pass as robustness.
 
+Trading net values include the modeled fees/spread/slippage, not an invented subscription-inference dollar cost. Report actual tokens/latency and unknown usage separately; an interruption request or client closure does not prove backend generation stopped.
+
 Lower losses with fewer trades are not sufficient evidence of incremental AI value. A profitable-looking tiny result is not expectancy, a holdout result or production permission. No later quarter run or further inference is authorized by this pilot's outcome.
 
-## Status
+## Results
 
-Inputs and offline gate tests are being frozen. No new model call or financial replay has run yet. The HTML/JSON outputs and failed attempts will be appended under repository-root `reports/ai-entry-filter-pilot-attempt-001/` and indexed from `reports/index.html` before this task is complete.
+**No incremental AI value demonstrated.** The AI filter lowered marked returns below both the unchanged baseline and the predeclared primary suppression reference. It filled only the same **Fib EMA 15m candidate, `fib-ema:1706804100`**, under each base execution policy; those are alternative executions, not two independent wins.
+
+| Execution / scenario | Baseline fills → AI | Baseline mean return | AI mean return | Suppression 00 mean return |
+| --- | ---: | ---: | ---: | ---: |
+| Base IOC | 13 → 1 | +0.006471% | +0.001002% | +0.006959% |
+| Base maker `post_only` | 5 → 1 | +0.009478% | +0.001892% | +0.008745% |
+| Adverse IOC | 1 → 0 | +0.001446% | 0% | +0.001446% |
+| Adverse maker | 0 → 0 | 0% | 0% | 0% |
+
+These are mean marked returns across 16 independent $1,000 accounts, not portfolio returns. They include modeled trading costs, not an invented inference price. The positive short-window marks do not replace or improve the negative full-quarter results.
+
+Availability reproduced the baseline's financial outcomes in every path: coverage/timing exclusions did not explain the activity change. AI missed 12 baseline IOC fills and four baseline maker fills, added none, and reduced active case-days from 10/5 to one. Its single completed episode had R +0.0965 IOC / +0.1993 maker versus pooled baseline R −0.2503 / −0.1900; that sparse change does not establish quality. Mean trade R and marked returns have different weighting, and retained BTC remains reported rather than fictionally liquidated.
+
+All 16 suppression seeds are retained. In base IOC, AI mean return was above eight, below three and equal to five references; in base maker it was above seven, below three and equal to six. These are conditional-reference counts, not significance tests. No primary comparison passed the frozen conservative improvement rule. Adverse maker inactivity establishes nothing; primary arms had no loss-budget breaches or entry halts.
+
+The [outcome receipt](ai-entry-filter-outcome.json) records all controls and hashes. Signed freeze `afc3369` passed CI: 786 Python tests per 3.12/3.13/3.14 and 115 JavaScript tests. All 64 archived baseline cases reproduced before inference and again inside the 1,216-case comparison. The final audit verified all 179 input plans against baseline arms in every path and frozen arming/confirmation fields, actual maker/taker roles, selected-response availability and risk reserves across the full matrix. Total financial simulations: 1,280, all on the same two days.
+
+Inference completed **179/179 structurally valid answers: 30 monitoring permits, 149 abstentions**, with five unknown component checks. Actual usage: 1,471,201 input + 240,338 output = **1,711,539 reported tokens**; 408,064 cached-input and 187,607 reasoning tokens are subsets. All 179 usage records were available. Client-wall latency: 10.917902–50.166637 seconds, median 30.455251, summed 5,538.837888 seconds. No retry, fallback or failed invocation occurred.
+
+The two deliberately repeated anchor-clock context cases now correctly describe the 41,910.6 low as unbroken by the subsequent supplied minimum 41,939.1. Both still abstain, with complete sentences on those examples. This targeted development spot-check is not an exhaustive truth audit or a controlled attribution to instruction wording/backend behavior; no saved opinion was corrected.
+
+Final SDK receipt: **2026-10-15 05:11:02 UTC**. Financial completion: **05:17:37 UTC**. All **258 cumulative research invocations** are consumed; earlier unused slots remain closed and no allowance remains. No production permission, exchange write, deployment, full-quarter AI run or further inference follows from this result.
+
+Open `reports/index.html` for the maintained history. This study contributes four baseline-reproduction pairs, one complete inference-audit pair and four financial-comparison pairs under `reports/ai-entry-filter-pilot-attempt-001/`, with all sensitivity cases and opportunity/ownership audits linked.

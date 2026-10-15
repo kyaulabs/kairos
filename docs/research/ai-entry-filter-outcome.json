@@ -1,0 +1,1072 @@
+{
+  "version": "ai-entry-filter-financial-pilot-outcome-v1",
+  "status": "complete; no incremental AI value demonstrated",
+  "declaration": "ai-entry-filter-declaration.json",
+  "results": "ai-entry-filter-pilot.md",
+  "signed_freeze": "afc3369cf1411a9d023746a46fa8040604f5b45f",
+  "freeze_CI": 38676942442,
+  "final_SDK_received_at": "2026-10-15T05:11:02.781599+00:00",
+  "financial_completed_at": "2026-10-15T05:17:37.320918+00:00",
+  "analyzed_at": "2026-10-15T05:18:39.644692+00:00",
+  "scope": "Approved fixed February 1\u20132 2024 development pilot; 16 independent $1,000 cases on one market history, NOT a portfolio or holdout. Same 179 saved v3 responses reused across four execution/scenario comparisons.",
+  "authorization": {
+    "new_cap": 179,
+    "consumed_including_failures": 179,
+    "failed": 0,
+    "automatic_retries": 0,
+    "uncalled_slots_closed": 0,
+    "prior_consumed": 79,
+    "cumulative_consumed": 258,
+    "active_remaining_allowance": 0,
+    "older_unused_slots_remain_closed": 15
+  },
+  "inference": {
+    "accepted": 179,
+    "decisions": {
+      "abstain": 149,
+      "permit": 30
+    },
+    "checks": {
+      "oppose": 214,
+      "support": 318,
+      "unknown": 5
+    },
+    "usage_known_turns": 179,
+    "usage_unknown_turns": 0,
+    "reported_tokens_known_subset": {
+      "cache_write_input_tokens": 0,
+      "cached_input_tokens": 408064,
+      "input_tokens": 1471201,
+      "output_tokens": 240338,
+      "reasoning_output_tokens": 187607,
+      "total_tokens": 1711539
+    },
+    "completed_latency_seconds": {
+      "minimum": 10.917902,
+      "median": 30.455251,
+      "maximum": 50.166637,
+      "sum": 5538.837888
+    }
+  },
+  "financial_simulations": {
+    "baseline_reproduction": 64,
+    "comparison": 1216,
+    "total": 1280,
+    "all_64_archived_controls_reproduced_twice": true,
+    "all_179_snapshot_plans_match_baseline_arms_in_each_path": true,
+    "all_frozen_arming_confirmation_fields_unchanged_across_all_1216_cases": true,
+    "all_native_buy_roles_risk_reserves_and_selected_available_candidates_verified": true,
+    "availability_reproduces_all_64_nondiagnostic_financial_case_fields": true
+  },
+  "comparisons": [
+    {
+      "name": "ioc-base",
+      "primary": {
+        "Baseline": {
+          "filled_entries": 13,
+          "active_case_days": 10,
+          "positive_target_fills": 13,
+          "closed_trades": 10,
+          "mean_case_return_pct": "0.006471372552004044975",
+          "mean_closed_R": "-0.2502893169803139104440690941",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.680319057715",
+          "mean_time_in_market_pct": 31.58197139938713,
+          "retained_BTC_diagnostic_sum": "0.00001191398"
+        },
+        "Availability": {
+          "filled_entries": 13,
+          "active_case_days": 10,
+          "positive_target_fills": 13,
+          "closed_trades": 10,
+          "mean_case_return_pct": "0.006471372552004044975",
+          "mean_closed_R": "-0.2502893169803139104440690941",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.680319057715",
+          "mean_time_in_market_pct": 31.58197139938713,
+          "retained_BTC_diagnostic_sum": "0.00001191398"
+        },
+        "AI filter": {
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "positive_target_fills": 1,
+          "closed_trades": 1,
+          "mean_case_return_pct": "0.0010016748645609614625",
+          "mean_closed_R": "0.09648894166425943187553307330",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.203930335548",
+          "mean_time_in_market_pct": 3.993232890704801,
+          "retained_BTC_diagnostic_sum": "6.17E-9"
+        },
+        "Suppression 00": {
+          "filled_entries": 3,
+          "active_case_days": 3,
+          "positive_target_fills": 3,
+          "closed_trades": 2,
+          "mean_case_return_pct": "0.006959007642084553575",
+          "mean_closed_R": "0.4601423511396653893851936985",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.408805436829",
+          "mean_time_in_market_pct": 8.079034729315628,
+          "retained_BTC_diagnostic_sum": "0.00000348886"
+        }
+      },
+      "suppression_sensitivity": [
+        {
+          "seed": 0,
+          "filled_entries": 3,
+          "active_case_days": 3,
+          "mean_case_return_pct": "0.006959007642084553575",
+          "mean_closed_R": "0.4601423511396653893851936985",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 1,
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "mean_case_return_pct": "0.000876844098922779875",
+          "mean_closed_R": "-0.515480188128910828759263399",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 2,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "-0.00046881426303318800",
+          "mean_closed_R": "-1.080468630037876554872710598",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 3,
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "mean_case_return_pct": "0.000876844098922779875",
+          "mean_closed_R": "-0.515480188128910828759263399",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 4,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "-0.00046881426303318800",
+          "mean_closed_R": "-1.080468630037876554872710598",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 5,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0010016748645609614625",
+          "mean_closed_R": "0.09648894166425943187553307330",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 6,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0010016748645609614625",
+          "mean_closed_R": "0.09648894166425943187553307330",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 7,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 8,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0059612371440047114625",
+          "mean_closed_R": "0.8237957606150713468948543237",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 9,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0010016748645609614625",
+          "mean_closed_R": "0.09648894166425943187553307330",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 10,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 11,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0010016748645609614625",
+          "mean_closed_R": "0.09648894166425943187553307330",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 12,
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "mean_case_return_pct": "0.0054924228809715234625",
+          "mean_closed_R": "-0.1283364347114026039889281372",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 13,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 14,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "-0.00046881426303318800",
+          "mean_closed_R": "-1.080468630037876554872710598",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 15,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0010016748645609614625",
+          "mean_closed_R": "0.09648894166425943187553307330",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        }
+      ],
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "conditional_reference_return_comparison_not_pvalue": {
+        "lower": 3,
+        "higher": 8,
+        "equal": 5
+      },
+      "json_sha256": "ccdbfecb9aea3e71dcd30048abbaa615509cdd2124426423449fc3c5dbf2492c",
+      "html_sha256": "c15e6e00e608a226eb749669cfd891ac378d0abda1504f26aba9981b0d16b309"
+    },
+    {
+      "name": "ioc-stress",
+      "primary": {
+        "Baseline": {
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "positive_target_fills": 1,
+          "closed_trades": 1,
+          "mean_case_return_pct": "0.0014460828477805375625",
+          "mean_closed_R": "0.2814602428096875112358351632",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.102360379810",
+          "mean_time_in_market_pct": 3.993232890704801,
+          "retained_BTC_diagnostic_sum": "8.09E-9"
+        },
+        "Availability": {
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "positive_target_fills": 1,
+          "closed_trades": 1,
+          "mean_case_return_pct": "0.0014460828477805375625",
+          "mean_closed_R": "0.2814602428096875112358351632",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.102360379810",
+          "mean_time_in_market_pct": 3.993232890704801,
+          "retained_BTC_diagnostic_sum": "8.09E-9"
+        },
+        "AI filter": {
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "positive_target_fills": 0,
+          "closed_trades": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        },
+        "Suppression 00": {
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "positive_target_fills": 1,
+          "closed_trades": 1,
+          "mean_case_return_pct": "0.0014460828477805375625",
+          "mean_closed_R": "0.2814602428096875112358351632",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.102360379810",
+          "mean_time_in_market_pct": 3.993232890704801,
+          "retained_BTC_diagnostic_sum": "8.09E-9"
+        }
+      },
+      "suppression_sensitivity": [
+        {
+          "seed": 0,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0014460828477805375625",
+          "mean_closed_R": "0.2814602428096875112358351632",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 1,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 2,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 3,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 4,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 5,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 6,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 7,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 8,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0014460828477805375625",
+          "mean_closed_R": "0.2814602428096875112358351632",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 9,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 10,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 11,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 12,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0014460828477805375625",
+          "mean_closed_R": "0.2814602428096875112358351632",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 13,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 14,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 15,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        }
+      ],
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "conditional_reference_return_comparison_not_pvalue": {
+        "lower": 3,
+        "equal": 13
+      },
+      "json_sha256": "9005c1ca6efa4e2c0e0852ec75f0c338dcc20e7cc823eef64e185e99ebfed3df",
+      "html_sha256": "1c86a77d9a3840d7fb6d58fcd30b754fc76292021a6d90ff8ba0b62ba22afd14"
+    },
+    {
+      "name": "maker-base",
+      "primary": {
+        "Baseline": {
+          "filled_entries": 5,
+          "active_case_days": 5,
+          "positive_target_fills": 5,
+          "closed_trades": 5,
+          "mean_case_return_pct": "0.0094781287409437110100",
+          "mean_closed_R": "-0.1900439857671882854020843016",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.5970978915170",
+          "mean_time_in_market_pct": 18.74281792645557,
+          "retained_BTC_diagnostic_sum": "1.7608E-8"
+        },
+        "Availability": {
+          "filled_entries": 5,
+          "active_case_days": 5,
+          "positive_target_fills": 5,
+          "closed_trades": 5,
+          "mean_case_return_pct": "0.0094781287409437110100",
+          "mean_closed_R": "-0.1900439857671882854020843016",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.5970978915170",
+          "mean_time_in_market_pct": 18.74281792645557,
+          "retained_BTC_diagnostic_sum": "1.7608E-8"
+        },
+        "AI filter": {
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "positive_target_fills": 1,
+          "closed_trades": 1,
+          "mean_case_return_pct": "0.0018921407894552666700",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.1834864525470",
+          "mean_time_in_market_pct": 3.9924348825331974,
+          "retained_BTC_diagnostic_sum": "2.936E-9"
+        },
+        "Suppression 00": {
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "positive_target_fills": 2,
+          "closed_trades": 2,
+          "mean_case_return_pct": "0.0087447615397542833400",
+          "mean_closed_R": "0.639448004400638811756656064",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0.3677673763590",
+          "mean_time_in_market_pct": 7.984869765066395,
+          "retained_BTC_diagnostic_sum": "5.872E-9"
+        }
+      },
+      "suppression_sensitivity": [
+        {
+          "seed": 0,
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "mean_case_return_pct": "0.0087447615397542833400",
+          "mean_closed_R": "0.639448004400638811756656064",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 1,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0018921407894552666700",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 2,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "-0.000396722928826550400",
+          "mean_closed_R": "-1.096523579451583014246259351",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 3,
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "mean_case_return_pct": "0.0018892119469058230600",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 4,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "-0.000396722928826550400",
+          "mean_closed_R": "-1.096523579451583014246259351",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 5,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0018921407894552666700",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 6,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0018921407894552666700",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 7,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 8,
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "mean_case_return_pct": "0.0068496919077495730600",
+          "mean_closed_R": "1.079576240730122147969043123",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 9,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0018921407894552666700",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 10,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 11,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0018921407894552666700",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 12,
+          "filled_entries": 2,
+          "active_case_days": 2,
+          "mean_case_return_pct": "0.0064558978214724662700",
+          "mean_closed_R": "-0.008473669360730433138608114",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 13,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 14,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "-0.000396722928826550400",
+          "mean_closed_R": "-1.096523579451583014246259351",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 15,
+          "filled_entries": 1,
+          "active_case_days": 1,
+          "mean_case_return_pct": "0.0018921407894552666700",
+          "mean_closed_R": "0.1993197680711554755442690053",
+          "budget_breaches": 0,
+          "halted_cases": 0
+        }
+      ],
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "conditional_reference_return_comparison_not_pvalue": {
+        "lower": 3,
+        "equal": 6,
+        "higher": 7
+      },
+      "json_sha256": "a7b9ce4de9d39a449e707943a048ba97a5cac6fb1f547d0d9735ce3a1733d622",
+      "html_sha256": "a1c3392251e7032c5d8c455cb72b383898d7fdb14a18b94ecc5fba777426ab94"
+    },
+    {
+      "name": "maker-stress",
+      "primary": {
+        "Baseline": {
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "positive_target_fills": 0,
+          "closed_trades": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        },
+        "Availability": {
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "positive_target_fills": 0,
+          "closed_trades": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        },
+        "AI filter": {
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "positive_target_fills": 0,
+          "closed_trades": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        },
+        "Suppression 00": {
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "positive_target_fills": 0,
+          "closed_trades": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        }
+      },
+      "suppression_sensitivity": [
+        {
+          "seed": 0,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 1,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 2,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 3,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 4,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 5,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 6,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 7,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 8,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 9,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 10,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 11,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 12,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 13,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 14,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        },
+        {
+          "seed": 15,
+          "filled_entries": 0,
+          "active_case_days": 0,
+          "mean_case_return_pct": "0E-7",
+          "mean_closed_R": null,
+          "budget_breaches": 0,
+          "halted_cases": 0
+        }
+      ],
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "conditional_reference_return_comparison_not_pvalue": {
+        "equal": 16
+      },
+      "json_sha256": "1592c70c43c255b5a0b7c5fd21881e0009855f14bd32c6c6dc618554de6be40f",
+      "html_sha256": "d42bdbf0422bd17df518ac133e367e480a65eb7e74317033c8f9f8c1f1db345e"
+    }
+  ],
+  "interpretation": "AI removed most filled activity and reduced marked returns below unchanged baseline and predeclared primary suppression in both base execution modes. Improved mean closed R rests on the same single Fib EMA 15m candidate under alternative execution policies, not independent wins. Conditional sensitivity rankings are mixed. Adverse IOC missed the sole filled opportunity; adverse maker is inactive in every arm. No promotion or trading permission.",
+  "semantic_spotcheck": "The two repeated known anchor-clock context errors are not repeated; numerical anchor low 41910.6 versus later minimum 41939.1 supports the new context reasons. Both remain abstentions. Only targeted development spot-checks, not an exhaustive truth audit or a controlled backend/instruction attribution.",
+  "cost_note": "Net financial values include simulated trading costs. Native subscription quota/tokens are reported separately; no invented Platform-dollar inference cost is deducted.",
+  "limitations": [
+    "Fixed two-day repeatedly inspected development data, 16 dependent setup/timeframe cases, few fills and historical model-pretraining contamination.",
+    "Conditional hash controls match arm permissions, not fills; their future-total conditioning makes them nondeployable references, not a causal randomized trading trial.",
+    "Actual latency mapped per independent case with assumed 1s native-bar delivery; no shared inference queue, historical OKX books/queues/fill probabilities or historical fee/rule evidence.",
+    "Native opinions remain unchanged; structural validation does not establish semantic truth.",
+    "Lower losses with reduced activity, undefined closed R or flat adverse maker execution do not establish incremental AI value or robustness.",
+    "All executions and fees simulated; retained BTC marked, not fictionally liquidated. Subscription usage reported without unapproved Platform-dollar price conversion."
+  ],
+  "financial_replays_or_model_calls_for_reporting": 0,
+  "exchange_writes": 0,
+  "deployment": false,
+  "artifacts": [
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/declaration.json",
+      "sha256": "d1481a06e7591bf2c54450101f2d3b7eb91e07af90c913bcaffd70c458d5c39e"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/snapshots.json",
+      "sha256": "f7d6ecb194a0b641154e6599c11e6ff9cfa64230038024072d2ae3a4678576ee"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/inventory.json",
+      "sha256": "5acb48e07e951432294f181b21aa3e1bee4007e7aae999206914416f5083b1c1"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/exclusions.json",
+      "sha256": "3b6e3b92dae5b1cdaef71f567dd1eef79ab526450a2acb9e1ac8ad381a36317e"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/preparation.json",
+      "sha256": "b154f50b4a47c4e7f2cd3d94557ccdd69d383c9f45c6906d07a0cc4f50b8b17e"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/inference-verification.json",
+      "sha256": "d7c9bbc09d4b0a54b319aaa9cd2b902831fbfe8df8abfa7c86f187cf41d4eb6c"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/snapshot-replay-verification.json",
+      "sha256": "e94cb0ca8e83477e55483168a23073cf91f366b888861b6701e7529fa071a655"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/gate-selection.json",
+      "sha256": "b858e76efa5edc12abd858412e14b7437685caa665ac74b0a85ba5e859fd29d6"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/grounding-spotchecks.json",
+      "sha256": "5a9d3b7ca7ee89e8e161f4a8aac7cbe4e2f875df005ded692bc1455965fb341e"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/opportunity-audit.json",
+      "sha256": "f60a1a7f273038c3f3fc552a1b51c355d10a6b61822d95b7b6b792876a91a3bf"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/analysis.json",
+      "sha256": "c0a2f75ec8791b2116d4e09cae57fb14451d07ffc02c7e266d0c2c59807e4736"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/launch.json",
+      "sha256": "8f4e72dd1fbc415df0f9910e0a21deda66820efb2a9432999e3e284a16a8f071"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/launch-finished.json",
+      "sha256": "18437ff00a11b71c560f14834cbbc19140c6fcd68c216dda46b9c49635270b32"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/ioc-base.json",
+      "sha256": "ebfff7946a9d1f8dedd1ecf46fdd5f752c920f81680e517ee66469bc0b027796"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/ioc-base.html",
+      "sha256": "adc25ecb990cd6a866b8bfdcfa65092261470b6b01b05e3b1fd1fcb430d050d7"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/ioc-stress.json",
+      "sha256": "3331c90545dc5e75f8e0dd6d4c67c53a8711da8d4c832035c1c6e21b415c45cb"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/ioc-stress.html",
+      "sha256": "1a15ae3d154ec125132a3b012f16e5fcf2d3834152f17167cc6ce35dac3cdc3e"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/maker-base.json",
+      "sha256": "eb681a5da4cee8a1c10243114abed372c01de16872096175709fdea441177ce1"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/maker-base.html",
+      "sha256": "52150aafcb4c9508f6ca47e702e41d7af34435b34495938c94ea1c8fc6a31447"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/maker-stress.json",
+      "sha256": "67cc20910a3d7474b26fad908281a25858b6a7603eec8a68103d1df64f879651"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/baseline/maker-stress.html",
+      "sha256": "2be635f26976d6891d35a15757ed45e408591031f9a69aa9edbd1c1fa95f6f88"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/ioc-base.json",
+      "sha256": "ccdbfecb9aea3e71dcd30048abbaa615509cdd2124426423449fc3c5dbf2492c"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/ioc-base.html",
+      "sha256": "c15e6e00e608a226eb749669cfd891ac378d0abda1504f26aba9981b0d16b309"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/ioc-stress.json",
+      "sha256": "9005c1ca6efa4e2c0e0852ec75f0c338dcc20e7cc823eef64e185e99ebfed3df"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/ioc-stress.html",
+      "sha256": "1c86a77d9a3840d7fb6d58fcd30b754fc76292021a6d90ff8ba0b62ba22afd14"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/maker-base.json",
+      "sha256": "a7b9ce4de9d39a449e707943a048ba97a5cac6fb1f547d0d9735ce3a1733d622"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/maker-base.html",
+      "sha256": "a1c3392251e7032c5d8c455cb72b383898d7fdb14a18b94ecc5fba777426ab94"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/maker-stress.json",
+      "sha256": "1592c70c43c255b5a0b7c5fd21881e0009855f14bd32c6c6dc618554de6be40f"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/comparison/maker-stress.html",
+      "sha256": "d42bdbf0422bd17df518ac133e367e480a65eb7e74317033c8f9f8c1f1db345e"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/inference-audit.json",
+      "sha256": "62d922b5ab144b16d44961023b97cb290b4783f28c4346664f45ef283bd67328"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/inference-audit.html",
+      "sha256": "8e596191b422dadb34cfb05a630944a6f2dd395f0df116761a574cc91526ec3a"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/inference-attempt-001/declaration.json",
+      "sha256": "cf77712b09e91eb1399ad7572b74a913517b70401fb8c2002ce823db52eab92b"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/inference-attempt-001/results.json",
+      "sha256": "2bad6268b81ed786d37ff3380ead47b92f0c86c55c4cb41f3e86a9e24abf960f"
+    },
+    {
+      "path": "reports/ai-entry-filter-pilot-attempt-001/inference-attempt-001/summary.json",
+      "sha256": "ae0f1e122b5bb7faa8c785e8ebabbb7917e82ca043b9299d7a2216ffbbbfcc88"
+    }
+  ]
+}
