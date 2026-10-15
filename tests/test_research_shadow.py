@@ -8,7 +8,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from kairos.research_assessment import BASE_INSTRUCTIONS, SCHEMA
-from kairos.research_shadow import SDK_VERSION, assess, environment, load_sdk, validate_turn
+from kairos.research_shadow import (
+    MAX_INVOCATIONS,
+    SDK_VERSION,
+    assess,
+    environment,
+    load_sdk,
+    validate_turn,
+)
 from tests.test_research_assessment import answer, fixture
 
 
@@ -147,6 +154,36 @@ class ResearchShadowTests(unittest.IsolatedAsyncioTestCase):
                 json.loads((out / "00-turn.json").read_text())["usage"]["inputTokens"], 20
             )
 
+    async def test_authorized_179_case_batch_has_one_client_and_unique_last_artifact(self):
+        sdk = FakeSDK()
+        snapshots = []
+        for i in range(MAX_INVOCATIONS):
+            s = fixture()
+            delta = i * 300
+            s["as_of"] += delta
+            s["expires_at"] += delta
+            s["candidate_id"] = f"{s['setup']}:{s['as_of']}"
+            s["facts"]["swing_known_at"] += delta
+            for bar in s["bars"]:
+                bar["closed_at"] += delta
+            snapshots.append(s)
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch("kairos.research_shadow.load_sdk", return_value=sdk),
+        ):
+            out = Path(d) / "run"
+            result = await assess(
+                snapshots,
+                out,
+                max_invocations=MAX_INVOCATIONS,
+                approve_subscription_usage=True,
+            )
+            self.assertEqual(result["completed"], 179)
+            self.assertEqual(len(sdk.configs), 1)
+            self.assertEqual(len(sdk.runs), 179)
+            self.assertTrue((out / "178-turn.json").is_file())
+            self.assertEqual(sdk.closed, 1)
+
     async def test_same_arm_time_at_two_intervals_is_not_a_duplicate(self):
         sdk = FakeSDK()
         with (
@@ -214,7 +251,13 @@ class ResearchShadowTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(recorded["usage"]["inputTokens"], 20)
 
     async def test_cap_duplicate_and_invalid_inputs_fail_before_sdk_or_directory(self):
-        cases = [([fixture(), fixture("fib-ema")], 1), ([fixture(), fixture()], 2), ([], 1)]
+        cases = [
+            ([fixture(), fixture("fib-ema")], 1),
+            ([fixture(), fixture()], 2),
+            ([], 1),
+            ([fixture()], MAX_INVOCATIONS + 1),
+            ([fixture()] * (MAX_INVOCATIONS + 1), MAX_INVOCATIONS),
+        ]
         with tempfile.TemporaryDirectory() as d, patch("kairos.research_shadow.load_sdk") as sdk:
             for snapshots, cap in cases:
                 with self.assertRaises(ValueError):

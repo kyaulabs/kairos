@@ -25,6 +25,7 @@ from kairos.research_assessment import (
 )
 
 SDK_VERSION = "0.162.1"
+MAX_INVOCATIONS = 179
 DISABLED_FEATURES = (
     "shell_tool",
     "unified_exec",
@@ -118,10 +119,10 @@ async def assess(
     approve_subscription_usage=False,
 ):
     """Prepare offline by default; one SDK client, isolated thread per request."""
-    if not isinstance(snapshots, list) or not 1 <= len(snapshots) <= 32:
-        raise ValueError("Supply 1–32 predeclared arming snapshots")
-    if type(max_invocations) is not int or not 1 <= max_invocations <= 32:
-        raise ValueError("Invocation cap must be 1–32")
+    if not isinstance(snapshots, list) or not 1 <= len(snapshots) <= MAX_INVOCATIONS:
+        raise ValueError(f"Supply 1–{MAX_INVOCATIONS} predeclared arming snapshots")
+    if type(max_invocations) is not int or not 1 <= max_invocations <= MAX_INVOCATIONS:
+        raise ValueError(f"Invocation cap must be 1–{MAX_INVOCATIONS}")
     if len(snapshots) > max_invocations:
         raise ValueError("Snapshot batch exceeds cap; do not silently select a subset")
     if model not in ("gpt-6-luna", "gpt-6.1-sol") or effort not in ("low", "medium", "high"):
