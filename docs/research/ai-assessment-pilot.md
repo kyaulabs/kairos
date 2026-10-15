@@ -29,4 +29,10 @@ Before financial evaluation, freeze an independent experiment with unchanged det
 
 ## Status
 
-Inputs are prepared and frozen; no pilot invocation has started. Results and usage will be recorded after this declared batch, including any failure and unspent allowance. No live financial benefit has been established.
+Attempt001 stopped after its first invocation. The SDK turn completed, but the application gate incorrectly classified the native echoed `userMessage` as a tool/action item. Independently, the model packed multiple evidence paths into three strings, so its answer would still fail reference validation. The raw answer is not repaired or counted as accepted.
+
+That call took 30.081024 seconds and returned 8,067 input tokens, no cached input and 1,237 output tokens, including 809 reasoning tokens. Total reported tokens were 9,304; reasoning is not added again. Its raw abstention cited grounded observations, including target room of 24.4 versus ATR 28.45 and preliminary downside distance 59.3475, but one plausible explanation is not proof of trading value.
+
+The 15 unused slots from that stopped allowance are closed. The user separately approved fixing the protocol and rerunning the full 16-case batch once. The [rerun declaration](ai-assessment-rerun-declaration.json) preserves the same inputs/order and records the repeated first candidate. Contract v2 accepts only a verbatim native input echo, still rejects tools/altered or duplicate echoes, and constrains each evidence item to one canonical scalar pointer. Both fixes have offline regression tests, including the real saved turn. The corrected batch has a fresh cap of 16 including failures and still stops on its first failure, without automatic retries.
+
+The corrected batch is frozen but has not started. Neither attempt changes trades or establishes financial benefit.

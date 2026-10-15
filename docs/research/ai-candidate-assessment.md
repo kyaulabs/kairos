@@ -1,6 +1,6 @@
 # AI candidate critique and second opinion
 
-This replaces generic regime/quality annotations with one setup-specific assessment containing both a thesis critique and a bounded `permit`/`abstain` recommendation. It defaults to offline preparation. After mocked tests, an auth-only SDK check recognized the existing ChatGPT session without starting a model turn or login. A separate [16-invocation pilot](ai-assessment-pilot.md) is now approved and predeclared; the previous 62-invocation allocation remains exhausted. No trading result, entry veto or deployment is authorized.
+This replaces generic regime/quality annotations with one setup-specific assessment containing both a thesis critique and a bounded `permit`/`abstain` recommendation. It defaults to offline preparation. After mocked tests, an auth-only SDK check recognized the existing ChatGPT session without starting a model turn or login. The [pilot](ai-assessment-pilot.md) stopped after one invocation, exposed two protocol issues and now has an explicitly approved 16-call corrected rerun. Its unused first-batch slots are closed; the previous 62-invocation allocation remains exhausted. No trading result, entry veto or deployment is authorized.
 
 The old annotations did not assist trading: neither model changed a signal, fill or protective action. Higher agreement with a deterministic reference did not measure prediction accuracy or incremental return. Their source, prompts, failures and reports remain historical evidence; they are not this new experiment's baseline results.
 
@@ -29,7 +29,7 @@ The model critiques three aspects of the supplied setup, each as `support`, `opp
 | Fib extension | Continuation versus exhaustion | Behavior around the known high, not future acceptance | Supplied 1.618 room without moving the target |
 | Fib sweep | Recovery versus continuing breakdown | Observed sweep/reclaim, not hidden-stop inference | Location versus the frozen low/target |
 
-`permit` is consistent only when all three checks support the thesis; any opposition or unknown requires `abstain`. Both roles share one response, not two calls. This is a declared research rubric, not a proven profitable filter or permission to submit an order. References are checked for existence and non-null scalar evidence, not semantic truth; a model can still misinterpret valid data.
+`permit` is consistent only when all three checks support the thesis; any opposition or unknown requires `abstain`. Both roles share one response, not two calls. This is a declared research rubric, not a proven profitable filter or permission to submit an order. Contract v2 constrains each evidence item to one canonical scalar pointer, not multiple paths packed into a string. References are checked for existence and non-null scalar evidence, not semantic truth; a model can still misinterpret valid data.
 
 ## Point-in-time inputs
 
@@ -51,7 +51,7 @@ uv run python -m kairos.research_shadow \
 
 Default preparation creates private declaration/schema/request data and a `prepared_no_inference` summary without importing or starting the SDK. Duplicate candidates, excess batches and existing output directories are rejected rather than silently resampled or overwritten. The synthetic unit-test fixtures exercise the protocol; they are not real trade examples or model responses.
 
-Inference needs the `codex-research` extra and `--approve-subscription-usage`, plus a separately approved model/effort, invocation budget and frozen sampling/evaluation plan. Do not run it under an exhausted allocation. The new pilot has its own 16-call allowance. Real SDK startup and ChatGPT account recognition passed on 2026-10-15 UTC without model turns; model behavior is not yet tested. Unit tests use an injected fake SDK, and the installed SDK's public method signatures are also checked.
+Inference needs the `codex-research` extra and `--approve-subscription-usage`, plus a separately approved model/effort, invocation budget and frozen sampling/evaluation plan. Do not run it under an exhausted allocation. The corrected pilot has its own 16-call allowance. Real SDK startup and ChatGPT account recognition passed on 2026-10-15 UTC without model turns; the first subsequent model turn completed but failed the application contract. Native `userMessage` echoes are now accepted only when their single text content exactly equals the submitted request; tool/action items and duplicate or altered echoes still fail closed. Unit tests use an injected fake SDK, the saved real turn has been audited offline, and the installed SDK's public method signatures are also checked.
 
 Before an economic experiment, compare unchanged deterministic controls with this challenger and a predeclared activity-matched suppression control. Score net outcomes, missed opportunities, activity, costs, retained holdings, latency, abstentions and risk failures; fewer trades alone are not success. Preserve all eight setups at both intervals. Historical data/pretraining contamination remains a limitation; prospective shadow observations require separate authorization. No profitability or promotion follows from this contract.
 

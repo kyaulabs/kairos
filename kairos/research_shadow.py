@@ -83,12 +83,26 @@ def write_json(path, data):
     path.chmod(0o600)
 
 
-def validate_turn(result):
+def validate_turn(result, expected_input):
     if getattr(result.status, "value", result.status) != "completed" or result.error:
         raise ValueError("SDK turn failed/incomplete")
     items = [item.model_dump(mode="json") for item in result.items]
-    if any(item.get("type") not in ("agentMessage", "reasoning") for item in items):
-        raise ValueError("Unexpected tool/action item; assessment batch stopped")
+    echoes = 0
+    for item in items:
+        if item.get("type") == "userMessage":
+            echoes += 1
+            content = item.get("content")
+            if (
+                echoes > 1
+                or not isinstance(content, list)
+                or len(content) != 1
+                or not isinstance(content[0], dict)
+                or content[0].get("type") != "text"
+                or content[0].get("text") != expected_input
+            ):
+                raise ValueError("Unexpected SDK input echo; assessment batch stopped")
+        elif item.get("type") not in ("agentMessage", "reasoning"):
+            raise ValueError("Unexpected tool/action item; assessment batch stopped")
     if not result.final_response:
         raise ValueError("Missing/refused final response")
     return items
@@ -196,11 +210,11 @@ async def assess(
                     "error": turn.error.model_dump(mode="json") if turn.error else None,
                 }
                 write_json(output_dir / f"{i:02d}-turn.json", raw)
-                validate_turn(turn)
+                result["usage"] = raw["usage"]
+                validate_turn(turn, encoded(request).decode())
                 result.update(
                     status="complete",
                     answer=validate_answer(json.loads(turn.final_response), s),
-                    usage=raw["usage"],
                 )
             except (
                 ValueError,
