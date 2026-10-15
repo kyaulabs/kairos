@@ -513,5 +513,24 @@
     "selection": "No promotion. Base marked losses decrease but activity falls; adverse inactivity is not improvement, and minute proxies cannot establish real 30-second fill probabilities.",
     "offline_guide": "44 HTML reports in six groups, including six invalid attempts; source Markdown rendered inline and original reports unchanged"
   },
+  "sdk_assessment_pilot": {
+    "declaration": "ai-assessment-pilot-declaration.json",
+    "rerun_declaration": "ai-assessment-rerun-declaration.json",
+    "receipt": "ai-assessment-pilot-outcome.json",
+    "results": "ai-assessment-pilot.md",
+    "transport": "Official openai-codex Python SDK 0.162.1 with existing ChatGPT session",
+    "first_attempt": "Stopped after one completed SDK turn; input echo misclassified and evidence paths independently invalid. Preserve failed response and usage.",
+    "original_unused_allowance_closed": 15,
+    "explicitly_approved_rerun_invocations": 16,
+    "rerun_structurally_valid_assessments": 16,
+    "monitor_permit": 2,
+    "abstain": 14,
+    "total_new_invocations_including_failure": 17,
+    "cumulative_research_invocations": 79,
+    "new_reported_total_tokens": 160151,
+    "semantic_findings": "Two anchored context critiques confuse anchor candle-open times with bar-close times and falsely assert an undercut; one explanation ends mid-sentence.",
+    "financial_replays": 0,
+    "selection": "No trading integration or promotion. Protocol fixed, semantic reliability and economic value unproven. Clarify timestamp semantics before another pilot; all inference allowances are exhausted or closed."
+  },
   "next_decision": "Do not deploy or claim alpha. Preserve all strategy, model and execution configurations and failures. Any further inference needs separately approved usage; strategy or maker-timing selection needs declared data and criteria. Base maker returns remain negative, activity falls and adverse maker is inactive. Better maker execution evidence needs trade/book data or separately authorized forward paper observations, not candle-touch fills. Historical AI agreement does not justify a veto or backdated trades."
 }

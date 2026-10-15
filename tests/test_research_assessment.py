@@ -1,9 +1,11 @@
 import copy
+import re
 import unittest
 
 from kairos.research_assessment import (
     CHECKS,
     RUBRICS,
+    SCHEMA,
     digest,
     instructions,
     snapshot,
@@ -132,6 +134,24 @@ class AssessmentContractTests(unittest.TestCase):
         ):
             a = answer(s)
             mutate(a)
+            with self.assertRaises(ValueError):
+                validate_answer(a, s)
+
+    def test_schema_and_validator_reject_bundled_scalar_pointers(self):
+        s = fixture()
+        pattern = SCHEMA["properties"]["checks"]["items"]["properties"]["evidence"]["items"][
+            "pattern"
+        ]
+        self.assertIsNotNone(re.fullmatch(pattern, "/bars/7/close"))
+        for ref in (
+            "/bars/6/close   /bars/7/close",
+            "/plan/stop /plan/target",
+            "/bars/07/close",
+            "/facts/vwap\n",
+        ):
+            self.assertIsNone(re.fullmatch(pattern, ref))
+            a = answer(s)
+            a["checks"][0]["evidence"] = [ref]
             with self.assertRaises(ValueError):
                 validate_answer(a, s)
 

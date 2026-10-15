@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from kairos.research_assessment import BASE_INSTRUCTIONS, SCHEMA
-from kairos.research_shadow import SDK_VERSION, assess, environment, load_sdk
+from kairos.research_shadow import SDK_VERSION, assess, environment, load_sdk, validate_turn
 from tests.test_research_assessment import answer, fixture
 
 
@@ -68,13 +68,24 @@ class FakeSDK:
         a = answer(json.loads(text)["snapshot"])
         if self.fail == "binding":
             a["input_sha256"] = "0" * 64
+        if self.fail == "refs":
+            a["checks"][0]["evidence"] = ["/bars/6/close   /bars/7/close"]
         item_type = "mcpToolCall" if self.fail == "tool" else "agentMessage"
+        echo = text + "tampered" if self.fail == "echo" else text
         return SimpleNamespace(
             id="offline-test",
             status="completed",
             error=None,
             final_response=json.dumps(a),
-            items=[JsonModel({"type": item_type})],
+            items=[
+                JsonModel(
+                    {
+                        "type": "userMessage",
+                        "content": [{"type": "text", "text": echo, "text_elements": []}],
+                    }
+                ),
+                JsonModel({"type": item_type}),
+            ],
             usage=JsonModel({"inputTokens": 20, "outputTokens": 5}),
         )
 
@@ -178,7 +189,7 @@ class ResearchShadowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sdk.closed, 1)
 
     async def test_failures_stop_batch_without_retry_or_fallback(self):
-        for failure in ("tool", "binding", "timeout"):
+        for failure in ("tool", "binding", "timeout", "echo", "refs"):
             sdk = FakeSDK(fail=failure)
             with (
                 self.subTest(failure=failure),
@@ -197,9 +208,10 @@ class ResearchShadowTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(sdk.runs), 1)
                 self.assertEqual(sdk.closed, 1)
                 self.assertEqual(sdk.interrupted, 1 if failure == "timeout" else 0)
-                self.assertEqual(
-                    json.loads((out / "results.json").read_text())[0]["status"], "failed"
-                )
+                recorded = json.loads((out / "results.json").read_text())[0]
+                self.assertEqual(recorded["status"], "failed")
+                if failure != "timeout":
+                    self.assertEqual(recorded["usage"]["inputTokens"], 20)
 
     async def test_cap_duplicate_and_invalid_inputs_fail_before_sdk_or_directory(self):
         cases = [([fixture(), fixture("fib-ema")], 1), ([fixture(), fixture()], 2), ([], 1)]
@@ -230,6 +242,34 @@ class ResearchShadowTests(unittest.IsolatedAsyncioTestCase):
                 environment(),
                 {"HOME": "/tmp/home", "PATH": "/bin", "OPENAI_API_KEY": "", "CODEX_API_KEY": ""},
             )
+
+    def test_native_echo_requires_exact_input_without_allowing_tools_or_duplicates(self):
+        echo = {
+            "type": "userMessage",
+            "content": [{"type": "text", "text": "{}", "text_elements": []}],
+        }
+
+        def turn(items):
+            return SimpleNamespace(
+                status="completed",
+                error=None,
+                final_response="{}",
+                items=[JsonModel(i) for i in items],
+            )
+
+        self.assertEqual(validate_turn(turn([echo, {"type": "agentMessage"}]), "{}")[0], echo)
+        bad = copy.deepcopy(echo)
+        bad["content"][0]["text"] = "different input"
+        image = {"type": "userMessage", "content": [{"type": "image"}]}
+        for items in (
+            [bad],
+            [echo, echo],
+            [image],
+            [echo, {"type": "commandExecution"}],
+            [echo, {"type": "mcpToolCall"}],
+        ):
+            with self.assertRaises(ValueError):
+                validate_turn(turn(items), "{}")
 
     def test_unpinned_sdk_is_refused_without_constructing_a_client(self):
         with patch(

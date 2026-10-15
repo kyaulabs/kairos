@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 
 from kairos.research_signals import VARIANTS
 
-VERSION = "candidate-assessment-v1"
+VERSION = "candidate-assessment-v3"
 MAX_INPUT_BYTES = 16384
 MAX_BARS = 32
 CHECKS = ("context", "structure", "location")
@@ -67,6 +67,13 @@ This is an ARMED candidate, not a confirmed entry. Review the three setup-specif
 For each, return support, oppose or unknown, a short explanation, and JSON-pointer references
 into /facts, /bars or /plan, relative to the snapshot object, not the outer request envelope.
 Copy candidate_id from snapshot and input_sha256 from the request exactly; do not calculate a hash.
+Candle clocks differ: bars.closed_at is candle CLOSE time. facts.anchor, anchor_at,
+swing_low_at and swing_high_at are candle OPEN times; *_known_at is confirmation/discovery time.
+Match an anchor/swing candle using bar.closed_at == its open time + minutes*60, never direct
+open-to-close timestamp equality. If its candle is outside the supplied window, do not invent its low.
+Use one complete sentence per reason, aiming below 200 characters within the 240-character cap.
+Each evidence item must be ONE canonical scalar pointer, never several paths packed into a string.
+Choose at most four relevant pointers per check; omit less useful citations rather than bundle them.
 Support/oppose needs concrete non-null supplied evidence. Unknown must name the missing evidence. Refer only to facts already known at as_of.
 Do not demand future confirmation as missing evidence: code must still confirm the setup later.
 Permit means only 'no additional thesis objection to monitoring this candidate'. It is NOT
@@ -77,6 +84,10 @@ Code retains authority over confirmation, current quotes/costs, sizing, ownershi
 deadlines and loss latches. Costs/fees are assumptions; do not infer genuine OKX fills.
 An unknown target at arming is not a license to invent one or compute future net reward.
 """
+EVIDENCE_POINTER = (
+    r"^/(?:facts/[a-z][a-z0-9_]*|plan/(?:reference|stop|target)|"
+    r"bars/(?:0|[1-9][0-9]*)/(?:closed_at|open|high|low|close|volume))$"
+)
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -97,7 +108,7 @@ SCHEMA = {
                     "evidence": {
                         "type": "array",
                         "maxItems": 4,
-                        "items": {"type": "string", "maxLength": 128},
+                        "items": {"type": "string", "maxLength": 128, "pattern": EVIDENCE_POINTER},
                     },
                     "reason": {"type": "string", "minLength": 1, "maxLength": 240},
                 },
@@ -295,8 +306,12 @@ def validate_answer(answer, s):
         if not isinstance(refs, list) or len(refs) > 4 or c["verdict"] != "unknown" and not refs:
             raise ValueError("Concrete evidence required")
         for ref in refs:
-            if not isinstance(ref, str) or not ref.startswith(("/facts/", "/bars/", "/plan/")):
-                raise ValueError("Evidence must reference supplied market facts")
+            if (
+                not isinstance(ref, str)
+                or len(ref) > 128
+                or not re.fullmatch(EVIDENCE_POINTER, ref)
+            ):
+                raise ValueError("Evidence must be one canonical scalar pointer")
             value = s
             try:
                 for part in ref[1:].split("/"):
