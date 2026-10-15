@@ -65,8 +65,9 @@ Return only JSON matching the supplied schema. Missing evidence stays unknown.
 INSTRUCTIONS = """Perform BOTH jobs in one response: critique this setup's thesis, then give a second opinion.
 This is an ARMED candidate, not a confirmed entry. Review the three setup-specific questions.
 For each, return support, oppose or unknown, a short explanation, and JSON-pointer references
-into /facts, /bars or /plan. Support/oppose needs concrete non-null supplied evidence.
-Unknown must name the missing evidence. Refer only to facts already known at as_of.
+into /facts, /bars or /plan, relative to the snapshot object, not the outer request envelope.
+Copy candidate_id from snapshot and input_sha256 from the request exactly; do not calculate a hash.
+Support/oppose needs concrete non-null supplied evidence. Unknown must name the missing evidence. Refer only to facts already known at as_of.
 Do not demand future confirmation as missing evidence: code must still confirm the setup later.
 Permit means only 'no additional thesis objection to monitoring this candidate'. It is NOT
 order permission, a predicted win, cost eligibility or permission to act before confirmation.

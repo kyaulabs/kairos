@@ -64,6 +64,8 @@ class AssessmentContractTests(unittest.TestCase):
                 with self.subTest(setup=setup, minutes=minutes):
                     s = fixture(setup, minutes)
                     self.assertIn(RUBRICS[setup][0], instructions(s))
+                    self.assertIn("relative to the snapshot object", instructions(s))
+                    self.assertIn("do not calculate a hash", instructions(s))
                     self.assertEqual(validate_answer(answer(s), s)["decision"], "permit")
 
     def test_future_confirmation_quotes_results_and_credentials_are_not_snapshot_inputs(self):
@@ -124,6 +126,7 @@ class AssessmentContractTests(unittest.TestCase):
             lambda a: a.update(stop="99"),
             lambda a: a["checks"][0].update(evidence=["/bars/8/close"]),
             lambda a: a["checks"][0].update(evidence=["/plan"]),
+            lambda a: a["checks"][0].update(evidence=["/snapshot/bars/7/close"]),
             lambda a: a["checks"][0].update(evidence=[]),
             lambda a: a["checks"][0].update(check="structure"),
         ):
