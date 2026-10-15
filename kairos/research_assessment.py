@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 
 from kairos.research_signals import VARIANTS
 
-VERSION = "candidate-assessment-v2"
+VERSION = "candidate-assessment-v3"
 MAX_INPUT_BYTES = 16384
 MAX_BARS = 32
 CHECKS = ("context", "structure", "location")
@@ -67,6 +67,11 @@ This is an ARMED candidate, not a confirmed entry. Review the three setup-specif
 For each, return support, oppose or unknown, a short explanation, and JSON-pointer references
 into /facts, /bars or /plan, relative to the snapshot object, not the outer request envelope.
 Copy candidate_id from snapshot and input_sha256 from the request exactly; do not calculate a hash.
+Candle clocks differ: bars.closed_at is candle CLOSE time. facts.anchor, anchor_at,
+swing_low_at and swing_high_at are candle OPEN times; *_known_at is confirmation/discovery time.
+Match an anchor/swing candle using bar.closed_at == its open time + minutes*60, never direct
+open-to-close timestamp equality. If its candle is outside the supplied window, do not invent its low.
+Use one complete sentence per reason, aiming below 200 characters within the 240-character cap.
 Each evidence item must be ONE canonical scalar pointer, never several paths packed into a string.
 Choose at most four relevant pointers per check; omit less useful citations rather than bundle them.
 Support/oppose needs concrete non-null supplied evidence. Unknown must name the missing evidence. Refer only to facts already known at as_of.

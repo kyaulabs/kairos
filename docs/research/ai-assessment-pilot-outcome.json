@@ -1,0 +1,789 @@
+{
+  "completed": 16,
+  "valid_protocol_answers": 16,
+  "decisions": {
+    "abstain": 14,
+    "permit": 2
+  },
+  "check_verdicts": {
+    "support": 24,
+    "oppose": 24
+  },
+  "usage": {
+    "cache_write_input_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 129246,
+    "output_tokens": 21601,
+    "reasoning_output_tokens": 16167,
+    "total_tokens": 150847
+  },
+  "latency_seconds": {
+    "min": 16.069701,
+    "median": 32.526301000000004,
+    "p95_nearest_rank": 51.224169,
+    "max": 51.224169,
+    "sum": 523.25456
+  },
+  "final_received_at": "2026-10-15T01:32:41.507840+00:00",
+  "pilot_invocations_including_failed_attempt": 17,
+  "all_research_invocations_including_prior62": 79,
+  "financial_effect": "none",
+  "cases": [
+    {
+      "case": "fib-confluence:5",
+      "candidate_id": "fib-confluence:1706770200",
+      "input_sha256": "be355150c7404b6b31082394c9f19493c3fd607abebb8a64a3d95502ec363db2",
+      "decision": "abstain",
+      "checks": {
+        "context": "support",
+        "structure": "support",
+        "location": "oppose"
+      },
+      "latency_seconds": 37.434157,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8103,
+        "output_tokens": 1605,
+        "reasoning_output_tokens": 1225,
+        "total_tokens": 9708
+      },
+      "received_at": "2026-10-15T01:24:35.675950+00:00"
+    },
+    {
+      "case": "fib-ema:5",
+      "candidate_id": "fib-ema:1706770200",
+      "input_sha256": "faddf23bb1d20c1f2c78bf4d5347ee95c60dfa3cdc9366db2b605f7ae9907812",
+      "decision": "abstain",
+      "checks": {
+        "context": "support",
+        "structure": "support",
+        "location": "oppose"
+      },
+      "latency_seconds": 31.698199,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8102,
+        "output_tokens": 1188,
+        "reasoning_output_tokens": 897,
+        "total_tokens": 9290
+      },
+      "received_at": "2026-10-15T01:25:07.374367+00:00"
+    },
+    {
+      "case": "fib-extension:5",
+      "candidate_id": "fib-extension:1706769900",
+      "input_sha256": "bc073b4cc404bc9cf7e22813fc26b4d0c49dcce654221d6bf1a0dffc5bfa6590",
+      "decision": "abstain",
+      "checks": {
+        "context": "support",
+        "structure": "oppose",
+        "location": "support"
+      },
+      "latency_seconds": 41.045076,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8112,
+        "output_tokens": 1779,
+        "reasoning_output_tokens": 1480,
+        "total_tokens": 9891
+      },
+      "received_at": "2026-10-15T01:25:48.419876+00:00"
+    },
+    {
+      "case": "fib-sweep:5",
+      "candidate_id": "fib-sweep:1706781600",
+      "input_sha256": "2c518586bad4273449a340f581c037aed73120ec3fda24c496ef420ece2574fb",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "support",
+        "location": "support"
+      },
+      "latency_seconds": 23.901147,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8091,
+        "output_tokens": 1038,
+        "reasoning_output_tokens": 723,
+        "total_tokens": 9129
+      },
+      "received_at": "2026-10-15T01:26:12.321537+00:00"
+    },
+    {
+      "case": "vwap-anchored:5",
+      "candidate_id": "vwap-anchored:1706753100",
+      "input_sha256": "7f0a4488491dcf2cbc5db5bce2d0c7a1ae9c36bdf0c10ff5309d0c4cb97a70ff",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "oppose",
+        "location": "support"
+      },
+      "latency_seconds": 34.25836,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8075,
+        "output_tokens": 1490,
+        "reasoning_output_tokens": 1095,
+        "total_tokens": 9565
+      },
+      "received_at": "2026-10-15T01:26:46.581020+00:00"
+    },
+    {
+      "case": "vwap-pullback:5",
+      "candidate_id": "vwap-pullback:1706770200",
+      "input_sha256": "e83255ac071035f9b822c1492e3d25273133351e943dfd62aee55f71d3164360",
+      "decision": "permit",
+      "checks": {
+        "context": "support",
+        "structure": "support",
+        "location": "support"
+      },
+      "latency_seconds": 24.393887,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8034,
+        "output_tokens": 1061,
+        "reasoning_output_tokens": 693,
+        "total_tokens": 9095
+      },
+      "received_at": "2026-10-15T01:27:10.975291+00:00"
+    },
+    {
+      "case": "vwap-reclaim:5",
+      "candidate_id": "vwap-reclaim:1706776800",
+      "input_sha256": "fb98692cde79ad53a793bf263484611e8da90595eaed1c72b919731443ab773c",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "oppose",
+        "location": "support"
+      },
+      "latency_seconds": 41.529919,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8019,
+        "output_tokens": 1674,
+        "reasoning_output_tokens": 1287,
+        "total_tokens": 9693
+      },
+      "received_at": "2026-10-15T01:27:52.505656+00:00"
+    },
+    {
+      "case": "vwap-reversion:5",
+      "candidate_id": "vwap-reversion:1706751600",
+      "input_sha256": "05db4d03462c38dd1839fa8a7cb9fb0189c0f998d5aa16d82c648ec285d283f7",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "oppose",
+        "location": "support"
+      },
+      "latency_seconds": 16.069701,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8025,
+        "output_tokens": 690,
+        "reasoning_output_tokens": 334,
+        "total_tokens": 8715
+      },
+      "received_at": "2026-10-15T01:28:08.575911+00:00"
+    },
+    {
+      "case": "fib-confluence:15",
+      "candidate_id": "fib-confluence:1706778000",
+      "input_sha256": "97d113a53d30e69e73062ab0485099f1891a8d40814dfc94b660c2a300ff7a45",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "support",
+        "location": "oppose"
+      },
+      "latency_seconds": 24.087985,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8112,
+        "output_tokens": 1161,
+        "reasoning_output_tokens": 798,
+        "total_tokens": 9273
+      },
+      "received_at": "2026-10-15T01:28:32.664946+00:00"
+    },
+    {
+      "case": "fib-ema:15",
+      "candidate_id": "fib-ema:1706804100",
+      "input_sha256": "8df09368da7cf3f3054b10a5ee247d79ed1c35d5fbafbfa0c519cd7a1d695ee8",
+      "decision": "permit",
+      "checks": {
+        "context": "support",
+        "structure": "support",
+        "location": "support"
+      },
+      "latency_seconds": 32.157746,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8118,
+        "output_tokens": 1025,
+        "reasoning_output_tokens": 732,
+        "total_tokens": 9143
+      },
+      "received_at": "2026-10-15T01:29:04.823458+00:00"
+    },
+    {
+      "case": "fib-extension:15",
+      "candidate_id": "fib-extension:1706783400",
+      "input_sha256": "385813e0de4ac61e784688ca5735b8e7aa84e171197f72973179faf66f412280",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "support",
+        "location": "oppose"
+      },
+      "latency_seconds": 30.717348,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8102,
+        "output_tokens": 1155,
+        "reasoning_output_tokens": 862,
+        "total_tokens": 9257
+      },
+      "received_at": "2026-10-15T01:29:35.542368+00:00"
+    },
+    {
+      "case": "fib-sweep:15",
+      "candidate_id": "fib-sweep:1706782500",
+      "input_sha256": "226a2fc4bbf9db86ffcf869bfd301ac0a9950f3065b58e41990a0bcae830905d",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "support",
+        "location": "oppose"
+      },
+      "latency_seconds": 32.894856,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8125,
+        "output_tokens": 1334,
+        "reasoning_output_tokens": 1034,
+        "total_tokens": 9459
+      },
+      "received_at": "2026-10-15T01:30:08.438034+00:00"
+    },
+    {
+      "case": "vwap-anchored:15",
+      "candidate_id": "vwap-anchored:1706759100",
+      "input_sha256": "8c39773c06d6d4e06950f310b5043d2245aba3d519ac3e5a2052df7cbd3aae4b",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "oppose",
+        "location": "support"
+      },
+      "latency_seconds": 51.224169,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8103,
+        "output_tokens": 2117,
+        "reasoning_output_tokens": 1795,
+        "total_tokens": 10220
+      },
+      "received_at": "2026-10-15T01:30:59.662699+00:00"
+    },
+    {
+      "case": "vwap-pullback:15",
+      "candidate_id": "vwap-pullback:1706805900",
+      "input_sha256": "7d917790ba5e277e69cc55515f14d35f3c01f2dd3fc454be99ca849fe53ea984",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "oppose",
+        "location": "support"
+      },
+      "latency_seconds": 38.786372,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8045,
+        "output_tokens": 1666,
+        "reasoning_output_tokens": 1280,
+        "total_tokens": 9711
+      },
+      "received_at": "2026-10-15T01:31:38.449821+00:00"
+    },
+    {
+      "case": "vwap-reclaim:15",
+      "candidate_id": "vwap-reclaim:1706779800",
+      "input_sha256": "1a0a37ee9b10a3f1de972bbf84dd9b1e6575d1d86c04d8164b7fc4505e0a4655",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "support",
+        "location": "oppose"
+      },
+      "latency_seconds": 45.945409,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8054,
+        "output_tokens": 1845,
+        "reasoning_output_tokens": 1460,
+        "total_tokens": 9899
+      },
+      "received_at": "2026-10-15T01:32:24.396003+00:00"
+    },
+    {
+      "case": "vwap-reversion:15",
+      "candidate_id": "vwap-reversion:1706861700",
+      "input_sha256": "b64b1c0538812aa3c8f61529b865053fa2312d3667164b43737ff8a8db41804a",
+      "decision": "abstain",
+      "checks": {
+        "context": "oppose",
+        "structure": "oppose",
+        "location": "support"
+      },
+      "latency_seconds": 17.110229,
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 8026,
+        "output_tokens": 773,
+        "reasoning_output_tokens": 472,
+        "total_tokens": 8799
+      },
+      "received_at": "2026-10-15T01:32:41.507840+00:00"
+    }
+  ],
+  "semantic_findings": [
+    {
+      "case": "vwap-anchored:5",
+      "check": "context",
+      "issue": "Model matched anchor candle-open time to a preceding bar close and falsely asserted an immediate anchor-low undercut.",
+      "anchor_open_at": 1706751600,
+      "anchor_closed_at": 1706751900,
+      "actual_anchor_low": "41910.6",
+      "misidentified_preceding_low": "41919.4",
+      "minimum_subsequent_low": "41939.1",
+      "cause": "Input timestamp convention is insufficiently explicit; anchor_at is candle-open time, bars use closed_at.",
+      "interpretation": "Material factual error despite valid references; do not claim a reliable gate or repair the saved decision."
+    },
+    {
+      "case": "vwap-anchored:15",
+      "check": "context",
+      "issue": "Model matched anchor candle-open time to a preceding bar close and falsely asserted an immediate anchor-low undercut.",
+      "anchor_open_at": 1706751000,
+      "anchor_closed_at": 1706751900,
+      "actual_anchor_low": "41910.6",
+      "misidentified_preceding_low": "41986.2",
+      "minimum_subsequent_low": "41939.1",
+      "cause": "Input timestamp convention is insufficiently explicit; anchor_at is candle-open time, bars use closed_at.",
+      "interpretation": "Material factual error despite valid references; do not claim a reliable gate or repair the saved decision."
+    },
+    {
+      "case": "vwap-anchored:5",
+      "check": "structure",
+      "issue": "Reason reaches the 240-character limit and ends mid-sentence at \"as an\".",
+      "interpretation": "Valid shape does not guarantee a complete explanation."
+    }
+  ],
+  "first_attempt": {
+    "status": "original attempt stopped; offline diagnosis only; no extra inference",
+    "original_invocations": 1,
+    "valid_assessments": 0,
+    "native_item_types": [
+      "userMessage",
+      "reasoning",
+      "reasoning",
+      "agentMessage"
+    ],
+    "exact_echo_passes_fixed_gate": true,
+    "answer_remains_rejected": "Evidence must be one canonical scalar pointer",
+    "latency_seconds": 30.081024,
+    "usage": {
+      "cache_write_input_tokens": 0,
+      "cached_input_tokens": 0,
+      "input_tokens": 8067,
+      "output_tokens": 1237,
+      "reasoning_output_tokens": 809,
+      "total_tokens": 9304
+    },
+    "unspent_original_allowance": 15,
+    "original_allowance_closed": true,
+    "content_checks": {
+      "target_room": "24.4",
+      "atr": "28.45",
+      "downside_distance": "59.3475",
+      "low_below_vwap_and_fib382": true,
+      "close_back_above_both": true,
+      "lower_high_and_close_than_previous": true,
+      "above_prior_mean_volume": true
+    },
+    "interpretation": "Raw content has grounded observations but invalid references; no accepted answer, selection benefit or financial effect."
+  },
+  "sum_usage_including_failed_attempt": {
+    "input_tokens": 137313,
+    "output_tokens": 22838,
+    "reasoning_output_tokens": 16976,
+    "total_tokens": 160151
+  },
+  "selection": "No promotion: structural protocol repaired, but semantic clock errors and incomplete prose remain. No financial benefit tested.",
+  "offline_followup": {
+    "contract": "candidate-assessment-v3",
+    "changes": "Explicit candle-open/close/known-at mapping; one complete reason sentence aiming below 200 characters within the existing 240 cap.",
+    "model_invocations": 0,
+    "status": "Offline clarification only, not a live-model verification or retrospective repair."
+  },
+  "frozen_commits": {
+    "first_attempt": "4b759a53080c8c57d7c726587d2c382d235ebe76",
+    "corrected_rerun": "8e0d2b248720291c39aee2581cd415fcd3b6056a"
+  },
+  "artifact_receipt": {
+    "root": "/srv/kairos-research/kyau-vwap-fib/versions/assessment-pilot",
+    "artifacts": [
+      {
+        "path": "analysis.json",
+        "sha256": "0877bc4f95ff86169b40a823aff322323492ad28dd98582c22db928e87087c93"
+      },
+      {
+        "path": "attempt-001/00-turn.json",
+        "sha256": "1115faf60a0847d76c1ccd756e94afc7723da4eb2454b53aa75b1ffef14684be"
+      },
+      {
+        "path": "attempt-001/declaration.json",
+        "sha256": "5a242547c5f7e232043ca152d544f4813b75a830dd35ff2910edb101e7d8cecc"
+      },
+      {
+        "path": "attempt-001/offline-audit.json",
+        "sha256": "f11781d908efba6bda861c226f60a0298b5d0000138e59dd76c6c9c1942425b4"
+      },
+      {
+        "path": "attempt-001/results.json",
+        "sha256": "8ef8c3b956298a2a01917824231c83d3cfb3a7290732f6d56822c641c0c16a2b"
+      },
+      {
+        "path": "attempt-001/summary.json",
+        "sha256": "182a510f727fe7a9d15f701f7f2ca4f0cc52d49734a547cb55572a3457cc1b07"
+      },
+      {
+        "path": "attempt-002/00-turn.json",
+        "sha256": "e8c7e775ca196804fe89bbdc0cc1e2e82d63b2bb7981dfa948b4175779a06345"
+      },
+      {
+        "path": "attempt-002/01-turn.json",
+        "sha256": "c0931dfd926d0facb0443dde60e1c6575f0011e270c9b95483322db8b91405ab"
+      },
+      {
+        "path": "attempt-002/02-turn.json",
+        "sha256": "00a4693dd59f2a0c8beedc1a6e1262caba7d10267dcc28188a2f9057c3a42ae2"
+      },
+      {
+        "path": "attempt-002/03-turn.json",
+        "sha256": "6db24b8cd4306bfbc63c94f2aa8046480766cb07e7de65a9313a6dc5fd36f1a4"
+      },
+      {
+        "path": "attempt-002/04-turn.json",
+        "sha256": "6a1b181e0dd390e4750e19d361c22f35e82d8b6e1a93363c3c29b2b8260adc55"
+      },
+      {
+        "path": "attempt-002/05-turn.json",
+        "sha256": "b7d565c3c8e905b3e9e3bc2dccc3973de96fec10c9c31440bf46f518bc37e5b9"
+      },
+      {
+        "path": "attempt-002/06-turn.json",
+        "sha256": "f587326bac33c1fdf505d63a756963fd5a34a708ca879fcd17cfea0346acf162"
+      },
+      {
+        "path": "attempt-002/07-turn.json",
+        "sha256": "39b977b5923c9700d48609c549d1ed3cad73df0d1feea63019c4d012af71f106"
+      },
+      {
+        "path": "attempt-002/08-turn.json",
+        "sha256": "aaf3491d48f6af6788e3a0fe8382048b337e074d5fd5c13e41db09d9c359a266"
+      },
+      {
+        "path": "attempt-002/09-turn.json",
+        "sha256": "b9a5b6e3e23b86fe90b00ecbc7042df74d23b3e586d5dc009c4828f484fda825"
+      },
+      {
+        "path": "attempt-002/10-turn.json",
+        "sha256": "f979a6a9c6cf02c889e8aa7f6de9b8aa17fc72e1ad6cd5c7d42c8e827ac43bc5"
+      },
+      {
+        "path": "attempt-002/11-turn.json",
+        "sha256": "bab436476a240931593e1ba34e8bd3f78b3706524e410f90df390896f420b346"
+      },
+      {
+        "path": "attempt-002/12-turn.json",
+        "sha256": "ea439190c1c940b955da76002eb506ccb8cef59181687d6139378709368accf5"
+      },
+      {
+        "path": "attempt-002/13-turn.json",
+        "sha256": "186d34de57860ef6d26fc3cf13144918dd1babfd9f0529e9ef8e8b795244c720"
+      },
+      {
+        "path": "attempt-002/14-turn.json",
+        "sha256": "c9893af2fe56d1a6f79ccdc23a6d178d21db4131265de93a7212f103a21a7a09"
+      },
+      {
+        "path": "attempt-002/15-turn.json",
+        "sha256": "c687cc47af42b8aedf3cafc2fcfe5380d7032ef9ff00a59616535fceadc32207"
+      },
+      {
+        "path": "attempt-002/declaration.json",
+        "sha256": "9a365436c8a1f0b2494ba73f7cfc213da7899e45c8d0f46139d9c83d1b6cb25b"
+      },
+      {
+        "path": "attempt-002/results.json",
+        "sha256": "606f33d9e86b3ed17791a3001a77342939589f36c498105cf4cb8ab4a75ae4f0"
+      },
+      {
+        "path": "attempt-002/summary.json",
+        "sha256": "a4c3d2a802006ecfd76e02e26ef53504d20423c5ee79600245f0578f939e22ee"
+      },
+      {
+        "path": "auth-check.json",
+        "sha256": "fdc03102246f2f3cdf95a37b8baec93af71582a4cd3c5f199c7067e98a70c044"
+      },
+      {
+        "path": "build-v3.log",
+        "sha256": "0e698cdb40275c1631f7909c0fe50c071a49f0e07bbd42bf18ebf0e5f1e86dd4"
+      },
+      {
+        "path": "build.log",
+        "sha256": "beb371a4d2a01ffb5365d3b264381c30c422e90da8d16a5f70fd2cd7149b2a3a"
+      },
+      {
+        "path": "ci-freeze-watch.log",
+        "sha256": "939fce68f0229ec1d352d66a77c509ba701ccc3b06f4b0f05008e90b3fc8a4bc"
+      },
+      {
+        "path": "ci-freeze.log",
+        "sha256": "34aff74db395b48a17b0f74ffa45b79c3a9da287ffd85963218034b481184e4a"
+      },
+      {
+        "path": "ci-repair-watch.log",
+        "sha256": "b053c2e9d03982452065788f86d45837b1df2e9c60acd11dba979a984d5e674c"
+      },
+      {
+        "path": "ci-repair.log",
+        "sha256": "dfb844816e3dd1b090279dc38a766e9086f4d68c7afe91c8713db3383d062746"
+      },
+      {
+        "path": "dist/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "dist/kairos_trader-0.13.1-py3-none-any.whl",
+        "sha256": "8d6ea4447237864efc11a78688dd821da09dd05c23039179124856aded4284f8"
+      },
+      {
+        "path": "dist/kairos_trader-0.13.1.tar.gz",
+        "sha256": "d2e2fde832aea9c14f852210dddbb63abf6f45c0381090a1bd423cafbc5b10fc"
+      },
+      {
+        "path": "dist-v3/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "dist-v3/kairos_trader-0.13.1-py3-none-any.whl",
+        "sha256": "f4a56573ab344d4ef0b706d52b3750c754e6cd5ae2a8e1605e69cfaf9bcf30a1"
+      },
+      {
+        "path": "dist-v3/kairos_trader-0.13.1.tar.gz",
+        "sha256": "5e40584cac69dece1a3bcfa1bf72cca3a85d3a33cbd75a4fe58438e3b07a7a7f"
+      },
+      {
+        "path": "docs-freeze.log",
+        "sha256": "f81d6f98c8ebb9d8448aede415d668851475bb3c8be6f6a6a336bd1da5aca50f"
+      },
+      {
+        "path": "docs-outcome.log",
+        "sha256": "b662e99f5039c126cf04ab4b83ac33e3b35315f95f8be1d935395a1bd63b91e9"
+      },
+      {
+        "path": "docs-v2.log",
+        "sha256": "1ab950b6bb613fb3466b177f7c5b6e6538c0db22be3c64cd08e1e31b7b3a2ebf"
+      },
+      {
+        "path": "exclusions.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      {
+        "path": "focused-v2.log",
+        "sha256": "8cd65a6166a09387465fa3db5ebbb74b5ed3307f8223e5c1a5081ecfbe644e75"
+      },
+      {
+        "path": "focused-v3.log",
+        "sha256": "c28fed94ff337c0487a0ea929d859ff387e8486e0ffce540f3ea8dc93dd8f7a7"
+      },
+      {
+        "path": "format-final.log",
+        "sha256": "2fcba2071ad461b6c9a1655f5f7af639c36f5ea07efd65ca7e56a9a0fa53b912"
+      },
+      {
+        "path": "format-outcome.log",
+        "sha256": "2fcba2071ad461b6c9a1655f5f7af639c36f5ea07efd65ca7e56a9a0fa53b912"
+      },
+      {
+        "path": "format-v2.log",
+        "sha256": "2fcba2071ad461b6c9a1655f5f7af639c36f5ea07efd65ca7e56a9a0fa53b912"
+      },
+      {
+        "path": "freeze-commit.json",
+        "sha256": "9b498ab88482e5075ec5915c2a3b34cc73389ad672b2184b2b2b7f73f488c556"
+      },
+      {
+        "path": "freeze-message.txt",
+        "sha256": "9460ce98cd913de923fa8ae9512ad3fe2ab27f48ee4078348b43ba31d66e80f0"
+      },
+      {
+        "path": "freeze.json",
+        "sha256": "48b9b3250cb9173341adc10a32ae1c091128987d5d59a33d1f33c3be6a5967ee"
+      },
+      {
+        "path": "gitleaks-detail.log",
+        "sha256": "9f12324f28a70df86c6326a2d3a3866a25e66dbeea55b693a454c7ee80d25257"
+      },
+      {
+        "path": "gitleaks-findings.json",
+        "sha256": "f9235edfccda8cceef43e539264ae89ef56f8330b28f36ee944dea0a89a29a0e"
+      },
+      {
+        "path": "gitleaks-freeze-initial.log",
+        "sha256": "33fe6af7878940f5530c21409e986ddd38e76f0ba12b45d6906fd4bd92ce1692"
+      },
+      {
+        "path": "inference.log",
+        "sha256": "8460246271b9bfafd016f03cb043b703ac4539448c7dbeef2b394bea05eac5f8"
+      },
+      {
+        "path": "inputs/accepted-research-signals.py",
+        "sha256": "4f5d121f1c0a5aeb40ff83d5d39f05591f8f86dcd497e2d8f132c278ca950093"
+      },
+      {
+        "path": "inputs/kraken-xbtusdt-2024-feb-apr.zip",
+        "sha256": "380165e326961eeddd41dcedd4a6e623479fcd093ed43deaaaa74678e4c63d78"
+      },
+      {
+        "path": "inventory.json",
+        "sha256": "8450804e8ef8d75336e4786c3cd1e2d90c864a2051f3092d8cad68b116347b6a"
+      },
+      {
+        "path": "launch.json",
+        "sha256": "7b59cc3fd526eb49d4607c8ea9e9d0fc4912142a5ecc182ba9f7f5e1f10f766b"
+      },
+      {
+        "path": "lint-final.log",
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      {
+        "path": "lint-outcome.log",
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      {
+        "path": "lint-v2.log",
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      {
+        "path": "offline-gate-v2.log",
+        "sha256": "a53116fae761d3b780990a3fe28d7aa4078ea065f1ce589ea653f3e25126fb72"
+      },
+      {
+        "path": "pilot-review.md",
+        "sha256": "1ea0a68724e77e9199b7159a77632610dfa99f45b5298cf622810f442bdae435"
+      },
+      {
+        "path": "preparation.json",
+        "sha256": "6e35a936a3bfdece438a13c83a9c0087922501689edfd8ba4e5c2bfc527b18f7"
+      },
+      {
+        "path": "preparation.log",
+        "sha256": "6e35a936a3bfdece438a13c83a9c0087922501689edfd8ba4e5c2bfc527b18f7"
+      },
+      {
+        "path": "prepare-cli.log",
+        "sha256": "1797130b4526bc7f4e549cc97ebc58cc75938e15e139d76d3203e5fc88e9bf9c"
+      },
+      {
+        "path": "prepare.py",
+        "sha256": "36c9e6060e6c6ee257b4c40a280fdb7cc7ad1a9a2dd01bd1f5ff28e98bf7e221"
+      },
+      {
+        "path": "prepared/declaration.json",
+        "sha256": "5b8a63b1e0bd24c892d15e156e6042f149d883fde40f22812c9392ca114420e5"
+      },
+      {
+        "path": "prepared/summary.json",
+        "sha256": "3a9dead253a6716f2f684981fd928aca8f6d3151107b31fb541f02aa438f875a"
+      },
+      {
+        "path": "prepared-v2/declaration.json",
+        "sha256": "80956573b6581702c0d4f7dde33fb595826a714fdd5c16aefe97503b3fdef072"
+      },
+      {
+        "path": "prepared-v2/summary.json",
+        "sha256": "3a9dead253a6716f2f684981fd928aca8f6d3151107b31fb541f02aa438f875a"
+      },
+      {
+        "path": "prepared-v2.log",
+        "sha256": "1797130b4526bc7f4e549cc97ebc58cc75938e15e139d76d3203e5fc88e9bf9c"
+      },
+      {
+        "path": "receipt-check.log",
+        "sha256": "d89ccc48b834111da565ede3e0cfa297010427256e73bc892221ea8202279b42"
+      },
+      {
+        "path": "repair-message.txt",
+        "sha256": "680e651f2ab03ffe0a9463d7cc220ba0e891323dde47ee04288e3853359c37a4"
+      },
+      {
+        "path": "rerun-freeze-commit.json",
+        "sha256": "89e71c6995e6656373414f27d694d6f94b74dc0b1ccdf5210c0ff9c4580cb3fe"
+      },
+      {
+        "path": "rerun-freeze.json",
+        "sha256": "6caef1614d38b1db3700fdcc5e6cbbd0f314cc90a906bbfb59b73489539e3d9d"
+      },
+      {
+        "path": "rerun-inference.log",
+        "sha256": "c7c184dada7f10f94fd21d615cd16bed15b7a90d9e395e2ffc45c459eb7e96b4"
+      },
+      {
+        "path": "rerun-launch.json",
+        "sha256": "b4fd1ff4d3c76c517e47d72d33120ea8494a6c84beec5429bcf82c09f7ba375f"
+      },
+      {
+        "path": "snapshots.json",
+        "sha256": "d190d8c664acadaa9d62ac0dd7872b57b42ffe596502a72ea7d002bab7289878"
+      },
+      {
+        "path": "source-first-freeze.tar.gz",
+        "sha256": "1c865550428a85c0116193d2c3cf018a422fd93c7a1f8166a828e77c58443c49"
+      },
+      {
+        "path": "source-rerun-freeze.tar.gz",
+        "sha256": "83347f74ef7c344c1b6b21debc474ac679b0d6bdb93a41a5e1fc6e74dd420df2"
+      },
+      {
+        "path": "verification.json",
+        "sha256": "1eeeff981a5c37fda34b421bf2c139483de3896b309c6fe0b030e04cbaafa3b1"
+      },
+      {
+        "path": "verify_and_report.py",
+        "sha256": "a99a88918c62af02ad270d9d22dd081bf95cc5f0eed6230e3260d2eed7467ffd"
+      }
+    ]
+  }
+}

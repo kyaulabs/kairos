@@ -35,4 +35,39 @@ That call took 30.081024 seconds and returned 8,067 input tokens, no cached inpu
 
 The 15 unused slots from that stopped allowance are closed. The user separately approved fixing the protocol and rerunning the full 16-case batch once. The [rerun declaration](ai-assessment-rerun-declaration.json) preserves the same inputs/order and records the repeated first candidate. Contract v2 accepts only a verbatim native input echo, still rejects tools/altered or duplicate echoes, and constrains each evidence item to one canonical scalar pointer. Both fixes have offline regression tests, including the real saved turn. The corrected batch has a fresh cap of 16 including failures and still stops on its first failure, without automatic retries.
 
-The corrected batch is frozen but has not started. Neither attempt changes trades or establishes financial benefit.
+The corrected batch completed **16/16 structurally valid assessments**. Two recommended continued monitoring (`vwap-pullback:5` and `fib-ema:15`); 14 abstained. Across 48 checks there were 24 support, 24 oppose and no unknown verdicts. These are recommendations about armed candidates, not executed trades or demonstrated improvements.
+
+| Case | Recommendation | Seconds | Input / output tokens |
+| --- | --- | ---: | ---: |
+| `fib-confluence:5` | abstain | 37.434 | 8,103 / 1,605 |
+| `fib-ema:5` | abstain | 31.698 | 8,102 / 1,188 |
+| `fib-extension:5` | abstain | 41.045 | 8,112 / 1,779 |
+| `fib-sweep:5` | abstain | 23.901 | 8,091 / 1,038 |
+| `vwap-anchored:5` | abstain | 34.258 | 8,075 / 1,490 |
+| `vwap-pullback:5` | permit | 24.394 | 8,034 / 1,061 |
+| `vwap-reclaim:5` | abstain | 41.530 | 8,019 / 1,674 |
+| `vwap-reversion:5` | abstain | 16.070 | 8,025 / 690 |
+| `fib-confluence:15` | abstain | 24.088 | 8,112 / 1,161 |
+| `fib-ema:15` | permit | 32.158 | 8,118 / 1,025 |
+| `fib-extension:15` | abstain | 30.717 | 8,102 / 1,155 |
+| `fib-sweep:15` | abstain | 32.895 | 8,125 / 1,334 |
+| `vwap-anchored:15` | abstain | 51.224 | 8,103 / 2,117 |
+| `vwap-pullback:15` | abstain | 38.786 | 8,045 / 1,666 |
+| `vwap-reclaim:15` | abstain | 45.945 | 8,054 / 1,845 |
+| `vwap-reversion:15` | abstain | 17.110 | 8,026 / 773 |
+
+The rerun used 129,246 input tokens and 21,601 output tokens, including a 16,167-token reasoning subset, with no reported cached input. Total was 150,847 tokens. Median request-to-receipt latency was 32.526 seconds; nearest-rank p95 and maximum were 51.224 seconds. These are sequential request measurements, not live queue or opportunity-validity tests. Final response receipt was **2026-10-15 01:32:41.507840 UTC**.
+
+Including the failed call, this pilot used 17 invocations and 160,151 reported tokens. Together with the prior 62 invocations, cumulative research usage is 79 invocations. The rerun allowance is exhausted and the earlier 15 unused slots remain closed. Do not reuse them for further calls. Different tasks, inputs and provider contexts prevent a controlled token/latency comparison with the older generic annotations.
+
+## Grounding findings
+
+Both anchored-VWAP context critiques falsely said the anchor low was immediately undercut. The model matched an anchor **candle-open timestamp** to a bar's **close timestamp**, selecting the preceding candle. In both cases the actual anchor low was 41,910.6 and the minimum later supplied low was 41,939.1, so the alleged undercut did not occur. This exposes ambiguous input-clock labeling as well as a model interpretation error. Valid references alone did not catch it.
+
+One anchored 5m explanation also ended mid-sentence at the 240-character limit. Historical VWAP/AVWAP series were absent; some critiques acknowledged that limitation while comparing earlier prices with the current supplied reference. Those comparisons do not prove past indicator crossings. No unknown verdicts, despite admitted information gaps, is not evidence of calibrated certainty.
+
+The [outcome receipt](ai-assessment-pilot-outcome.json) records both attempts, usage, cases, source hashes and audit findings. Full requests, raw SDK turns and a readable evidence-by-evidence review are preserved privately. Nothing is repaired post hoc or counted as financial assistance. Before any further pilot, make candle-open, candle-close and pivot-known-at semantics explicit, expose unambiguous anchor identity/price, and leave room for complete short explanations. No additional inference is authorized by this recommendation.
+
+The offline follow-up, contract v3, now states the exact open-to-close timestamp mapping and distinguishes pivot discovery time. It also asks for one complete sentence below 200 characters within the existing 240-character hard bound. These instructions have not been tested against another model response, and no new fields or retrospective answer repairs were added. A future pilot must freeze that version and obtain a fresh budget.
+
+Protocol reliability improved; semantic reliability and economic value remain unproven. Neither attempt changes trades, risk controls, deployments or the archived financial results.
