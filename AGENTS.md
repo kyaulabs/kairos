@@ -100,8 +100,17 @@ Explicit user instructions for this task override the defaults below.
 - Prioritize consistent trading activity before profitability tuning.
   Distinguish signal frequency, entry attempts, and fills; audit simulation
   assumptions before loosening strategy filters. Preserve risk safeguards.
-- Reuse the shared KAIROS-branded HTML reports and paired JSON for all new
-  historical tests, including activity diagnostics.
+- Keep the local offline report bundle in repository-root `reports/` (Git-ignored),
+  with `reports/index.html` as its entry point. Keep linked assets/data together.
+- After every research/backtest/AI test run, append its HTML/JSON results and
+  update the dated navigation before declaring the work done. Include failed,
+  aborted and repeated attempts; never replace an earlier result. Record unit/CI
+  verification with its related run, not as an independent research experiment.
+- Reuse the KAIROS-branded report generator and checks in `reports/_tools/`.
+  Preserve original audit HTML/JSON bytes, causal limitations and actual UTC
+  run/response times; regenerate derived pages, not historical evidence.
+  Synchronize updated reports to the isolated Apollo archive without running
+  another model call or financial test just to refresh presentation.
 - Apollo research workspace: `/srv/kairos-research/kyau-vwap-fib`; do not
   assume its home volume has free space.
 - Verify the change and its impact. Complete required project checks.
