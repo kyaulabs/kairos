@@ -339,6 +339,7 @@ async def simulate(
     risk_percent=1,
     economic_policy="diagnostic",
     entry_execution="ioc",
+    entry_gate=None,
 ):
     if economic_policy not in ECONOMIC_POLICIES:
         raise SafetyError("Unknown research entry-economic policy")
@@ -787,6 +788,13 @@ async def simulate(
                             entry_fee_bps=buy_fee_bps,
                         ),
                     )
+                    gate = (
+                        entry_gate.evaluate(setup, market.now, settings["candle_minutes"])
+                        if entry_gate is not None
+                        else None
+                    )
+                    if gate is not None:
+                        record["entry_gate"] = gate
                     if not engine.running or engine.entries_halted:
                         record["outcome"] = "blocked_loss_halt"
                         reasons["Signal blocked: latched loss halt"] += 1
@@ -807,6 +815,9 @@ async def simulate(
                         ):
                             record["outcome"] = "blocked_target_economics"
                             reasons["Signal blocked: nonpositive modeled target reward"] += 1
+                        elif gate is not None and not gate["allowed"]:
+                            record["outcome"] = "blocked_assessment_" + gate["reason"]
+                            reasons["Research entry filter: " + gate["reason"]] += 1
                         else:
                             await engine.valuation()
                             dust_quantity = engine.balance(pair.base)
