@@ -47,6 +47,8 @@ Retain this as a configuration comparison only. No model veto, production select
 
 ## Reproduction
 
+The command below records the historical CLI experiment at merge commit `e1b84e3`. It requires that archived source, not the current runner. The new [candidate assessment](ai-candidate-assessment.md) uses the official Python SDK and arming snapshots; it does not accept the old `--report` input or reproduce this model-context comparison.
+
 ```sh
 python -m kairos.research_shadow \
   --report /path/to/quarter-2024-feb-apr-attempt-004/2b-extension-acceptance.json \

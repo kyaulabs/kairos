@@ -1,5 +1,7 @@
 # OpenAI decision experiment
 
+The current [candidate critique and second-opinion contract](ai-candidate-assessment.md) uses OpenAI's official Python Codex SDK with ChatGPT subscription authentication. It replaces the generic CLI annotation runner. The Responses/Decisions API proposal below remains separate; it is not the transport used by these subscription-backed assessments. No new inference is authorized by either document.
+
 Proposed research only, reviewed 2026-10-13 after the paper collection was complete. The user is open to direct OpenAI integration if it helps the strategies. No client, dependency, credential, paid inference, trading permission or deployment is added by this plan. Resolve entry economics first, then test AI as a separate factor against the same deterministic strategy and executor.
 
 The [expanded review](expanded-literature-review.md) and [bibliography](literature-sources.json) cover the added evidence and its limits. F6/F7 compare Fibonacci features in neural models with random splits and idealized executions; they do not validate OpenAI APIs or justify CNN/LSTM dependencies. C5's directional reversal signal remains below its cost benchmark. B1/B2 require retaining every prompt/model/threshold trial and its selection history, rather than counting random seeds or convincing explanations as independent evidence.

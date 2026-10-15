@@ -5,6 +5,9 @@ description = "Experimental trading for Kraken and Alpaca hosted paper with a li
 requires-python = ">=3.12"
 dependencies = ["aiohttp>=3.12,<4", "python-dotenv>=1.1,<2"]
 
+[project.optional-dependencies]
+codex-research = ["openai-codex==0.162.1"]
+
 [project.scripts]
 kairos = "kairos.web:main"
 kairos-worker = "kairos.web:worker_main"

@@ -1,312 +1,270 @@
-"""Opt-in, quota-capped historical annotations through the official Codex OAuth client.
+"""Opt-in Codex Python SDK research assessments; never imported by an executor.
 
-Never called by an executor. Responses cannot authorize orders or change a replay.
+Default: prepare requests offline. Inference requires a separately authorized cap.
+The SDK manages its app-server and ChatGPT authentication; no manual codex exec.
 """
 
 import argparse
+import asyncio
 import hashlib
+import importlib
 import json
 import os
-import shutil
-import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kairos.domain import dec
+from kairos.research_assessment import (
+    BASE_INSTRUCTIONS,
+    SCHEMA,
+    VERSION,
+    digest,
+    encoded,
+    instructions,
+    validate_answer,
+    validate_snapshot,
+)
 
-SCHEMA = {
-    "type": "object",
-    "properties": {
-        "regime": {"type": "string", "enum": ["trend", "range", "unclear"]},
-        "quality": {"type": "string", "enum": ["weak", "mixed", "strong"]},
-        "reason": {"type": "string"},
-    },
-    "required": ["regime", "quality", "reason"],
-    "additionalProperties": False,
-}
-PROMPT = """Classify this historical BTC/USDT long-only candidate using only the supplied facts.
-Use no tools, files, web search, remembered prices or subsequent events. Candle-derived VWAP
-and sigma, fees, IOC costs and liquidity are approximations, not historical OKX evidence.
-Regime: trend, range or unclear. Setup quality after assumed costs: weak, mixed or strong.
-A positive target projection is not expectancy. Give a brief reason, not trading instructions.
-This is retrospective shadow annotation, never order permission or a backdated decision.
-"""
-
-
-def digest(data):
-    return hashlib.sha256(data).hexdigest()
-
-
-def payload(case, candidate):
-    """Explicit known-at whitelist: no fill/outcome, size, balance or exit evidence."""
-    fields = (
-        "armed_at",
-        "arm_clock",
-        "arming_facts",
-        "level_context",
-        "confirmed_at",
-        "confirmation_clock",
-        "confirmation_bars",
-        "confirmation_reference",
-        "confirmation_stop",
-        "confirmation_target",
-        "confirmation_stop_widening",
-        "next_open_at",
-        "next_open_mid",
-        "next_open_entry_bound",
-        "previous_minute_present",
-        "previous_minute_volume",
-    )
-    result = {"setup": case["policy"], "minutes": case["minutes"]}
-    result.update({k: candidate[k] for k in fields if k in candidate})
-    economics = candidate.get("entry_economics", {})
-    result["modeled_economics"] = {
-        k: economics[k]
-        for k in (
-            "net_target_reward_per_gross_unit",
-            "net_stop_loss_per_gross_unit",
-            "net_planned_R",
-            "cost_share_of_gross_target_room",
-        )
-        if k in economics
-    }
-    result["knowledge_time"] = candidate.get("next_open_at", candidate["confirmed_at"])
-    return result
-
-
-def samples(report):
-    """First confirmed candidate, then first on/after March 1; no outcome selection."""
-    selected = []
-    for case in sorted(
-        (c for c in report["cases"] if c.get("signal_version") == "v2"),
-        key=lambda c: (c["minutes"], c["policy"]),
-    ):
-        rows = sorted(
-            (
-                r
-                for r in case["diagnostics"]["candidates"]
-                if "confirmed_at" in r and not r.get("warmup_arm")
-            ),
-            key=lambda r: r["confirmed_at"],
-        )
-        used = set()
-        for boundary in (1706745600, 1709251200):
-            row = next(
-                (
-                    r
-                    for r in rows
-                    if r["confirmed_at"] >= boundary and r["candidate_id"] not in used
-                ),
-                None,
-            )
-            if row:
-                used.add(row["candidate_id"])
-                selected.append(
-                    {
-                        "candidate_id": row["candidate_id"],
-                        "case": f"{case['policy']}:{case['minutes']}",
-                        "input": payload(case, row),
-                    }
-                )
-    return selected
-
-
-def command(client, schema, output, *, model="gpt-6-luna", effort="low"):
-    args = [
-        client,
-        "exec",
-        "--ignore-user-config",
-        "--ephemeral",
-        "--skip-git-repo-check",
-        "--sandbox",
-        "read-only",
-        "--json",
-        "--color",
-        "never",
-        "--model",
-        model,
-        "--output-schema",
-        str(schema),
-        "--output-last-message",
-        str(output),
-        "-c",
-        'forced_login_method="chatgpt"',
-        "-c",
-        'model_provider="openai"',
-        "-c",
-        'approval_policy="never"',
-        "-c",
-        'web_search="disabled"',
-        "-c",
-        f"model_reasoning_effort={json.dumps(effort)}",
-        "-c",
-        "mcp_servers={}",
-    ]
-    for feature in (
-        "shell_tool",
-        "unified_exec",
-        "apps",
-        "plugins",
-        "multi_agent",
-        "browser_use",
-        "browser_use_external",
-        "computer_use",
-        "image_generation",
-        "code_mode_host",
-        "skill_search",
-        "skill_mcp_dependency_install",
-        "view_image",
-    ):
-        args.extend(("--disable", feature))
-    return args + ["-"]
+SDK_VERSION = "0.162.1"
+DISABLED_FEATURES = (
+    "shell_tool",
+    "unified_exec",
+    "apply_patch_freeform",
+    "apps",
+    "plugins",
+    "hooks",
+    "codex_hooks",
+    "plugin_hooks",
+    "multi_agent",
+    "browser_use",
+    "browser_use_external",
+    "computer_use",
+    "image_generation",
+    "code_mode",
+    "code_mode_host",
+    "js_repl",
+    "skill_search",
+    "skill_mcp_dependency_install",
+    "view_image",
+    "memory_tool",
+    "memories",
+    "search_tool",
+    "tool_search",
+)
 
 
 def environment():
-    # Only the official client accesses its existing credential store; no token copying.
-    return {
-        k: os.environ[k] for k in ("PATH", "HOME", "LANG", "XDG_RUNTIME_DIR") if k in os.environ
+    # SDK env overlays the process environment, so blank other inherited values.
+    allowed = {"PATH", "HOME", "LANG", "XDG_RUNTIME_DIR"}
+    return {k: v if k in allowed else "" for k, v in os.environ.items()}
+
+
+def sdk_config(sdk, work):
+    overrides = (
+        'forced_login_method="chatgpt"',
+        'model_provider="openai"',
+        'web_search="disabled"',
+        "mcp_servers={}",
+        "project_doc_max_bytes=0",
+        "features.skip_host_skill_discovery=true",
+        *(f"features.{name}=false" for name in DISABLED_FEATURES),
+    )
+    return sdk.CodexConfig(cwd=str(work), env=environment(), config_overrides=overrides)
+
+
+def load_sdk():
+    sdk = importlib.import_module("openai_codex")
+    if sdk.__version__ != SDK_VERSION:
+        raise ValueError(f"Install the pinned codex-research extra ({SDK_VERSION})")
+    return sdk
+
+
+def write_json(path, data):
+    path.write_bytes(encoded(data) + b"\n")
+    path.chmod(0o600)
+
+
+def validate_turn(result):
+    if getattr(result.status, "value", result.status) != "completed" or result.error:
+        raise ValueError("SDK turn failed/incomplete")
+    items = [item.model_dump(mode="json") for item in result.items]
+    if any(item.get("type") not in ("agentMessage", "reasoning") for item in items):
+        raise ValueError("Unexpected tool/action item; assessment batch stopped")
+    if not result.final_response:
+        raise ValueError("Missing/refused final response")
+    return items
+
+
+async def assess(
+    snapshots,
+    output_dir,
+    *,
+    model="gpt-6.1-sol",
+    effort="high",
+    max_invocations=1,
+    approve_subscription_usage=False,
+):
+    """Prepare offline by default; one SDK client, isolated thread per request."""
+    if not isinstance(snapshots, list) or not 1 <= len(snapshots) <= 32:
+        raise ValueError("Supply 1–32 predeclared arming snapshots")
+    if type(max_invocations) is not int or not 1 <= max_invocations <= 32:
+        raise ValueError("Invocation cap must be 1–32")
+    if len(snapshots) > max_invocations:
+        raise ValueError("Snapshot batch exceeds cap; do not silently select a subset")
+    if model not in ("gpt-6-luna", "gpt-6.1-sol") or effort not in ("low", "medium", "high"):
+        raise ValueError("Unsupported model/effort")
+    for s in snapshots:
+        validate_snapshot(s)
+    if len({(s["setup"], s["minutes"], s["candidate_id"]) for s in snapshots}) != len(snapshots):
+        raise ValueError("Duplicate candidates are not new observations")
+    snapshots = json.loads(encoded(snapshots))
+    output_dir = Path(output_dir)
+    output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
+    work = output_dir.resolve() / "empty-workspace"
+    work.mkdir(mode=0o700)
+    requests = [{"input_sha256": digest(s), "snapshot": s} for s in snapshots]
+    source = await asyncio.to_thread(Path(__file__).read_bytes)
+    contract = await asyncio.to_thread(
+        Path(__file__).with_name("research_assessment.py").read_bytes
+    )
+    declaration = {
+        "declared_at": datetime.now(UTC).isoformat(),
+        "contract": VERSION,
+        "transport": "official openai-codex Python SDK / managed app-server JSON-RPC",
+        "sdk_version": SDK_VERSION,
+        "authentication": "ChatGPT subscription only",
+        "model_alias": model,
+        "reasoning_effort": effort,
+        "max_invocations": max_invocations,
+        "inference_approved": approve_subscription_usage,
+        "requests": requests,
+        "base_instructions": BASE_INSTRUCTIONS,
+        "developer_instructions": [instructions(s) for s in snapshots],
+        "schema": SCHEMA,
+        "source_sha256": hashlib.sha256(source).hexdigest(),
+        "contract_source_sha256": hashlib.sha256(contract).hexdigest(),
+        "financial_effect": "none; permit is not order permission",
     }
-
-
-def validate_answer(answer):
-    if not isinstance(answer, dict) or set(answer) != set(SCHEMA["required"]):
-        raise ValueError("Unexpected shadow response schema")
-    for field in ("regime", "quality"):
-        if answer[field] not in SCHEMA["properties"][field]["enum"]:
-            raise ValueError("Unexpected shadow response category")
-    if not isinstance(answer["reason"], str) or not 1 <= len(answer["reason"]) <= 1000:
-        raise ValueError("Invalid shadow reason")
-    return answer
-
-
-def validate_events(events):
-    warnings = []
-    for event in events:
-        if event.get("type") in ("turn.failed", "error"):
-            raise ValueError("Client reported failed/incomplete response")
-        item = event.get("item")
-        if item and item.get("type") == "error":
-            warnings.append(item.get("message", "Client item warning"))
-        elif item and item.get("type") not in ("agent_message", "reasoning"):
-            raise ValueError("Unexpected tool event; shadow batch stopped")
-    if not any(e.get("type") == "turn.completed" for e in events):
-        raise ValueError("No completed model turn")
-    return warnings
+    write_json(output_dir / "declaration.json", declaration)
+    if not approve_subscription_usage:
+        summary = {"status": "prepared_no_inference", "invocations": 0, "financial_effect": "none"}
+        write_json(output_dir / "summary.json", summary)
+        return summary
+    sdk = load_sdk()
+    results = []
+    # No login, token reading, retry helper, alternate provider or billing fallback.
+    async with asyncio.timeout(20):
+        client = sdk.AsyncCodex(sdk_config(sdk, work))
+        await client.__aenter__()
+    try:
+        async with asyncio.timeout(20):
+            account = (await client.account()).account
+        if account is None or account.root.type != "chatgpt":
+            raise ValueError("Existing ChatGPT sign-in required; API-key fallback prohibited")
+        for i, (s, request) in enumerate(zip(snapshots, requests, strict=True)):
+            result = {
+                "candidate_id": s["candidate_id"],
+                "input_sha256": digest(s),
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+            handle = None
+            try:
+                async with asyncio.timeout(120):
+                    thread = await client.thread_start(
+                        model=model,
+                        model_provider="openai",
+                        cwd=str(work),
+                        ephemeral=True,
+                        sandbox=sdk.Sandbox.read_only,
+                        approval_mode=sdk.ApprovalMode.deny_all,
+                        base_instructions=BASE_INSTRUCTIONS,
+                        developer_instructions=instructions(s),
+                    )
+                    handle = await thread.turn(
+                        encoded(request).decode(),
+                        effort=effort,
+                        output_schema=SCHEMA,
+                        sandbox=sdk.Sandbox.read_only,
+                        approval_mode=sdk.ApprovalMode.deny_all,
+                    )
+                    turn = await handle.run()
+                raw = {
+                    "id": turn.id,
+                    "status": getattr(turn.status, "value", turn.status),
+                    "final_response": turn.final_response,
+                    "items": [item.model_dump(mode="json") for item in turn.items],
+                    "usage": turn.usage.model_dump(mode="json") if turn.usage else None,
+                    "error": turn.error.model_dump(mode="json") if turn.error else None,
+                }
+                write_json(output_dir / f"{i:02d}-turn.json", raw)
+                validate_turn(turn)
+                result.update(
+                    status="complete",
+                    answer=validate_answer(json.loads(turn.final_response), s),
+                    usage=raw["usage"],
+                )
+            except (
+                ValueError,
+                OSError,
+                TimeoutError,
+                sdk.CodexError,
+                asyncio.CancelledError,
+            ) as exc:
+                if isinstance(exc, (TimeoutError, asyncio.CancelledError)) and handle is not None:
+                    try:
+                        async with asyncio.timeout(5):
+                            await handle.interrupt()
+                        result["interruption_requested"] = True
+                    except (TimeoutError, OSError, sdk.CodexError) as stop_error:
+                        result["interruption_error"] = str(stop_error)
+                result.update(status="failed", error=str(exc) or type(exc).__name__)
+                if isinstance(exc, asyncio.CancelledError):
+                    result["received_at"] = datetime.now(UTC).isoformat()
+                    write_json(output_dir / "results.json", [*results, result])
+                    raise
+            result["received_at"] = datetime.now(UTC).isoformat()
+            results.append(result)
+            write_json(output_dir / "results.json", results)
+            if result["status"] != "complete":
+                break
+    finally:
+        await client.close()
+    summary = {
+        "status": "complete"
+        if len(results) == len(snapshots) and all(r["status"] == "complete" for r in results)
+        else "stopped",
+        "invocations": len(results),
+        "completed": sum(r["status"] == "complete" for r in results),
+        "financial_effect": "none",
+        "interpretation": "Thesis critique and second opinion, not measured trading value",
+    }
+    write_json(output_dir / "summary.json", summary)
+    return summary
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--report", type=Path, required=True)
+    p.add_argument(
+        "--snapshots", type=Path, required=True, help="JSON list of arming-time snapshots"
+    )
     p.add_argument("--output-dir", type=Path, required=True)
-    p.add_argument("--max-invocations", type=int, default=32)
-    p.add_argument("--model", choices=("gpt-6-luna", "gpt-6.1-sol"), default="gpt-6-luna")
-    p.add_argument("--effort", choices=("low", "medium", "high"), default="low")
+    p.add_argument("--max-invocations", type=int, default=1)
+    p.add_argument("--model", choices=("gpt-6-luna", "gpt-6.1-sol"), default="gpt-6.1-sol")
+    p.add_argument("--effort", choices=("low", "medium", "high"), default="high")
     p.add_argument("--approve-subscription-usage", action="store_true")
     args = p.parse_args()
-    if not args.approve_subscription_usage:
-        p.error("Explicit subscription usage approval required; disabled by default")
-    if not 1 <= args.max_invocations <= 32:
-        p.error("Invocation cap must be between 1 and 32")
-    client = shutil.which("codex")
-    if not client:
-        p.error("Official Codex CLI required")
-    env = environment()
-    auth = subprocess.run([client, "login", "status"], env=env, capture_output=True, timeout=20)
-    if auth.returncode or "Logged in using ChatGPT" not in (auth.stdout + auth.stderr).decode():
-        p.error("ChatGPT login required; API-key fallback is prohibited")
-    args.output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
-    os.umask(0o077)
-    report_bytes = args.report.read_bytes()
-    report = json.loads(report_bytes)
-    assert report["status"] == "complete"
-    inputs = samples(report)[: args.max_invocations]
-    assert len(inputs) <= 32
-    schema = args.output_dir.resolve() / "schema.json"
-    schema.write_text(json.dumps(SCHEMA, indent=2) + "\n")
-    declaration = {
-        "declared_at": datetime.now(UTC).isoformat(),
-        "max_invocations": args.max_invocations,
-        "client_version": subprocess.check_output([client, "--version"], env=env).decode().strip(),
-        "model_alias": args.model,
-        "reasoning_effort": args.effort,
-        "authentication": "official Codex ChatGPT sign-in",
-        "report_sha256": digest(report_bytes),
-        "source_sha256": digest(Path(__file__).read_bytes()),
-        "prompt": PROMPT,
-        "schema": SCHEMA,
-        "samples": inputs,
-        "selection": "first confirmed candidate and first on/after March 1 per independent case; no outcome filter",
-        "limitations": "Retrospective, reused development prices and possible model pretraining contamination. No backdated decisions, trading effect, expectancy or alpha claim. Alias is not an immutable model snapshot.",
-    }
-    (args.output_dir / "declaration.json").write_text(json.dumps(declaration, indent=2) + "\n")
-    work = args.output_dir / "empty-workspace"
-    work.mkdir(mode=0o700)
-    results = []
-    for i, sample in enumerate(inputs):
-        output = args.output_dir.resolve() / f"{i:02d}-answer.json"
-        started = datetime.now(UTC).isoformat()
-        result = {
-            "candidate_id": sample["candidate_id"],
-            "case": sample["case"],
-            "started_at": started,
-        }
-        try:
-            run = subprocess.run(
-                command(client, schema, output, model=args.model, effort=args.effort),
-                cwd=work,
-                env=env,
-                input=PROMPT + json.dumps(sample["input"], sort_keys=True),
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            (args.output_dir / f"{i:02d}-events.jsonl").write_text(run.stdout)
-            (args.output_dir / f"{i:02d}-client.log").write_text(run.stderr)
-            if run.returncode:
-                raise ValueError(f"Codex exit {run.returncode}; no retry or fallback")
-            events = [json.loads(line) for line in run.stdout.splitlines() if line.strip()]
-            warnings = validate_events(events)
-            result.update(
-                client_warnings=warnings,
-                answer=validate_answer(json.loads(output.read_text())),
-                usage=[e.get("usage") for e in events if e.get("type") == "turn.completed"],
-                status="complete",
-            )
-            facts = sample["input"].get("arming_facts", {})
-            result["deterministic_regime"] = (
-                "trend" if facts.get("regime") in ("rising", "falling") else "range"
-            )
-            r = sample["input"]["modeled_economics"].get("net_planned_R")
-            result["deterministic_room_quality"] = (
-                "strong" if r is not None and dec(r) >= 1 else "weak"
-            )
-        except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
-            if isinstance(exc, subprocess.TimeoutExpired):
-                for suffix, data in (("events.jsonl", exc.stdout), ("client.log", exc.stderr)):
-                    if data is not None:
-                        text = data.decode(errors="replace") if isinstance(data, bytes) else data
-                        (args.output_dir / f"{i:02d}-{suffix}").write_text(text)
-            result.update(status="failed", error=str(exc))
-        result["received_at"] = datetime.now(UTC).isoformat()
-        results.append(result)
-        (args.output_dir / "results.json").write_text(json.dumps(results, indent=2) + "\n")
-        if result["status"] != "complete":
-            break
-    completed = [r for r in results if r["status"] == "complete"]
-    summary = {
-        "invocations": len(results),
-        "completed": len(completed),
-        "financial_effect": "none",
-        "regime_agreement": sum(
-            r["answer"]["regime"] == r["deterministic_regime"] for r in completed
-        ),
-        "room_quality_agreement": sum(
-            r["answer"]["quality"] == r["deterministic_room_quality"] for r in completed
-        ),
-        "interpretation": "Agreement is not accuracy; room R is not expected R. No model veto selected.",
-    }
-    (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    summary = asyncio.run(
+        assess(
+            json.loads(args.snapshots.read_text()),
+            args.output_dir,
+            model=args.model,
+            effort=args.effort,
+            max_invocations=args.max_invocations,
+            approve_subscription_usage=args.approve_subscription_usage,
+        )
+    )
     print(json.dumps(summary))
+    if summary["status"] == "stopped":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
