@@ -1,0 +1,121 @@
+{
+  "completed_at": "2026-10-16T22:20:23.469674+00:00",
+  "id": "native-book-feasibility-attempt-001",
+  "kind": "Public data feasibility/schema check; no financial outcome",
+  "archive_metadata": {
+    "instrument": "BTC-USDT",
+    "instType": "SPOT",
+    "selected_UTC_day": "2026-07-01",
+    "depth": 400,
+    "metadata_status": 200,
+    "API_code": "0",
+    "advertised_size_MB": "213.05",
+    "HTTP_content_range_total_bytes": 223399810,
+    "acquired_prefix_bytes": 1048576,
+    "prefix_HTTP_status": 206,
+    "full_archive_acquired": false,
+    "full_archive_integrity_verified": false,
+    "full_day_coverage_verified": false,
+    "US_equivalence_verified": false
+  },
+  "archive_schema": {
+    "complete_records": 29929,
+    "observed_span_seconds": 454.808,
+    "snapshots": 1,
+    "updates": 29928,
+    "shape": [
+      "action",
+      "asks",
+      "bids",
+      "instId",
+      "ts"
+    ],
+    "level_shape": [
+      "price",
+      "base_quantity",
+      "number_of_orders"
+    ],
+    "seqId_prevSeqId_present": false,
+    "sequence_continuity_certified": false,
+    "schema_and_non_crossed_reconstruction": "passed for the saved complete prefix records only"
+  },
+  "preserved_failures": [
+    {
+      "stage": "trade-file metadata lookup",
+      "HTTP_status": 429,
+      "API_code": "50011",
+      "message": "Too Many Requests",
+      "retry_calls": 0
+    },
+    {
+      "stage": "initial intentionally truncated tar-stream inspection",
+      "error": "unexpected end of data",
+      "offline_repair": "Parse the validated tar header and saved complete JSON lines without another network request. Original failed receipt retained."
+    }
+  ],
+  "US_public_probe": {
+    "endpoint": "wss://wsus.okx.com:8443/ws/v5/public",
+    "duration_seconds": 60.00166483497014,
+    "captured_messages": 402,
+    "captured_bytes": 219049,
+    "subscription_acknowledgements": 2,
+    "book_frames": 370,
+    "trade_messages": 30,
+    "native_book_sequence_fields_present": true,
+    "native_checksum_observed": 0,
+    "checksum_meaning": "Unavailable, not a successful integrity check",
+    "source_client_clock_calibrated": false,
+    "account_permissions_tested": false,
+    "order_writes": 0
+  },
+  "gate_result": "Historical archive format/access partially established; historical continuity/U.S. equivalence and trades remain unresolved. Target U.S. public forward feed access demonstrated. A bounded forward acquisition is the next step; financial replay remains blocked.",
+  "artifacts": {
+    "declaration.json": {
+      "sha256": "f1249ccc2e822fa8c9bd65d2459419455675f312acf4cfb2634254c9cef0204b"
+    },
+    "freeze.json": {
+      "sha256": "ed7d1f17305038dc87a0c763fbdffa60fd71ff5c5a97e409ff299a66b66a24fd"
+    },
+    "archive-probe.json": {
+      "sha256": "ebd4ccdaf09b9e0d8c1327dd06e48937c4f16f8d7e7d73e56caeb7adf2f39418"
+    },
+    "http/spot-instruments.body": {
+      "sha256": "4c0c150a5cb8417264e5028969fb66865f729677da535f09f9d871d5ee6620e9"
+    },
+    "http/book-download-metadata.body": {
+      "sha256": "fff5af51bafd8446497c7f214ca17266e06b286df8b1f82505d5e8bf8cc0cbad"
+    },
+    "http/trade-download-metadata.body": {
+      "sha256": "5dfd972e2913602c582e339204f4d0d182b29a36d88548f7b1a20d40b1fbaa87"
+    },
+    "book-sample/receipt.json": {
+      "sha256": "03bd0b7310f11bcf04aa62d5cc571dcd026166d8ab236af661b2e2a76c3e5a7b"
+    },
+    "book-sample/response.body": {
+      "sha256": "ad1640aac687f69fe338a4c02738c1cce838aa66fb4d4b2f3f933223f1810e8d"
+    },
+    "book-sample/inflated-prefix.tar": {
+      "sha256": "84a9031d9ceb443a541127da9ce38c0981467f10df1ceaa255817c9a4ee81bc3"
+    },
+    "prefix-inspection/result.json": {
+      "sha256": "39b14434c5f4e8ff59845c21655fa41b523443046483fc535934c5bfd7379dd9"
+    },
+    "prefix-inspection/complete-lines.jsonl": {
+      "sha256": "8bd234b280a858c5fcdcb3131cabacb40bd8a1941fb19f648c116f22ecfcba53"
+    },
+    "us-feed/receipt.json": {
+      "sha256": "64ab527ed65550969d9a1ee9530dcbba891ebad55469cccea3b988d65e41778c"
+    },
+    "us-feed/messages.jsonl": {
+      "sha256": "13c7fa70593402c8bd91f8cf9e08927795b42be91a69086060b0f03b4f1f341e"
+    }
+  },
+  "new_model_calls": 0,
+  "financial_replays": 0,
+  "private_API_calls": 0,
+  "order_writes": 0,
+  "active_inference_allowance": 0,
+  "cumulative_model_calls_unchanged": 840,
+  "production_changes": false,
+  "strategy_success_established": false
+}

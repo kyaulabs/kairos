@@ -1,0 +1,58 @@
+{
+  "declared_at": "2026-10-16T22:26:07.677841+00:00",
+  "id": "native-book-forward-pilot-attempt-001",
+  "kind": "Forward public market-data acquisition pilot; no financial simulation or strategy selection",
+  "authorization": "User requested continuation of the recommended native-book feasibility -> liquidation/protection -> cost-conditioned-entry sequence. No inference or order authorization.",
+  "start_gate": "Signed declaration, passing exact-head CI and8 offline native-protocol tests before the one-shot recorder starts.",
+  "start_selection": "First successful connection after the signed-freeze CI gate, not chosen using subsequent market returns. No alternate date or automatic restart.",
+  "endpoint": "wss://wsus.okx.com:8443/ws/v5/public",
+  "environment": "Existing KAIROS U.S. live public endpoint; no account login",
+  "instrument": "BTC-USDT",
+  "channels": [
+    "books",
+    "trades"
+  ],
+  "duration_seconds": 86400,
+  "maximum_serialized_capture_bytes": 512000000,
+  "maximum_native_frame_bytes": 2000000,
+  "chunk_seconds": 300,
+  "automatic_retries": 0,
+  "automatic_reconnects": 0,
+  "capture_code_sha256": "49b5cbf7762f56ab6fc1f279e3a05f50753757b324bb66b421f714d9270672dc",
+  "capture_tests_sha256": "964ebefa79a565a945aa4bccde1314e00870a29971f9ad3e30b4787ed3a0a4ec",
+  "existing_lockfile": {
+    "sha256": "345701f3107d3582b04159cf1c4b1e92f9a07f156078413dcc85a2673a725414"
+  },
+  "dependency_policy": "Existing locked aiohttp and Python standard library only. Recorder is private research tooling, not application/production code.",
+  "stop_conditions": [
+    "24 hours elapsed or512000000 serialized capture bytes, whichever is first; reaching the byte bound means incomplete-duration acquisition, not a full pilot.",
+    "Stop at first connection/protocol/identity/schema/sequence gap or reset, source timestamp regression, unexpected snapshot, storage or cleanup failure. Preserve saved native messages, including the failing message; do not reconnect or repair a stream.",
+    "No login, VIP/user endpoint, regional/provider fallback, account fees query, order endpoint or paid data."
+  ],
+  "data_quality_before_financial_work": [
+    "Both public channels acknowledged; initial full snapshot; continuous book prevSeqId/seqId chains for the recorded connection; full offline reconstruction and level/order validation.",
+    "Complete24-hour bound without early stop, gaps, unexplained timestamp regression or missing output chunks. Zero checksum is unavailable, not a successful CRC. Any nonzero checksum needs offline validation.",
+    "Raw source timestamps, client UTC receipts and monotonic receipts retained. No assumption that receipt-minus-source time is calibrated wire latency.",
+    "Public trades can aggregate executions and do not establish individual queue priority, historical order arrival/fill probability, account fees or historical instrument rules.",
+    "A full dataset is prerequisite evidence, not return validation. Freeze the execution-only short pilot separately before calculating its financial outcomes; all original studies remain unchanged."
+  ],
+  "unchanged_financial_constraints": {
+    "setups": "all8 retained",
+    "minutes": [
+      5,
+      15
+    ],
+    "capital_per_independent_case": "1000",
+    "planned_stop_risk": "<=1% of min(initial,equity), costs/dust reserved; not a guaranteed realized cap",
+    "daily_entry_loss_latch_USD": "12.50",
+    "deadline": "4 hours; no forced terminal liquidation",
+    "ownership": "Actual acquired base after received-currency fees only; no shorts, leverage, halt reset or fictional inventory",
+    "protection": "Existing bot-managed cash IOC only. Native/algo lifecycle investigation is specification-only; KAIROS write allowlist remains unchanged."
+  },
+  "active_inference_allowance": 0,
+  "cumulative_model_calls_unchanged": 840,
+  "private_API_calls": 0,
+  "order_writes": 0,
+  "financial_replays_authorized_by_this_declaration": 0,
+  "success_claim": "None; recording is not a strategy experiment or evidence of an economic edge."
+}
