@@ -589,7 +589,10 @@
     "active_inference_allowance": 0,
     "failed_response": "Malformed echoed input_sha256; original permit remains rejected and unchanged, with no retry.",
     "continuation": "Separately approved 7134-call continuation cancelled before starting on user decision to prioritize strategy diagnosis; zero additional calls.",
-    "financial_status": "Existing 1216-case partial-coverage replay continues; not complete quarter AI coverage."
+    "financial_status": "All1216 partial-coverage comparison cases completed 2026-10-16T04:44:38.952115+00:00; all64 archived controls reproduced again. Not complete quarter AI coverage.",
+    "financial_outcome": "ai-entry-filter-quarter-outcome.json",
+    "primary_improvement_rules_passed": false,
+    "base_maker_AI_conditional_reference_rank": "Below all16 conditional reference returns; no causal or p-value claim."
   },
   "quarter_strategy_diagnosis": {
     "methods": "quarter-strategy-diagnosis.md",
@@ -609,7 +612,16 @@
     "planned_fresh_controls": 64,
     "derived_cash_allocation_references": 64,
     "status_at_freeze": "Inputs validated; no financial results; signed declaration and exact-head CI required before execution.",
-    "retirement": "Replace only two of sixteen fixed accounts with cash; no capital reallocation, threshold sweep or activity-preserving edge claim."
+    "retirement": "Replace only two of sixteen fixed accounts with cash; no capital reallocation, threshold sweep or activity-preserving edge claim.",
+    "outcome": "anchored-retirement-outcome.json",
+    "completed_at": "2026-10-16T04:10:11.828796+00:00",
+    "actual_simulated_controls": 64,
+    "filled_episodes_reconciled": 387,
+    "predeclared_replication_passed": false,
+    "replication_failure": "All four base anchored cases lose, but each execution mode has only13 closed episodes versus required20. Do not relax the minimum or reset latches; retirement remains provisional.",
+    "base_IOC_mean_return_all_then_cash_reference_pct": ["-2.774285126430207595625", "-2.585673254876299631875"],
+    "base_maker_mean_return_all_then_cash_reference_pct": ["-2.94619384522132623200", "-2.80282404952351862100"],
+    "decision": "No validated trading improvement; remaining allocations still lose and pooled closed R worsens. Do not promote the lone small positive IOC case or spend more AI calls to rescue this result."
   },
-  "next_decision": "No further AI inference. Finish the existing partial comparison; preserve the 64-case/1487-episode ledger diagnosis. Run only the separately approved, signed and CI-gated native-OKX Q3 retirement check, reporting every setup and inactive/failed outcome. Do not rank fresh winners into production, lower costs, retime maker fills, substitute periods or reset latches. No deployment or exchange-write permission."
+  "next_decision": "No further AI inference or new experiment. Preserve the completed partial comparison, ledger diagnosis and negative native-OKX Q3 results. Keep anchored retirement provisional and current configurations out of promotion. Any new strategy hypothesis needs a separate declaration and new evidence; no threshold sweep, period substitution, cheaper fees, maker retiming, latch reset, deployment or exchange writes are authorized."
 }

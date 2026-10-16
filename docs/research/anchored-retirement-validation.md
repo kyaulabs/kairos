@@ -36,4 +36,34 @@ The first default-urllib request returned HTTP 403/code 1010. A clearly identifi
 
 Native OKX candles remove the cross-venue candle proxy for this check, but do not reconstruct historical books, queues, account fees or instrument rules. Execution still uses declared synthetic paths, spreads, participation and slippage. Because provider and period both differ from development, their effects are not isolated. Treat this as a fresh-period check under an explicitly changed candle source, not a pure period-only replication.
 
-Financial outcomes are pending at this freeze. The maintained `reports/index.html` contains completed and blocked evidence with original receipt times. No result authorizes deployment or proves that the remaining strategies have an edge.
+Native OKX acquisition completed at 2026-10-16 03:50:26 UTC with 100% observed coverage at every interval. All 564 raw response hashes and 168,577 converted rows, including warmup, passed validation. The input SHA-256 is `60f8e0f42998285edd864489e73791172eb5ac6b611a840dee604c4281a77d55`. These were readiness checks, not financial outcomes.
+
+## Results
+
+The signed freeze `215faea23a2b53f28562e64805105c646190822d` and exact-head push/PR CI 38848116994 / 38848124738 passed before simulation. All 64 controls completed at **2026-10-16 04:10:11 UTC**; the financial audit reconciled 387 filled episodes. The [outcome receipt](anchored-retirement-outcome.json) preserves every aggregate, primary check and artifact hash.
+
+| Path | All-eight mean account return | Anchored-retirement reference | Fills, all → retirement | Closed R, all → retirement |
+| --- | ---: | ---: | ---: | ---: |
+| IOC/base | −2.7743% | −2.5857% | 140 → 127 | −0.4430 → −0.4536 |
+| IOC/adverse | −1.8354% | −1.6608% | 61 → 55 | −0.5566 → −0.5646 |
+| Maker/base | −2.9462% | −2.8028% | 186 → 173 | −0.4577 → −0.4725 |
+| Maker/adverse | 0% | 0% | 0 → 0 | undefined → undefined |
+
+The cash reference keeps all sixteen independent accounts in the denominator. Its two cash accounts are zero-fill accounts, recorded separately from the retained strategies' zero-fill list. No simulated results were rewritten to construct the reference.
+
+All four base anchored cases lost and had negative closed R:
+
+| Anchored case | Marked return | Closed R | Closed episodes |
+| --- | ---: | ---: | ---: |
+| IOC 5m | −1.2260% | −0.2231 | 10 |
+| IOC 15m | −1.7918% | −0.7286 | 3 |
+| Maker 5m | −0.7112% | −0.1226 | 10 |
+| Maker 15m | −1.5827% | −0.7195 | 3 |
+
+**The predeclared retirement replication check did not pass.** Each execution mode has only thirteen closed anchored episodes, below the frozen minimum twenty. Do not lower that minimum, extend the period, or reset latches to manufacture more trades. The loss direction repeated, but retirement remains provisional rather than a validated fix.
+
+The wider family also remains unsupported. Fifteen of sixteen IOC/base cases and all sixteen maker/base cases are negative. Fourteen IOC/base and fifteen maker/base accounts latch their entry-loss halt. There are seven and six realized risk-budget breaches, respectively, despite passing all planned-risk reservation checks. Planned 1% risk is not a guaranteed realized-loss cap; protection and loss latches were not weakened or reset.
+
+Retirement reduces marked losses by holding two accounts in cash, but remaining returns are negative and pooled closed R worsens. There is no activity-preserving improvement or validated profitable replacement. Do not promote the lone positive IOC case, which has only four fills, or resume AI spending to rescue this result. Keep the current configurations out of promotion; a different strategy hypothesis requires its own declaration and new evidence.
+
+The maintained `reports/index.html` contains every completed and blocked result with original receipt times. No production strategy, exchange state or deployment changed. Browser/canvas visual review remains unverified.
