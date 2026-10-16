@@ -1,0 +1,277 @@
+{
+  "version": "anchored-retirement-outcome-v1",
+  "completed_at": "2026-10-16T04:10:11.828796+00:00",
+  "verified_at": "2026-10-16T04:10:18.887796+00:00",
+  "methods": "anchored-retirement-validation.md",
+  "declaration": "anchored-retirement-declaration.json",
+  "freeze_commit": "215faea23a2b53f28562e64805105c646190822d",
+  "pre_execution_CI": [
+    38848116994,
+    38848124738
+  ],
+  "window": "2026-07-01 through exclusive 2026-10-01 UTC; calendar-selected before new strategy outcomes",
+  "native_OKX_coverage_percent": {
+    "1m": 100,
+    "5m": 100,
+    "15m": 100
+  },
+  "simulated_controls": 64,
+  "derived_cash_allocation_accounts": 64,
+  "filled_episodes_reconciled": 387,
+  "primary": {
+    "ioc-base": {
+      "replicated": false,
+      "closed_anchored_episodes": 13,
+      "anchored_cases": [
+        {
+          "minutes": 5,
+          "return_pct": "-1.2259738487629005200",
+          "closed_R": "-0.2231078605990808632892500489",
+          "fills": 10
+        },
+        {
+          "minutes": 15,
+          "return_pct": "-1.791816096099626900",
+          "closed_R": "-0.7286251588700288523020505533",
+          "fills": 3
+        }
+      ]
+    },
+    "maker-base": {
+      "replicated": false,
+      "closed_anchored_episodes": 13,
+      "anchored_cases": [
+        {
+          "minutes": 5,
+          "return_pct": "-0.7112482585849407200",
+          "closed_R": "-0.1226274406460038136284827074",
+          "fills": 10
+        },
+        {
+          "minutes": 15,
+          "return_pct": "-1.58266847257998105600",
+          "closed_R": "-0.7194667735802877440938632273",
+          "fills": 3
+        }
+      ]
+    }
+  },
+  "predeclared_directional_replication_passed": false,
+  "summary": [
+    {
+      "path": "ioc-base",
+      "baseline": {
+        "independent_cases": 16,
+        "signals": 4942,
+        "filled_entries": 140,
+        "positive_target_fills": 140,
+        "active_case_days": 96,
+        "closed_trades": 140,
+        "mean_closed_R": "-0.4430478686842250031931183869",
+        "mean_case_return_pct": "-2.774285126430207595625",
+        "budget_breaches": 7,
+        "halted_cases": 14,
+        "zero_fill_cases": []
+      },
+      "cash_retirement_reference": {
+        "mean_case_return_pct": "-2.585673254876299631875",
+        "mean_closed_R": "-0.4536200593164614587184088349",
+        "filled_entries": 127,
+        "active_case_days": 93,
+        "budget_breaches": 6,
+        "halted_cases": 12,
+        "cash_only_cases": 2
+      },
+      "zero_fill_accounts_including_cash": [
+        "vwap-anchored 5m (cash)",
+        "vwap-anchored 15m (cash)"
+      ],
+      "activity_preserving_improvement": false
+    },
+    {
+      "path": "ioc-stress",
+      "baseline": {
+        "independent_cases": 16,
+        "signals": 4942,
+        "filled_entries": 61,
+        "positive_target_fills": 61,
+        "active_case_days": 50,
+        "closed_trades": 61,
+        "mean_closed_R": "-0.5566058790707429668513789815",
+        "mean_case_return_pct": "-1.835428826566848396250",
+        "budget_breaches": 5,
+        "halted_cases": 8,
+        "zero_fill_cases": [
+          "fib-confluence 5m"
+        ]
+      },
+      "cash_retirement_reference": {
+        "mean_case_return_pct": "-1.6608068058122188709375",
+        "mean_closed_R": "-0.5646105227520745404982198311",
+        "filled_entries": 55,
+        "active_case_days": 47,
+        "budget_breaches": 4,
+        "halted_cases": 6,
+        "cash_only_cases": 2
+      },
+      "zero_fill_accounts_including_cash": [
+        "fib-confluence 5m",
+        "vwap-anchored 5m (cash)",
+        "vwap-anchored 15m (cash)"
+      ],
+      "activity_preserving_improvement": false
+    },
+    {
+      "path": "maker-base",
+      "baseline": {
+        "independent_cases": 16,
+        "signals": 4942,
+        "filled_entries": 186,
+        "positive_target_fills": 186,
+        "active_case_days": 128,
+        "closed_trades": 186,
+        "mean_closed_R": "-0.4577165943031060892482779865",
+        "mean_case_return_pct": "-2.94619384522132623200",
+        "budget_breaches": 6,
+        "halted_cases": 15,
+        "zero_fill_cases": []
+      },
+      "cash_retirement_reference": {
+        "mean_case_return_pct": "-2.80282404952351862100",
+        "mean_closed_R": "-0.4725468890935076949804236343",
+        "filled_entries": 173,
+        "active_case_days": 125,
+        "budget_breaches": 6,
+        "halted_cases": 13,
+        "cash_only_cases": 2
+      },
+      "zero_fill_accounts_including_cash": [
+        "vwap-anchored 5m (cash)",
+        "vwap-anchored 15m (cash)"
+      ],
+      "activity_preserving_improvement": false
+    },
+    {
+      "path": "maker-stress",
+      "baseline": {
+        "independent_cases": 16,
+        "signals": 4942,
+        "filled_entries": 0,
+        "positive_target_fills": 0,
+        "active_case_days": 0,
+        "closed_trades": 0,
+        "mean_closed_R": null,
+        "mean_case_return_pct": "0E-7",
+        "budget_breaches": 0,
+        "halted_cases": 0,
+        "zero_fill_cases": [
+          "fib-confluence 5m",
+          "fib-ema 5m",
+          "fib-extension 5m",
+          "fib-sweep 5m",
+          "vwap-anchored 5m",
+          "vwap-pullback 5m",
+          "vwap-reclaim 5m",
+          "vwap-reversion 5m",
+          "fib-confluence 15m",
+          "fib-ema 15m",
+          "fib-extension 15m",
+          "fib-sweep 15m",
+          "vwap-anchored 15m",
+          "vwap-pullback 15m",
+          "vwap-reclaim 15m",
+          "vwap-reversion 15m"
+        ]
+      },
+      "cash_retirement_reference": {
+        "mean_case_return_pct": "0E-7",
+        "mean_closed_R": null,
+        "filled_entries": 0,
+        "active_case_days": 0,
+        "budget_breaches": 0,
+        "halted_cases": 0,
+        "cash_only_cases": 2
+      },
+      "zero_fill_accounts_including_cash": [
+        "fib-confluence 5m",
+        "fib-ema 5m",
+        "fib-extension 5m",
+        "fib-sweep 5m",
+        "vwap-pullback 5m",
+        "vwap-reclaim 5m",
+        "vwap-reversion 5m",
+        "fib-confluence 15m",
+        "fib-ema 15m",
+        "fib-extension 15m",
+        "fib-sweep 15m",
+        "vwap-pullback 15m",
+        "vwap-reclaim 15m",
+        "vwap-reversion 15m",
+        "vwap-anchored 5m (cash)",
+        "vwap-anchored 15m (cash)"
+      ],
+      "activity_preserving_improvement": false
+    }
+  ],
+  "decision": "No validated strategy improvement. Anchored losses have the same sign, but both base executions have only 13 closed anchored episodes, below the frozen minimum20. Retirement remains provisional. Remaining cash-retirement allocations still lose; closed R worsens. Do not promote another setup by ranking this quarter. No further AI, parameter sweep, production change or deployment.",
+  "artifacts": {
+    "declaration.json": {
+      "sha256": "c547d457e47b7607c58aed287a38ad03168e72a80d9d0ee6ef03e2d1ee5030b0"
+    },
+    "ci-preflight.json": {
+      "sha256": "4bba5e88e1b9012a4b6f7e548a953005f28617d0acd1111b48e52b9dc3b6ed51"
+    },
+    "acquisition.json": {
+      "sha256": "d53fe6d38d63577cf11f127605751d81b635267763ed992730695898df1e0c2e"
+    },
+    "input-verification.json": {
+      "sha256": "2c6d316d05ec2f856a29e74756ff12ecc1ed4886ebe19bd8ad2800182d488e46"
+    },
+    "financial-verification.json": {
+      "sha256": "4c58250626c9213b0e25cf32940a477f74f5e50fec0226661706b1b7354f0748"
+    },
+    "financial/COMPLETE.json": {
+      "sha256": "d9dd3fde00a78644b6d81e921b9ac287f19f82ab6511ceb8feafc1419ff2eec7"
+    },
+    "run.py": {
+      "sha256": "8e303ee9efb8472a68b5af5181ff337dd56513303797ce8239bd5e03c77099ff"
+    },
+    "audit.py": {
+      "sha256": "d79ab336761c32de5e6d58f65326b80792bf418cc7e48dc6e3941f0651aa7793"
+    },
+    "financial/ioc-base.json": {
+      "sha256": "6c9f1c05d23b3e4b4ff9846ba4fd891d5996d4b9a4c1718a28d19f053802ce6f"
+    },
+    "financial/ioc-base.html": {
+      "sha256": "5abebbd5a94540bc0371197bf0ff9ffe05c03fb5cd9cf264989e782482987d3f"
+    },
+    "financial/ioc-stress.json": {
+      "sha256": "fa814d4ee22347e10a35032a7e1d2a8ffdef7184900185f317b9edaca5e38f51"
+    },
+    "financial/ioc-stress.html": {
+      "sha256": "6d17e5d98d0ed3030430d87460482bf284506d5fe3dc58fcebf15dbc89ff2994"
+    },
+    "financial/maker-base.json": {
+      "sha256": "543ce0a1aad86821209e6190f4cf5f47a7fd11792ba7e8a3649d92943f7db349"
+    },
+    "financial/maker-base.html": {
+      "sha256": "7ce6ebd28f8477b08281f10633821bf994863fd12dce37247e377bfaf4c6aeca"
+    },
+    "financial/maker-stress.json": {
+      "sha256": "a3a0664fb4f1c9a18dd3b88967cdd4f65bf1279ecea2cfd29b13a93573c0715c"
+    },
+    "financial/maker-stress.html": {
+      "sha256": "d39b8c9f26b781c35525d6e2feffdd50aaac32fbb0ee46b0dd04fb431b848a4a"
+    }
+  },
+  "limitations": [
+    "Descriptive predeclared check on one fresh quarter, not significance or independent market histories.",
+    "Provider and period differ from development; their effects are not isolated.",
+    "Cash replacement reduces activity, does not establish retained-strategy profitability and cannot pass the activity-preserving rule.",
+    "Synthetic execution and assumed fees are not historical venue fills."
+  ],
+  "new_model_calls": 0,
+  "cumulative_research_model_invocations": 840,
+  "active_inference_allowance": 0,
+  "exchange_writes": 0
+}
