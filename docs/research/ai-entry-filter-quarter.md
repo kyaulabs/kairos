@@ -1,6 +1,6 @@
 # AI entry-filter full-quarter comparison
 
-The user approved the February–April expansion and selected **reuse of all 179 pilot responses, with at most 7,716 new Sol/high calls including failures**. Earlier allowances remain exhausted or closed. This does not authorize retries, a different period, production orders, exchange writes or deployment.
+The February–April allocation stopped at its first protocol failure after **582 fresh calls: 581 accepted and one rejected malformed input hash**. Together with 179 reused pilot answers, 760/7,895 candidates are accepted. The 7,134 unattempted slots closed. A separately approved continuation never started; the user replaced it with [strategy diagnosis](quarter-strategy-diagnosis.md). Cumulative research usage is 840 calls, unresolved turns zero, and active inference allowance zero. No saved answer was repaired or retried.
 
 The [quarter declaration](ai-entry-filter-quarter-declaration.json) freezes the inputs, code, reuse provenance, batch plan and evaluation before new quarter inference or AI-filtered financial outcomes. The [two-day pilot](ai-entry-filter-pilot.md) remains unchanged and demonstrated no incremental AI value in its own window.
 
@@ -32,8 +32,12 @@ Report marked net returns, sold-share closed R, actual fills/days/exposure, fees
 
 ## Status and evidence
 
-At declaration time, **zero new model calls and zero new quarter financial replays** have run. Authorization and successful baseline reproduction are not AI results. The earlier two-day result does not establish the quarter outcome.
+The original declaration recorded zero new calls before execution; it remains historical. All 64 quarter controls reproduced before inference and all 31,580 snapshot/path bindings passed. Inference ended on October 15, 2026 at 23:54:54 UTC, with all 582 usage records known: 5,516,010 reported tokens, including the failed turn. Cached input and reasoning output are subsets, not additional tokens.
 
-Open repository-root `reports/index.html` for baseline/comparison reports and related test receipts. The quarter group links its offline operational status page at `reports/ai-entry-filter-quarter-attempt-001/progress.html`. That page reports saved fresh-call records separately from the 179 reused answers and possible unfinished work. Observation times are not model receipt times or research completion dates.
+The failed native transport completed but echoed a different `input_sha256` for `vwap-anchored:1707545400`. The application rejected it with `Assessment bound to a different candidate/snapshot`, regardless of its `permit` opinion. The original response remains unchanged. This protocol failure is not a financial-performance finding.
+
+The already-running 1,216-case financial comparison is a **partial-coverage** study. Failed and unattempted inputs fail closed in availability, AI and suppression. It is not complete quarter AI coverage, and lower activity cannot establish full-quarter opinion quality. Preserve its final or failed receipts without restarting inference. The earlier two-day result does not establish its outcome.
+
+Open repository-root `reports/index.html` for baseline/comparison reports and related test receipts. The quarter group links its offline operational status page at `reports/ai-entry-filter-quarter-attempt-001/progress.html`. That page reports saved fresh-call records separately from the 179 reused answers. The local page may say replay pending until Apollo's final evidence is retrieved; it is not a continuously synchronized remote counter. Observation times are not model receipt times or research completion dates.
 
 The existing navigation/chart checks remain structural/data checks. Real-browser canvas review is unverified. No permission to promote or deploy follows from finishing this development comparison.

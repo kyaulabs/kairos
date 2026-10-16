@@ -576,7 +576,40 @@
     "baseline_reproductions_before_new_inference": 64,
     "planned_comparison_simulations": 1216,
     "conditional_suppression_seeds": 16,
-    "outcome": "Not established by authorization. Preserve all original pilot results, native answers, timing, controls and inactive/failed cases. No production permission."
+    "outcome_at_authorization": "Not established by authorization. Preserve all original pilot results, native answers, timing, controls and inactive/failed cases. No production permission.",
+    "actual_inference_status": "stopped_at_first_failure",
+    "fresh_calls": 582,
+    "fresh_accepted": 581,
+    "fresh_failed": 1,
+    "accepted_including_reuse": 760,
+    "unattempted_slots_closed": 7134,
+    "unresolved_turns": 0,
+    "actual_fresh_reported_tokens": 5516010,
+    "cumulative_known_research_invocations": 840,
+    "active_inference_allowance": 0,
+    "failed_response": "Malformed echoed input_sha256; original permit remains rejected and unchanged, with no retry.",
+    "continuation": "Separately approved 7134-call continuation cancelled before starting on user decision to prioritize strategy diagnosis; zero additional calls.",
+    "financial_status": "Existing 1216-case partial-coverage replay continues; not complete quarter AI coverage."
   },
-  "next_decision": "Run only the separately approved fixed full-quarter extension: reuse every exactly matched pilot response and consume at most 7,716 new Sol/high calls, stopping at the first failure without automatic retries. Reproduce all 64 archived quarter controls first; then measure the fixed AI/availability/conditional-suppression matrix, preserving coverage gaps and all results. Earlier unused slots remain closed. No other period, model, threshold sweep, maker retiming, promotion or deployment is authorized. Historical venue fills/queues remain unavailable and this is not a holdout."
+  "quarter_strategy_diagnosis": {
+    "methods": "quarter-strategy-diagnosis.md",
+    "outcome": "quarter-strategy-diagnosis-outcome.json",
+    "saved_cases": 64,
+    "filled_episodes_reconciled": 1487,
+    "new_financial_simulations": 0,
+    "new_model_calls": 0,
+    "decision": "Propose retiring anchored VWAP at both intervals from research allocation, not production. Both base modes lose before attributed costs; a trend-filter rescue is unsupported. Remaining development allocation is still negative."
+  },
+  "anchored_retirement_validation": {
+    "methods": "anchored-retirement-validation.md",
+    "declaration": "anchored-retirement-declaration.json",
+    "window": "2026-07-01 through exclusive 2026-10-01, selected by calendar before new outcomes",
+    "blocked_Kraken_attempt": "68.1831 percent minute coverage and 98.7847 percent 5m coverage fail frozen 80/99 percent gates; zero strategy simulations; no period substitution.",
+    "separately_approved_OKX_source": "Public us.okx.com BTC-USDT history-candles, 100 percent observed coverage at 1m/5m/15m; raw responses and hashes retained. Provider and period effects are not isolated.",
+    "planned_fresh_controls": 64,
+    "derived_cash_allocation_references": 64,
+    "status_at_freeze": "Inputs validated; no financial results; signed declaration and exact-head CI required before execution.",
+    "retirement": "Replace only two of sixteen fixed accounts with cash; no capital reallocation, threshold sweep or activity-preserving edge claim."
+  },
+  "next_decision": "No further AI inference. Finish the existing partial comparison; preserve the 64-case/1487-episode ledger diagnosis. Run only the separately approved, signed and CI-gated native-OKX Q3 retirement check, reporting every setup and inactive/failed outcome. Do not rank fresh winners into production, lower costs, retime maker fills, substitute periods or reset latches. No deployment or exchange-write permission."
 }

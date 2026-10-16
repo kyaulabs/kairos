@@ -1,0 +1,92 @@
+{
+  "version": "quarter-ledger-diagnosis-v1",
+  "completed_at": "2026-10-16T03:24:18.495559+00:00",
+  "window": "2024-02-01 through exclusive 2024-05-01; inspected development data",
+  "kind": "Saved-ledger attribution, not a new backtest or causal cost-free policy",
+  "verification": {
+    "case_count": 64,
+    "episode_count": 1487,
+    "native_roles_and_fill_clocks": true,
+    "mid_cost_pnl_identity": true,
+    "sold_share_basis_and_native_cash_flows": true,
+    "native_base_ownership": true,
+    "closed_trade_pnl": true,
+    "marked_return_and_retained_pnl": true,
+    "tolerance_quote_currency": "1E-18",
+    "new_model_calls": 0,
+    "new_financial_simulations": 0
+  },
+  "summary": [
+    {
+      "path": "ioc-base",
+      "filled_entries": 698,
+      "net_sold_pnl": "-451.1177135973106326326326333",
+      "observed_mid_price_contribution": "-94.603789591",
+      "attributed_execution_and_fee_cost": "356.5139240063106326326326333",
+      "below_one_planned_R": 608
+    },
+    {
+      "path": "ioc-stress",
+      "filled_entries": 376,
+      "net_sold_pnl": "-321.1617095937430620620620620",
+      "observed_mid_price_contribution": "11.688509385",
+      "attributed_execution_and_fee_cost": "332.8502189787430620620620620",
+      "below_one_planned_R": 354
+    },
+    {
+      "path": "maker-base",
+      "filled_entries": 413,
+      "net_sold_pnl": "-224.6410079588452321857485987",
+      "observed_mid_price_contribution": "-19.009102173",
+      "attributed_execution_and_fee_cost": "205.6319057858452321857485987",
+      "below_one_planned_R": 303
+    },
+    {
+      "path": "maker-stress",
+      "filled_entries": 0,
+      "net_sold_pnl": "0",
+      "observed_mid_price_contribution": "0",
+      "attributed_execution_and_fee_cost": "0",
+      "below_one_planned_R": 0
+    }
+  ],
+  "source_reports": [
+    {
+      "path": "ai-entry-filter-quarter-attempt-001/baseline/ioc-base.json",
+      "sha256": "65651ea273e49e6e5770c6bafbac14de6fc832fab5eeca9d60aa992efff74774"
+    },
+    {
+      "path": "ai-entry-filter-quarter-attempt-001/baseline/ioc-stress.json",
+      "sha256": "2a62c352d7408efe6b4bb6cbdbc628945fd519d4f59939c721aa3b8a34c59bee"
+    },
+    {
+      "path": "ai-entry-filter-quarter-attempt-001/baseline/maker-base.json",
+      "sha256": "a543dba55afccff5bfcf3605e0659582cf89d0bfa5666596fd589e73c435192a"
+    },
+    {
+      "path": "ai-entry-filter-quarter-attempt-001/baseline/maker-stress.json",
+      "sha256": "17d4161d2b2cb5458b490d7b29093e0febc84e01d10102bc703502ca5b116d48"
+    }
+  ],
+  "artifacts": {
+    "diagnosis.json": {
+      "sha256": "666b422a30914f5b9d0d10f441e50b92b3a403f4981d1cbad36dd1c65fdba60e"
+    },
+    "analyze.py": {
+      "sha256": "91dc38dc2e9504e005b048be53cbb9ee76137864809db0babc3acec9625f4b2a"
+    },
+    "retirement-plan.json": {
+      "sha256": "d987e2473761100e10c711258ff417ed33d8dac30367b3f11d90ac105f692af1"
+    }
+  },
+  "selection": "Propose retiring anchored VWAP at both intervals; remaining development allocation is still unprofitable. Validate before treating the retirement evidence as replicated.",
+  "inference": "7134-call continuation cancelled before starting; 840 cumulative invocations, zero active allowance; original failed answer remains rejected.",
+  "limitations": [
+    "Same repeatedly inspected February-April 2024 development history, not independent observations or a holdout.",
+    "Observed-mid contribution uses actual fill-time mid for passive buys, next-open mid for IOC buys, and actual sell-observation mids. It includes selected fills, holding periods and protective exits; it is not isolated entry alpha.",
+    "Attribution holds actual sold shares, ownership and execution paths fixed. Removing costs would change fills, sizing, ownership and latches; this is not a tradable cost-free counterfactual.",
+    "Retained BTC is marked, not sold. Sold-share fee allocation is not the entire buy fee paid, and pooled account dollars are not a funded portfolio.",
+    "Synthetic candle paths and prior-minute participation do not establish historical OKX queues, fill probabilities, books, fees or instrument rules.",
+    "Subgroup results are descriptive development diagnostics, not significance tests or causal strategy improvements."
+  ]
+}
