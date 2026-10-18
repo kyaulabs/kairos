@@ -2,7 +2,7 @@
 
 The next step after the [negative strategy diagnosis](quarter-strategy-diagnosis.md) is to establish executable liquidity and protective ownership before changing signals. This is research only. All eight setups remain; no trading, deployment, model inference, fee reduction, halt reset or strategy financial replay is authorized by the data-acquisition declaration.
 
-The [feasibility outcome](native-book-feasibility-outcome.json) records the completed public-data checks. The [forward declaration](native-book-forward-declaration.json) freezes the next acquisition. Private responses, runners, native frames and generated HTML stay under the ignored repository-root `reports/`, with `reports/index.html` as the entry point.
+The [feasibility outcome](native-book-feasibility-outcome.json) records the completed public-data checks. The [original forward declaration](native-book-forward-declaration.json) froze the first acquisition, which stopped early. The later user-authorized [segmented declaration](native-book-segmented-declaration.json) adds a separate Apollo segment without changing the failed original run. Private responses, runners, native frames and generated HTML stay under the ignored repository-root `reports/`, with `reports/index.html` as the entry point.
 
 ## What the feasibility check established
 
@@ -26,7 +26,7 @@ The public catalog's U.S.-branded page does not prove that its historical matchi
 
 These limits rule out promoting this archive prefix into a financial execution benchmark. The U.S. probe does establish that the existing target endpoint can supply a bounded forward dataset without account authentication.
 
-## Frozen forward acquisition
+## Original continuous-capture declaration
 
 After the signed declaration and passing exact-head CI, start one 24-hour public recording of BTC-USDT `books` and `trades` on the existing live U.S. endpoint. Start at the first successful connection after that gate, not at a later time selected by market returns. There is no alternate period or automatic restart.
 
@@ -39,6 +39,24 @@ Stop at the first connection/protocol/schema/sequence/storage failure, reset, un
 Inline checks cover identity, schema and book sequence chains. Full offline reconstruction, native level checks, receipt-clock assessment, gzip/chunk integrity and coverage checks are still required before financial use. A zero checksum is not a passed CRC. A healthy recording is not a fill-probability estimate or evidence of a trading edge. Missing historical instrument rules, account fees, actual order arrival and own-order responses remain explicit uncertainties.
 
 The live `progress.json` is a derived observer record, not a completed outcome. Offline HTML and Apollo copies are snapshots and do not auto-refresh. On completion or failure, retain the start/final receipts and every closed raw chunk; append the outcome and related checks to the dated report navigation. Do not report the data pilot as an independent strategy trial.
+
+## User-authorized segmented continuation
+
+The first recorder stopped at `2026-10-17T02:59:48.438967+00:00` after its local host suspended. Its last saved book was received at `02:04:21.385014 UTC`. Preserve that failed attempt, its freeze, all 43 closed chunks and the missing interval. Do not resume its connection or turn its failed continuous 24-hour gate into a pass.
+
+The user then requested more collection to bring the preserved data to 24 hours in total. This creates a different, explicitly segmented dataset. A hash/CRC/protocol audit verified all 101,756 saved frames and 60,319,742 serialized bytes. The prior book source timestamps span **3h 31m 56.098s**. Connection startup, cleanup and host suspend do not contribute time. Full book reconstruction and market-data quality are not certified by this accounting audit.
+
+Freeze one new Apollo connection for the remaining **20h 28m 3.902s** of book source-time. Keep the original U.S. endpoint, spot instrument and public book/trade channels. The combined serialized-byte cap remains 512,000,000 bytes, leaving 451,680,258 for the new segment. The maximum runtime is 73,804 seconds, including 120 seconds of startup/headroom; timeout or byte-cap stops do not complete the time target.
+
+Start after signed-freeze exact-head CI and 16 offline protocol/coverage regressions on local and Apollo environments. Apollo is an existing always-on server; no system power policy is changed. An unprivileged sleep-inhibitor capability probe was denied. Preserve that result rather than escalating or claiming an inhibitor is held. The recorder instead checks Linux `CLOCK_BOOTTIME` against monotonic progress and stops if their difference exceeds one second.
+
+Within the new segment, stop if successive book source timestamps or receipt times are more than ten seconds apart, or total source-vs-receipt progress differs by more than five seconds. These are conservative collection guards, not calibrated wire latency or guarantees of executable quote freshness. Preserve native failing records and stop without reconnecting. No automatic retry or third segment is authorized by this declaration.
+
+Count from the new segment's own initial book snapshot. Once its accepted source span reaches the frozen remainder and both channels are acknowledged, keep the crossing native frame unchanged but cap credited time and the derived selection bound at the target. The combined manifest references two separate UTC windows, source files and host identities; it does not flatten or renumber the stream. Receipt monotonic clocks from different hosts are not comparable, and capture-location effects are not isolated.
+
+The unobserved gap contributes zero time and no liquidity. Future analysis must not bridge it with book sequences, rolling warmup, pending plans, financial labels, owned inventory or protection paths. Censor boundary-crossing horizons and retain actual UTC loss-latch semantics; do not invent a terminal liquidation or reset a latch to obtain more activity. Meeting the segmented time target is not passing the original continuous gate, a strategy validation or permission to run a financial comparison without its own frozen methods.
+
+Apollo's recorder updates saved HTML/JSON progress and the separate-segment manifest while running and when it stops. These pages do not auto-refresh in a browser; downloaded local/Apollo deliveries remain snapshots. The source-time counter is provisional until the full data-quality review. No model, account API, order or production action is introduced.
 
 ## Execution study after the data gate
 
