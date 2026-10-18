@@ -1,0 +1,84 @@
+{
+  "declared_at": "2026-10-18T20:22:31.927156+00:00",
+  "id": "native-book-segmented24h-final-attempt-001",
+  "new_capture_folder": "native-book-forward-pilot-attempt-003",
+  "kind": "Separately approved final1.5GB-bounded Apollo segment; three distinct credited windows, not one continuous day",
+  "authorization": "User selected New larger-cap freeze after the data-rate/cap warning: preserve attempt002 and freeze one new Apollo segment for the remainder with a1.5GB serialized-data cap. No active limit was changed.",
+  "previous_segment_declaration": "native-book-segmented-declaration.json",
+  "start_gate": "New signed freeze and passing exact-head push/PR CI;18 private offline protocol/coverage/operator-stop regressions on local and Apollo; no existing capture process.",
+  "capture_host": "apollo.kyaulabs",
+  "capture_root": "/srv/kairos-research/kyau-vwap-fib/reports/native-book-forward-pilot-attempt-003",
+  "endpoint": "wss://wsus.okx.com:8443/ws/v5/public",
+  "instrument": "BTC-USDT",
+  "channels": [
+    "books",
+    "trades"
+  ],
+  "prior_credited_source_span_ms": 13916097,
+  "remaining_source_span_ms": 72483903,
+  "combined_target_source_ms": 86400000,
+  "maximum_new_runtime_seconds": 72604,
+  "maximum_new_serialized_capture_bytes": 1500000000,
+  "cap_scope": "This new segment alone. The prior512MB combined bound was not altered in attempt002. The explicit later approval authorizes this different frozen bound, not an unbounded recorder.",
+  "maximum_native_frame_bytes": 2000000,
+  "chunk_seconds": 300,
+  "automatic_retries": 0,
+  "automatic_reconnects": 0,
+  "further_segments_automatically_authorized": 0,
+  "capture_code_sha256": "2ffc9d744e3fbf4387cae43b4f4c2991bfd2f879e20b96d98ce16c95ac7fb1d3",
+  "capture_tests_sha256": "769da69fc54c4f9165edff5e953b53e83906cd8e5aedcbf20ec99cdaa32e05f6",
+  "prior_segment_audit": {
+    "sha256": "91315cf9351647d29e3d6ac2990dda4e1b9e2a3d18422febba3124603c207b53"
+  },
+  "previous_original_audit": {
+    "sha256": "ba9d4c7661e813a85fbfca0f21cc46188db5807c1551a38990dcd40959d13031"
+  },
+  "previous_operator_stop": {
+    "sha256": "7fe26e39529bb218759df47b2c470cdd3f21115ea10e07bb9ebedd1762a4a544"
+  },
+  "previous_closed_prefix_audit": {
+    "sha256": "c90f16385d7a34bd1c0f2755a21819c94dbfd9e6029b488101703079e1ec83a0"
+  },
+  "original_continuous24h_gate_passed": false,
+  "presentation_helpers": [
+    {
+      "path": "_tools/native_execution_reports.py",
+      "sha256": "4bab8ff1f9245d9e351f35475aa98151b8875c9b32983e7faac069e7c21694c6"
+    },
+    {
+      "path": "_tools/segmented_native_reports.py",
+      "sha256": "56ab22c12caf1ef69290005e9669123c0b29487ba5f7cae9896af60ab7a53a49"
+    }
+  ],
+  "source_time_accounting": [
+    "Reuse the original verified43 chunks and exact12716098ms source span, with unchanged chunk/final-receipt hashes.",
+    "Attempt002 was operator-stopped at2026-10-18T20:16:03.384054+00:00 for the explicitly approved larger-cap freeze. Four closed gzip chunks contain14126 protocol-verified frames/13323831 serialized bytes and credit1199999ms between book timestamps. Its unsealed fifth file remains unchanged and uncredited.",
+    "Total prior credit is13916097ms; new accepted book source-time must contribute72483903ms. Never count startup, cleanup, suspend or gaps.",
+    "Start the new clock at its own snapshot. At the target keep the crossing native frame intact, but cap credited time and the derived end bound at the frozen remainder. Require both channel acknowledgements.",
+    "The combined manifest keeps three source windows, source files, sequences and capture-host identities. Gaps mean excluded/unobserved time: part of a gap can contain preserved unsealed data that is deliberately not credited.",
+    "Monotonic receipt clocks are host-specific; source-to-receipt offset and wire latency are not calibrated. No capture-location causal claim."
+  ],
+  "shutdown_correction": [
+    "Attempt002 inherited ignored SIGINT and installed no graceful SIGTERM handler. Preserve its real operator-stop proof; do not invent a recorder finished receipt or repair/append its original gzip.",
+    "The new frozen recorder registers SIGINT and SIGTERM to cancel its task, close/hash the active gzip and save final metadata. Two offline subprocess tests cover inherited-ignored SIGINT and SIGTERM plus valid gzip closure. SIGKILL/power loss cannot be promised graceful cleanup."
+  ],
+  "stop_conditions": [
+    "First protocol/identity/schema/sequence gap/reset, unexpected snapshot, storage/reporting/cleanup failure or source/receipt regression stops acquisition. Save a failing native message before protocol rejection. No reconnect/retry.",
+    "More than10 seconds between successive book source timestamps or monotonic receipts; more than5 seconds total source-vs-receipt progress drift; more than1 second BOOTTIME-vs-monotonic discontinuity: stop without crediting the interval. These are collection guards, not executable quote-age limits or calibrated latency.",
+    "Byte cap or maximum-runtime stop before the source target is incomplete. Preserve it; no fourth attempt starts automatically.",
+    "Operator stop uses the newly tested graceful cancellation path.",
+    "Anonymous public routes only; no credentials, account/VIP/user endpoint, paid data, regional/provider fallback, inference or order request. Stop on entitlement/payment/regional restrictions."
+  ],
+  "analysis_limits": [
+    "Original continuous24-hour gate remains failed. Aggregate24-hour source-time completion is provisional until full book reconstruction/checksum/coverage/clock review. Checksum0 is unavailable.",
+    "No cross-gap sequence splicing, feature warmup, pending plans, inventory, protection or financial labels. Censor boundary horizons; keep actual UTC loss-latch rules and never fabricate liquidation or reset a latch.",
+    "Public L2/trades do not certify own-order queue/fills, historical fee/rule equivalence or net profitability. No financial replay, fitting, strategy promotion or production permission is created.",
+    "All eight setups,5m/15m intervals, independent cash-account ownership/risk/protection constraints stay unchanged. A later financial study needs its own freeze.",
+    "Always-on Apollo environment only; denied sleep-inhibitor probe remains preserved. No sudo, permission escalation or system power-policy change. HTML/JSON are saved views, not browser auto-refresh."
+  ],
+  "active_inference_allowance": 0,
+  "cumulative_model_calls_unchanged": 840,
+  "financial_replays_authorized_by_this_declaration": 0,
+  "private_API_calls": 0,
+  "order_writes": 0
+}

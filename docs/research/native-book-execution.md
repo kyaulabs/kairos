@@ -2,7 +2,7 @@
 
 The next step after the [negative strategy diagnosis](quarter-strategy-diagnosis.md) is to establish executable liquidity and protective ownership before changing signals. This is research only. All eight setups remain; no trading, deployment, model inference, fee reduction, halt reset or strategy financial replay is authorized by the data-acquisition declaration.
 
-The [feasibility outcome](native-book-feasibility-outcome.json) records the completed public-data checks. The [original forward declaration](native-book-forward-declaration.json) froze the first acquisition, which stopped early. The later user-authorized [segmented declaration](native-book-segmented-declaration.json) adds a separate Apollo segment without changing the failed original run. Private responses, runners, native frames and generated HTML stay under the ignored repository-root `reports/`, with `reports/index.html` as the entry point.
+The [feasibility outcome](native-book-feasibility-outcome.json) records the completed public-data checks. The [original forward declaration](native-book-forward-declaration.json) froze the first acquisition, which stopped early. The user then authorized a [segmented continuation](native-book-segmented-declaration.json) and, after a rate/cap warning, a [larger-cap final segment](native-book-final-segment-declaration.json). Neither changes the failed original run. Private responses, runners, native frames and generated HTML stay under the ignored repository-root `reports/`, with `reports/index.html` as the entry point.
 
 ## What the feasibility check established
 
@@ -40,7 +40,7 @@ Inline checks cover identity, schema and book sequence chains. Full offline reco
 
 The live `progress.json` is a derived observer record, not a completed outcome. Offline HTML and Apollo copies are snapshots and do not auto-refresh. On completion or failure, retain the start/final receipts and every closed raw chunk; append the outcome and related checks to the dated report navigation. Do not report the data pilot as an independent strategy trial.
 
-## User-authorized segmented continuation
+## First segmented continuation
 
 The first recorder stopped at `2026-10-17T02:59:48.438967+00:00` after its local host suspended. Its last saved book was received at `02:04:21.385014 UTC`. Preserve that failed attempt, its freeze, all 43 closed chunks and the missing interval. Do not resume its connection or turn its failed continuous 24-hour gate into a pass.
 
@@ -57,6 +57,20 @@ Count from the new segment's own initial book snapshot. Once its accepted source
 The unobserved gap contributes zero time and no liquidity. Future analysis must not bridge it with book sequences, rolling warmup, pending plans, financial labels, owned inventory or protection paths. Censor boundary-crossing horizons and retain actual UTC loss-latch semantics; do not invent a terminal liquidation or reset a latch to obtain more activity. Meeting the segmented time target is not passing the original continuous gate, a strategy validation or permission to run a financial comparison without its own frozen methods.
 
 Apollo's recorder updates saved HTML/JSON progress and the separate-segment manifest while running and when it stops. These pages do not auto-refresh in a browser; downloaded local/Apollo deliveries remain snapshots. The source-time counter is provisional until the full data-quality review. No model, account API, order or production action is introduced.
+
+## Larger-cap final segment
+
+The new feed's observed data rate threatened to exhaust the frozen byte cap before the requested time target. The user explicitly selected a new larger-cap freeze. Stop attempt 002 without changing its active limit, preserve its files, then start one separately frozen Apollo segment with a **1,500,000,000-byte serialized cap** for that new segment alone. This is not an unbounded recorder or an automatic continuation after future failures.
+
+Attempt 002 was operator-stopped at `2026-10-18T20:16:03.384054+00:00`. Its four closed gzip chunks passed hash/CRC/protocol verification: **14,126 frames / 13,323,831 serialized bytes / 19m 59.999s of book source-time**. Together with the original attempt, credited time is **3h 51m 56.097s**. The final segment must contribute **20h 8m 3.903s**. Its maximum runtime is 72,604 seconds including 120 seconds of startup/headroom. A byte/runtime stop before that source-time target is still incomplete.
+
+Preserve the shutdown limitation rather than manufacturing a clean outcome. Attempt 002 inherited ignored `SIGINT` and had no `SIGTERM` cleanup handler. Its fifth gzip remains unchanged as an unsealed forensic file and contributes **zero credited time**. The actual operator-stop proof and an externally audited closed-prefix record are separate from the stale native progress file; no recorder `finished.json` is invented, and the original gzip is not repaired or appended.
+
+The final recorder corrects that concrete shutdown problem: register both signals to cancel the task, close/hash the active gzip and save final metadata. Two offline subprocess regressions verify inherited-ignored `SIGINT` and `SIGTERM` cancellation with valid gzip closure. These join the original 16 checks for **18 offline regressions** on local and Apollo environments. This does not promise graceful cleanup after `SIGKILL`, power loss or every storage failure.
+
+Require the new signed freeze and exact-head push/PR CI before startup. Keep the same anonymous U.S. endpoint, channels and first-failure/no-reconnect policy, including the previously frozen gap, clock and suspend guards. No fourth capture starts automatically. No account endpoint, paid data, inference, order or production permission is introduced.
+
+The manifest now retains **three distinct credited windows**. A gap means excluded or unobserved time: part of the second gap contains a preserved but uncredited unsealed tail. Do not mislabel that tail as eligible data or claim every part of that gap was unobserved. Keep the raw timestamps and the conservative credited end bound; source-time accounting cannot turn missing/excluded liquidity into an executable path. All earlier boundary, clock, reconstruction, loss-latch and financial-study restrictions remain in force.
 
 ## Execution study after the data gate
 
