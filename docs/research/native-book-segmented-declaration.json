@@ -1,0 +1,82 @@
+{
+  "declared_at": "2026-10-18T19:42:37.288221+00:00",
+  "id": "native-book-segmented24h-attempt-001",
+  "new_capture_folder": "native-book-forward-pilot-attempt-002",
+  "kind": "User-authorized second data segment; combined24 hours of book source-time, not an uninterrupted day",
+  "authorization": "User explicitly requested continuing collection and adding the preserved previous data to equal24 hours. Do not resume/overwrite the stopped connection or redefine its original continuous gate.",
+  "start_gate": "Signed declaration and passing exact-head push/PR CI;16 offline protocol/coverage regressions on local and Apollo environments; no existing capture process.",
+  "capture_host": "apollo.kyaulabs",
+  "capture_root": "/srv/kairos-research/kyau-vwap-fib/reports/native-book-forward-pilot-attempt-002",
+  "environment": "Existing always-on Apollo research workspace; native public U.S. endpoint only; no SDK/account client",
+  "endpoint": "wss://wsus.okx.com:8443/ws/v5/public",
+  "instrument": "BTC-USDT",
+  "channels": [
+    "books",
+    "trades"
+  ],
+  "prior_credited_source_span_ms": 12716098,
+  "remaining_source_span_ms": 73683902,
+  "combined_target_source_ms": 86400000,
+  "maximum_new_runtime_seconds": 73804,
+  "maximum_new_serialized_capture_bytes": 451680258,
+  "maximum_combined_serialized_capture_bytes": 512000000,
+  "maximum_native_frame_bytes": 2000000,
+  "chunk_seconds": 300,
+  "automatic_retries": 0,
+  "automatic_reconnects": 0,
+  "capture_code_sha256": "127b40a9551a02f59c0a5a667af78aa50e7751b3c997bbf7cd31539b98a36cdf",
+  "capture_tests_sha256": "f740b688ae2c765e5680f14877c7646ddadfeb56412217635f39c1e5bed9af4d",
+  "prior_segment_audit": {
+    "sha256": "ba9d4c7661e813a85fbfca0f21cc46188db5807c1551a38990dcd40959d13031"
+  },
+  "original_stopped_final_receipt": {
+    "sha256": "18faf82c3de6dcb1ea50fc0eb3789b9a94b0054b4a9371f0d3bb651f770e3513"
+  },
+  "original_declaration": {
+    "sha256": "2bbd4c077ee41a6153924b503b16f3da1f882207c803ff7d9501371ae3f5cdb6"
+  },
+  "original_continuous24h_gate_passed": false,
+  "presentation_helpers": [
+    {
+      "path": "_tools/native_execution_reports.py",
+      "sha256": "4bab8ff1f9245d9e351f35475aa98151b8875c9b32983e7faac069e7c21694c6"
+    },
+    {
+      "path": "_tools/segmented_native_reports.py",
+      "sha256": "d1b983cfb2539b85aa0ff2d6a549d1dce7cdd060eaf0c086ab9577400c7ae3c8"
+    }
+  ],
+  "environment_preflight": {
+    "Apollo_Python": "3.14.7",
+    "local_Python": "3.14.8",
+    "aiohttp_both": "3.14.3",
+    "Apollo_uptime_observed": "39 days",
+    "free_srv_observed_GiB": 73,
+    "sleep_inhibitor": "Unprivileged capability probe denied; no retry/sudo/policy change. Do not claim an inhibitor is held. Use always-on host and fail-closed suspend/clock guards."
+  },
+  "source_time_accounting": [
+    "Prior contribution is exactly12716098ms between its first and last protocol-verified book source timestamps. All43 gzip chunks/CRCs/hashes and101756 native frames checked, without certifying full reconstruction or trading quality.",
+    "Count the new segment from its own initial snapshot source timestamp to its last accepted book source timestamp. Startup, cleanup, host suspend and the gap between segments contribute zero.",
+    "Stop once the new observed source span reaches73683902ms and both channels are acknowledged. Retain the crossing native frame unchanged; cap credited time and the derived end bound at the frozen target, rather than claiming overshoot as additional credited time.",
+    "Do not renumber UTCs, splice sequence IDs or compare host-specific monotonic clocks across segments. The combined manifest retains two separate windows and the actual unobserved UTC gap."
+  ],
+  "stop_conditions": [
+    "First protocol/identity/schema/sequence gap or reset, unexpected snapshot, source or receipt regression, storage/reporting/cleanup failure: stop and preserve the failing native record; no reconnect.",
+    "Stop if successive book source timestamps or monotonic receipts are more than10 seconds apart. Stop if total source-vs-receipt progress differs by more than5 seconds. These are data-collection guards, not measured executable quote freshness or calibrated wire latency.",
+    "Stop if BOOTTIME progression differs from monotonic progression by more than1 second, detecting suspend/clock discontinuity without changing power settings.",
+    "Stop at the frozen byte cap or maximum runtime if the source-time target is not reached; such stops do not complete the segmented target.",
+    "No login, VIP/user endpoint, region/provider fallback, paid data, credentials, inference, account query or order request."
+  ],
+  "analysis_limits": [
+    "The original continuous24-hour run remains failed. A completed segmented time target is a different, explicitly requested dataset and not a passed continuous gate.",
+    "Full offline book reconstruction, checksum/coverage, receipt-clock and source/instrument/fee review remain required before financial use. Zero checksum is unavailable. Aggregated public trades and L2 do not establish own-order queue/fill probability.",
+    "No rolling feature warmup, pending plan, ownership, financial label or protection path may bridge the unobserved gap. Censor boundary-crossing horizons; preserve actual UTC loss-latch semantics and do not fabricate a terminal sale.",
+    "Capture host changes from aura to Apollo; latency/location effects are not isolated. Treat each host/segment separately.",
+    "No financial replay, model fitting, parameter sweep or strategy promotion in this declaration. All eight setups and existing cash/risk/ownership/protection safeguards stay unchanged."
+  ],
+  "active_inference_allowance": 0,
+  "cumulative_model_calls_unchanged": 840,
+  "financial_replays_authorized_by_this_declaration": 0,
+  "private_API_calls": 0,
+  "order_writes": 0
+}
