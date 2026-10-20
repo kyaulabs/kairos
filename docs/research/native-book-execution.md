@@ -72,6 +72,20 @@ Require the new signed freeze and exact-head push/PR CI before startup. Keep the
 
 The manifest now retains **three distinct credited windows**. A gap means excluded or unobserved time: part of the second gap contains a preserved but uncredited unsealed tail. Do not mislabel that tail as eligible data or claim every part of that gap was unobserved. Keep the raw timestamps and the conservative credited end bound; source-time accounting cannot turn missing/excluded liquidity into an executable path. All earlier boundary, clock, reconstruction, loss-latch and financial-study restrictions remain in force.
 
+## Monitored twelve-hour total
+
+Attempt 003 stopped at `2026-10-18T21:02:35.000209+00:00` with `Invalid book depth`. Its final incremental message had 453 ask changes, including 204 zero-quantity deletions; the standing book still had 400 asks after applying it. Reconstruction of all 18,082 saved book messages confirms the distinction. The original rejection, raw failing frame and earlier time credit remain unchanged.
+
+The user's latest instruction is **12 hours total**, including the three preserved windows, rather than a fresh continuous window. The [new monitored declaration](native-book-12h-monitor-declaration.json) retains **4h 25m 45.897s** and requires **7h 34m 14.103s** more. Gaps and the unsealed tail count zero. This cannot pass the earlier continuous 24-hour gate or establish a continuous 12-hour sample.
+
+The corrected recorder applies incremental insertions, replacements and zero-size deletions before checking live depth. Snapshots and reconstructed books remain bounded at 400 levels per side; delta lists are bounded by the native frame-size limit instead of an arbitrary larger row cap. Sequence, numeric, non-crossed-book, source/receipt and suspend guards remain fail-closed. Thirty-nine offline checks passed locally and on Apollo, including the saved failure, shutdown, retry and alert regressions.
+
+The new campaign allows at most three new attempts within one 48-hour bound, with 1,500,000,000 serialized bytes per attempt. Only explicit transport disconnects/timeouts permit a fresh connection after its closed prefix is audited. Access, validation, storage, clock, byte/runtime bounds and unknown faults stop and alert. Each attempt keeps separate files, snapshots, sequences and UTC windows; no fourth attempt or silent limit change is allowed.
+
+An Apollo watchdog checks its child every two seconds and persists failure events. The worker stops if its parent heartbeat disappears. A separately restartable local user service polls Apollo every 15 seconds and sends persistent critical desktop alerts for failures, stale monitor heartbeats or lost monitoring connections. A real simulated failure reached the desktop notification server, and a forced relay-process exit was followed by automatic restart. These are related engineering checks, not strategy trials or confirmed human receipt.
+
+The user declined phone notifications after an unconfirmed generic test. No phone service remains active. Desktop alerts cannot arrive while this computer sleeps or is logged out; queued failures appear on wake/login when the service is available. No between-turn chat push is promised. Saved HTML does not auto-refresh. The counter still requires full data-quality review, and checksum 0 remains unavailable. No inference, financial replay, account request, order or production change is authorized.
+
 ## Execution study after the data gate
 
 Freeze a short execution-only comparison after the data-quality review and before its financial outcomes. Apply the same native-data execution assumptions to both control and challenger. Do not compare a new optimistic executor with only the old synthetic adverse executor.
