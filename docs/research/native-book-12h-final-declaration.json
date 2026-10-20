@@ -1,0 +1,154 @@
+{
+  "declared_at": "2026-10-20T15:09:02.605007+00:00",
+  "id": "native-book-12h-final-attempt-001",
+  "kind": "User-authorized third and final attempt within the existing twelve-hour aggregate campaign",
+  "authorization": "After status confirmed the saved service-upgrade notice and validation stop, the user said continue. Audit the valid preceding prefix and use only existing attempt3/3; no automatic override of the failed old gate, renewed48h period or extra attempt.",
+  "capture_host": "apollo.kyaulabs",
+  "capture_root": "/srv/kairos-research/kyau-vwap-fib/reports/native-book-12h-final-attempt-001",
+  "endpoint": "wss://wsus.okx.com:8443/ws/v5/public",
+  "instrument": "BTC-USDT",
+  "channels": [
+    "books",
+    "trades"
+  ],
+  "goal_source_ms": 43200000,
+  "prior_eligible_source_ms": 36244998,
+  "initial_remaining_source_ms": 6955002,
+  "maximum_attempts": 3,
+  "maximum_campaign_seconds": 172800,
+  "campaign_deadline_resets_on_retry": false,
+  "maximum_serialized_capture_bytes_per_attempt": 1500000000,
+  "maximum_native_frame_bytes": 2000000,
+  "chunk_seconds": 300,
+  "maximum_attempt_runtime_rule": "ceil(remaining source milliseconds/1000)+120 seconds; source time, not startup/calendar time, completes the target.",
+  "private_code": [
+    {
+      "path": "capture.py",
+      "sha256": "212e8deec967d13b7ebdc9df8c6c940ca9519f91b8496e017bca31f29e67bd05"
+    },
+    {
+      "path": "protocol.py",
+      "sha256": "dfb80bfc8384f666652bdb7e3dd6f36386a590653563fcdf40457b42baeac381"
+    },
+    {
+      "path": "monitor.py",
+      "sha256": "c54d768572f277397c69a1e6729ab873bb32363836383d9b8059d1d1c58b82bc"
+    },
+    {
+      "path": "desktop.py",
+      "sha256": "35a0d37125d70d3370189a6da3708f3d05aab68795c206fc6659a12d54893182"
+    },
+    {
+      "path": "report.py",
+      "sha256": "2d5484f829b12fcf5056a6d089c49d6c7642ecec3262272f8c43b030bac2e9cd"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "2d9c212fad8085ee24ebf9ce74ac7c6cb4e7c6fbca65b0f341eb700a96c8943f"
+    },
+    {
+      "path": "test_capture.py",
+      "sha256": "769da69fc54c4f9165edff5e953b53e83906cd8e5aedcbf20ec99cdaa32e05f6"
+    },
+    {
+      "path": "test_monitor.py",
+      "sha256": "a42e3009d53f09d920c02cdf4e245c4cd1c437b45b06f82b1ff3859ba8163191"
+    },
+    {
+      "path": "audit_priors.py",
+      "sha256": "7750db916c35d13a4fb5a74ca2a307b18d405217d78ebbc14493c58b0e3a49c0"
+    },
+    {
+      "path": "desktop.service",
+      "sha256": "27863e9e85a5e70a987d5e5c3d7fdf4a5070ead56ef726c6da8aceb6be1959e5"
+    }
+  ],
+  "prior_segment_audit": {
+    "sha256": "445e261557c344ab73a3d48ef71fbf072d074dafb6a359b650b08b41d02b3f50"
+  },
+  "snapshot_delta_correction": [
+    "Official books documentation specifies400 levels in the initial snapshot and incremental changes every100ms. A change list is not the standing book.",
+    "The saved453-ask update includes204 zero-quantity deletions;18,082 saved book messages reconstruct to at most400 live levels per side. Its original rejected gate and time credit remain unchanged.",
+    "New code validates snapshot and reconstructed live depth at400, applies zero-size deletion/replacement/insertion, and rejects empty/crossed books, malformed/nonfinite levels, duplicate prices and sequence gaps. Delta row count is bounded by the2MB frame limit, not an arbitrary larger row limit."
+  ],
+  "start_gate": "New signed freeze and exact-head push/PR CI;43 private offline checks on each host;123 prior closed hashes and external saved-prefix CRC/protocol/clock audit; original deadline and spent attempts retained; updated Apollo-to-desktop path tested; no active collector.",
+  "retry_policy": [
+    "Two new campaign attempts are already spent. Start only attempt3; after its failure there is no automatic fourth attempt, even for a transport disconnect. No renewed48-hour period.",
+    "Original campaign started2026-10-20T03:28:32.160295+00:00 and ends2026-10-22T03:28:32.160295+00:00. Preserve its BOOTTIME epoch and reject expiry, regression or incompatible host epoch.",
+    "Use exclusive files and a fresh snapshot/sequence chain for only the remaining6,955,002ms. The1.5GB serialized cap, native frame bound and source/receipt/suspend guards stay unchanged.",
+    "Only a documented64008 notice is admitted as control metadata. TLS/access, unknown notices, invalid market data, clocks, storage, byte/runtime limits and internal faults stop and alert. Actual transport closure also stops this final attempt; no provider/region fallback or hidden continuation."
+  ],
+  "continuity_guards": {
+    "maximum_book_source_or_monotonic_gap_ms": 10000,
+    "maximum_source_vs_monotonic_progress_drift_ms": 5000,
+    "maximum_BOOTTIME_vs_monotonic_discontinuity_seconds": 1,
+    "minimum_startup_free_bytes": 2147483648
+  },
+  "monitoring": [
+    "Apollo background watchdog polls/persists heartbeat and state every2seconds; it supervises only its own child recorder and queues durable failure/retry/completion events.",
+    "Worker stops if its watchdog heartbeat is older than30seconds. Parent stops a stale worker after45seconds, without blind retry. SIGINT/SIGTERM close/hash gzip; unclean SIGKILL/power/storage outcomes are never falsely sealed.",
+    "An independently restartable local user service polls Apollo read-only every15seconds. It sends persistent critical desktop failure alerts, deduplicates delivered event IDs, independently detects stale watchdog heartbeats, and warns after two failed remote polls.",
+    "No phone or external push service is active. The earlier generic scheduled phone test was not confirmed and phone notifications were explicitly declined. No further phone publishing.",
+    "Desktop notifications cannot arrive while the local computer is asleep/logged out or its notification service is unavailable. Server events persist and are delivered on wake/login. Existing SSH/YubiKey access is required; connection-loss alerts do not prove server failure.",
+    "HTML and copied local data are saved views, not browser auto-refresh or between-turn chat pushes. Notification-server acknowledgement is not confirmed human receipt."
+  ],
+  "accounting_and_limits": [
+    "Five preserved windows credit36,244,998ms. The latest validation-failed connection contributes an independently audited3,412,200ms prefix; its maintenance notice adds no market time or liquidity. Old finished receipts, failure labels and gates remain unchanged. Startup, cleanup, all gaps, suspend and the unsealed forensic tail count zero.",
+    "Keep each source window, source/UTC/monotonic/BOOTTIME clock and host identity. Monotonic values are not comparable across hosts. Do not fabricate sequences, warmup, pending plans, ownership, protection, financial labels, loss-latch resets or terminal sales across boundaries.",
+    "Twelve-hour time accounting is provisional until full data-quality review. Gzip CRC/hash is not native book checksum acceptance; checksum0 is unavailable. L2/trades do not establish own-order fills, queue priority, historical fee/rule identity, calibrated wire latency or profitability.",
+    "No financial replay, model call, account API, VIP/login endpoint, paid data, order, strategy/risk change, deployment or system power-policy/privilege change. A later financial study needs its own freeze."
+  ],
+  "original_continuous24h_gate_passed": false,
+  "continuous12h_gate_claimed": false,
+  "full_market_quality_passed": false,
+  "financial_replay_ready": false,
+  "active_inference_allowance": 0,
+  "cumulative_model_calls_unchanged": 840,
+  "financial_replays_authorized": 0,
+  "private_API_calls": 0,
+  "order_writes": 0,
+  "offline_fixture": {
+    "path": "native-book-feasibility-attempt-001/us-feed/messages.jsonl",
+    "sha256": "13c7fa70593402c8bd91f8cf9e08927795b42be91a69086060b0f03b4f1f341e"
+  },
+  "first_attempt_number": 3,
+  "attempts_already_used": 2,
+  "original_campaign_started_at": "2026-10-20T03:28:32.160295+00:00",
+  "original_campaign_started_boottime_ns": 3543360506767743,
+  "original_campaign_deadline_utc": "2026-10-22T03:28:32.160295+00:00",
+  "prior_attempts": [
+    {
+      "number": 1,
+      "target_source_ms": 27254103,
+      "started_at": "2026-10-20T03:28:32.168870+00:00",
+      "pid": 83065,
+      "returncode": 1,
+      "status": "stopped_at_failure",
+      "failure_kind": "transport",
+      "finished_at": "2026-10-20T08:10:00.053801+00:00",
+      "audited_credit_ms": 16886901,
+      "source_root": "native-book-12h-monitor-attempt-001"
+    },
+    {
+      "number": 2,
+      "target_source_ms": 10367202,
+      "started_at": "2026-10-20T08:11:23.497426+00:00",
+      "pid": 155426,
+      "returncode": 1,
+      "status": "stopped_at_failure",
+      "failure_kind": "validation",
+      "finished_at": "2026-10-20T09:08:16.645134+00:00",
+      "source_root": "native-book-12h-monitor-attempt-001",
+      "externally_audited_prefix_source_ms": 3412200
+    }
+  ],
+  "service_upgrade_notice": {
+    "official_reference": "https://us.okx.com/docs-v5/en/",
+    "code": "64008",
+    "semantics": "Documented notice60seconds before a service-upgrade disconnection. Accept only the exact documented notice envelope as non-market control metadata. It never advances book sequence/source credit or resets validation. Keep normal liveness/sequence guards until actual closure; no reconnect inside an attempt. Unknown/malformed notices remain hard stops.",
+    "saved_notice_fixture": {
+      "path": "inputs/service-upgrade-native.json",
+      "sha256": "4d642b4d6a9c55d105b6acdc9c288072fdc5ac2c47679802fe16471521f3555b"
+    }
+  }
+}
