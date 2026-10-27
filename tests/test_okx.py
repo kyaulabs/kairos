@@ -31,6 +31,17 @@ def instrument(**changes):
 
 
 class OKXResponse(Response):
+    @property
+    def content(self):
+        return self
+
+    async def readexactly(self, size):
+        self.requested_error_bytes = size
+        raw = await self.read()
+        if len(raw) < size:
+            raise asyncio.IncompleteReadError(raw, size)
+        return raw[:size]
+
     async def read(self):
         return json.dumps(self.body).encode()
 
@@ -38,7 +49,8 @@ class OKXResponse(Response):
 class OKXSession(Session):
     def request(self, *args, **kwargs):
         self.calls.append((args, kwargs))
-        return OKXResponse(self.body, self.status)
+        self.last_response = OKXResponse(self.body, self.status)
+        return self.last_response
 
 
 class OKXTransportTests(unittest.IsolatedAsyncioTestCase):
@@ -182,6 +194,99 @@ class OKXTransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             all(str(args[1]).startswith(REST + "/") for args, _ in client.session.calls)
         )
+
+    async def test_http_401_retains_only_numeric_venue_code_without_secret_body(self):
+        client = self.client(
+            body={
+                "code": "50105",
+                "msg": "fixture-passphrase fixture-okx-key",
+                "data": [{"secret": "fixture-okx-secret"}],
+            }
+        )
+        client.session.status = 401
+        with self.assertRaises(SafetyError) as caught:
+            await client.request("GET", "/api/v5/account/config")
+        self.assertNotIsInstance(caught.exception, PendingOKX)
+        self.assertIn("HTTP 401 code 50105", str(caught.exception))
+        self.assertNotIn("fixture", str(caught.exception))
+        self.assertEqual(client.last_request["venue_code"], "50105")
+        self.assertEqual(client.session.last_response.requested_error_bytes, 4097)
+        self.assertEqual(len(client.session.calls), 1)
+
+    async def test_http_error_malformed_oversized_or_success_code_never_leaks_or_succeeds(self):
+        for body in (
+            {"code": "0", "msg": "must-not-leak"},
+            {"code": "50105<script>", "msg": "must-not-leak"},
+            {"code": "50105", "msg": "must-not-leak" * 1000},
+            {"code": "50105" * 20},
+            ["must-not-leak"],
+            None,
+        ):
+            client = self.client()
+            client.session.body, client.session.status = body, 401
+            with (
+                self.subTest(body_type=type(body).__name__),
+                self.assertRaises(SafetyError) as caught,
+            ):
+                await client.request("GET", "/api/v5/account/config")
+            self.assertIn("HTTP 401", str(caught.exception))
+            self.assertNotIn("code ", str(caught.exception))
+            self.assertNotIn("must-not-leak", str(caught.exception))
+            self.assertNotIn("venue_code", client.last_request)
+            self.assertEqual(len(client.session.calls), 1)
+
+    async def test_error_body_failure_keeps_original_HTTP_classification_and_no_retry(self):
+        for status, writing in ((401, False), (429, False), (503, False), (503, True)):
+            client = await self.prepare()
+            client.session.status = status
+            client.session.body = {"code": "50105", "msg": "fixture-okx-secret"}
+            before = len(client.session.calls)
+            with patch.object(OKXResponse, "readexactly", AsyncMock(side_effect=TimeoutError)):
+                with (
+                    self.subTest(status=status, writing=writing),
+                    self.assertRaises(SafetyError) as caught,
+                ):
+                    await client.request(
+                        "POST" if writing else "GET",
+                        "/api/v5/trade/order" if writing else "/api/v5/account/config",
+                        payload=self.payload() if writing else None,
+                    )
+            self.assertIn(f"HTTP {status}", str(caught.exception))
+            self.assertEqual(
+                isinstance(caught.exception, PendingOKX), not writing and status in (429, 503)
+            )
+            self.assertEqual(len(client.session.calls), before + 1)
+
+    async def test_non_json_HTTP_error_keeps_status_without_echoing_body(self):
+        client = self.client()
+        client.session.status = 401
+        with patch.object(
+            OKXResponse, "read", AsyncMock(return_value=b"<html>fixture-okx-secret</html>")
+        ):
+            with self.assertRaises(SafetyError) as caught:
+                await client.request("GET", "/api/v5/account/config")
+        self.assertIn("HTTP 401", str(caught.exception))
+        self.assertNotIn("fixture", str(caught.exception))
+        self.assertNotIn("venue_code", client.last_request)
+
+    async def test_registered_secret_is_not_echoed_even_if_shaped_like_venue_code(self):
+        client = self.client(body={"code": "50105", "data": []})
+        client.session.status = 401
+        with patch("kairos.diagnostics._secrets", {"50105"}):
+            with self.assertRaises(SafetyError) as caught:
+                await client.request("GET", "/api/v5/account/config")
+        self.assertNotIn("50105", str(caught.exception))
+        self.assertNotIn("venue_code", client.last_request)
+
+    async def test_canceled_error_read_is_not_swallowed_or_retried(self):
+        client = self.client()
+        client.session.status = 401
+        with patch.object(
+            OKXResponse, "readexactly", AsyncMock(side_effect=asyncio.CancelledError)
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await client.request("GET", "/api/v5/account/config")
+        self.assertEqual(len(client.session.calls), 1)
 
     async def test_http_200_per_order_failure_and_timeouts_do_not_mean_acceptance(self):
         client = await self.prepare()

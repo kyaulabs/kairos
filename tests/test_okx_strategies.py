@@ -893,6 +893,10 @@ class DemoStrategyTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.stop()
 
     async def test_scalp_net_owned_quantity_excludes_unrelated_dust(self):
+        # Ownership is the subject here, not a wall-clock candle-boundary race.
+        clock = patch("time.time", return_value=time.time())
+        clock.start()
+        self.addCleanup(clock.stop)
         await self.authorize()
         await self.engine.tick()
         await self.engine.stop()
