@@ -5,7 +5,7 @@ import hashlib
 import json
 import time
 
-from kairos import diagnostics, programs
+from kairos import diagnostics, meta_strategy, programs
 from kairos import okx_account as native
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec
@@ -88,6 +88,7 @@ class OKXEngine(Engine):
         return self.client.resolve(name)  # No symbol-only/other-currency fallback.
 
     def validate_capabilities(self, values):
+        meta_strategy.validate(self, values)
         if (
             values["product"] != "spot"
             or self.client.environment != "demo"
@@ -1080,6 +1081,7 @@ class OKXEngine(Engine):
                 raise SafetyError("Stop and reconcile OKX before changing settings")
             values = validate_settings(values)
             self.validate_capabilities(values)
+            meta_strategy.guard_configuration(self, values)
             if self.settings["strategy"] in {"htf", "scalp"} and any(
                 values[k] != self.settings[k] for k in ("strategy", "product", "pair")
             ):

@@ -20,6 +20,20 @@ STRATEGIES = {
         "deterministic": True,
         "paper_only": True,
     },
+    "vwap-meta": {
+        "label": "VWAP meta · paper/demo",
+        "products": ("spot",),
+        "scheduled": False,
+        "deterministic": True,
+        "paper_only": True,
+    },
+    "fib-meta": {
+        "label": "Fibonacci meta · paper/demo",
+        "products": ("spot",),
+        "scheduled": False,
+        "deterministic": True,
+        "paper_only": True,
+    },
     "arbitrage": {"label": "Triangular arbitrage", "products": ("spot",), "scheduled": False},
     "dca": {
         "label": "DCA · scheduled accumulation",
@@ -88,6 +102,12 @@ FIELDS = {
     "api_auto_recovery": setting(False, products=("spot",), migrate=True),
     "htf_stop_bps": setting("300", ("10", "5000"), strategies=("htf",), migrate=True),
     "htf_max_hold_seconds": setting(604800, (3600, 2592000), strategies=("htf",), migrate=True),
+    "meta_structure_minutes": setting(
+        60,
+        choices={15: "15m", 30: "30m", 60: "1h", 360: "6h", 720: "12h"},
+        strategies=("vwap-meta", "fib-meta"),
+        migrate=True,
+    ),
     "scalp_window": setting(30, (20, 120), strategies=("scalp",), migrate=True),
     "scalp_sigma": setting("2", ("1", "3"), strategies=("scalp",), migrate=True),
     "scalp_max_efficiency": setting("0.35", ("0.05", "0.8"), strategies=("scalp",), migrate=True),
@@ -100,11 +120,14 @@ FIELDS = {
     "recover_initial": setting(
         False,
         products=("spot",),
-        strategies=tuple(k for k in STRATEGIES if k != "scalp"),
+        strategies=tuple(k for k in STRATEGIES if k not in {"scalp", "vwap-meta", "fib-meta"}),
         must_be_off_when_inactive=True,
     ),
     "recovery_check_seconds": setting(
-        60, (10, 86400), products=("spot",), strategies=tuple(k for k in STRATEGIES if k != "scalp")
+        60,
+        (10, 86400),
+        products=("spot",),
+        strategies=tuple(k for k in STRATEGIES if k not in {"scalp", "vwap-meta", "fib-meta"}),
     ),
     "product": setting(
         "spot",
@@ -224,6 +247,10 @@ def validate_settings(values):
             )
     if values["product"] not in STRATEGIES[values["strategy"]]["products"]:
         raise SafetyError(f"Strategy {values['strategy']} does not support {values['product']}")
+    if values["strategy"] in {"vwap-meta", "fib-meta"} and values["interval_seconds"] > 30:
+        raise SafetyError(
+            "Meta strategies require a 10–30 second cycle for protection and fresh entries"
+        )
     if values["strategy"] == "scalp" and values["interval_seconds"] > 30:
         raise SafetyError("Scalping requires a 10–30 second engine interval for exit checks")
     if values["strategy"] == "dca" and values["dca_period_seconds"] < values["interval_seconds"]:

@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kairos import diagnostics, htf, margin, programs, review, scalping
+from kairos import diagnostics, htf, margin, meta_strategy, programs, review, scalping
 from kairos.alpaca_transport import PendingAlpacaAccount, PendingAlpacaData
 from kairos.clients import ExchangeRejected
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
@@ -39,6 +39,10 @@ EXECUTION_REVISION = hashlib.sha256(
             "margin",
             "programs",
             "scalping",
+            "meta_strategy",
+            "meta_signals",
+            "research_signals",
+            "research_diagnostics",
             "clients",
             "market_data",
             "alpaca",
@@ -341,6 +345,9 @@ class Engine:
             "futures": self.futures.ledger(),
             "program": programs.snapshot(self),
             "scalp": scalping.snapshot(self) if self.settings["strategy"] == "scalp" else None,
+            "meta": meta_strategy.view(self)
+            if self.settings["strategy"] in meta_strategy.FAMILIES
+            else None,
             "capabilities": {
                 "crypto_spot": "paper-and-live",
                 "crypto_margin": "paper-only",
@@ -447,6 +454,7 @@ class Engine:
 
     def validate_capabilities(self, values):
         """Additional restrictions for the selected venue, inside the settings lock."""
+        meta_strategy.validate(self, values)
         if (values["strategy"] == "htf" and values["htf_policy"] == "multibar-v2") or values[
             "api_auto_recovery"
         ]:
@@ -458,6 +466,7 @@ class Engine:
                 raise SafetyError("Stop and reconcile outstanding orders before changing settings")
             new = validate_settings(values)
             self.validate_capabilities(new)
+            meta_strategy.guard_configuration(self, new)
             if self.settings["strategy"] == "htf" and any(
                 new[k] != self.settings[k] for k in ("strategy", "product", "pair")
             ):
@@ -614,6 +623,12 @@ class Engine:
             return (
                 "This order supports a saved HTF plan; archive or reset that paper portfolio first"
             )
+        plan = (
+            self.store.get(meta_strategy.key(self, "dry-run", order["strategy"], order["pair"]))
+            or {}
+        )
+        if order.get("meta_epoch") and plan.get("epoch") == order["meta_epoch"]:
+            return "This order supports meta ownership history; archive or reset that paper portfolio first"
         prefix = "futures:" if product == "futures" else ""
         program = self.store.get(f"program:{prefix}dry-run:{order['strategy']}") or {}
         if order.get("program_id") and program.get("id") == order["program_id"]:
@@ -693,6 +708,10 @@ class Engine:
                 self.reset_ledger("dry-run", self.settings["paper_balance"])
                 for strategy in programs.STRATEGIES:
                     self.store.put(f"program:dry-run:{strategy}", None)
+                for (state_key,) in self.store.db.execute(
+                    "SELECT key FROM state WHERE key LIKE 'meta:dry-run:%'"
+                ).fetchall():
+                    self.store.put(state_key, None)
             self.store.put("candle:dry-run", None)
             self.store.put(htf.key(self, "dry-run"), None)
             self.store.put(
@@ -740,6 +759,8 @@ class Engine:
             self.emit_state()
 
     async def live_preflight(self):
+        if self.settings["strategy"] in meta_strategy.FAMILIES:
+            raise SafetyError("VWAP/Fibonacci metas are paper/demo-only")
         if self.settings["strategy"] == "scalp":
             raise SafetyError("Bollinger scalping is paper-only")
         if self.settings["product"] == "futures":
@@ -826,6 +847,9 @@ class Engine:
                 await self.live_preflight()
             else:
                 await self.refresh_fees(force=True)
+            meta = self.settings["strategy"] in meta_strategy.FAMILIES
+            if meta:
+                meta_strategy.prepare(self)
             scalp = self.settings["strategy"] == "scalp"
             if scalp:
                 scalping.prepare(self)
@@ -834,6 +858,7 @@ class Engine:
                 htf.prepare(self)
             if (
                 not scalp
+                and not meta
                 and self.settings["strategy"] not in programs.STRATEGIES
                 and not self.jev.key
                 and not (trend and self.settings["htf_policy"] == "multibar-v2")
@@ -841,7 +866,8 @@ class Engine:
                 raise SafetyError("JEV_API_KEY is not configured")
             await self.valuation(
                 enforce=not (
-                    scalp
+                    meta
+                    or scalp
                     and scalping.snapshot(self)["position"]
                     or trend
                     and htf.snapshot(self)["position"]
@@ -859,6 +885,8 @@ class Engine:
                 raise SafetyError("Start canceled by Stop; engine remains paused")
             if trend and not self.running:
                 htf.arm(self)
+            if meta:
+                meta_strategy.arm(self)
             self.ensure_run()
             self.candle_retries = 0
             self.running, self.last_error = True, None
@@ -1293,6 +1321,7 @@ class Engine:
         exit_only=False,
         review=None,
     ):
+        meta_strategy.validate(self, self.settings)
         if self.settings["strategy"] == "scalp" and self.mode not in {"dry-run", "paper"}:
             raise SafetyError("Bollinger scalping is paper-only")
         if (
@@ -1314,13 +1343,17 @@ class Engine:
         if exit_only and (
             maker
             or not (
-                self.settings["strategy"] == "scalp"
+                self.settings["strategy"] in meta_strategy.FAMILIES
+                and meta_strategy.valid_exit(self, pair, side, volume)
+                or self.settings["strategy"] == "scalp"
                 and scalping.valid_exit(self, pair, side, volume)
                 or self.settings["strategy"] == "htf"
                 and htf.valid_exit(self, pair, side, volume)
             )
         ):
-            raise SafetyError("Only a tracked scalp or HTF position may use an exit-only order")
+            raise SafetyError(
+                "Only a tracked scalp, HTF or meta position may use an exit-only order"
+            )
         if not self.running:
             raise SafetyError("Engine is stopped")
         if self.orders(self.mode, True):
@@ -1421,6 +1454,7 @@ class Engine:
             order.update(program_id=program["id"], program_slot=program["slot"])
         scalping.tag(self, order)
         htf.tag(self, order)
+        meta_strategy.tag(self, order)
         self.tag_order(order)
         self.store.save_order(order)  # Durable intent and run identity before the network write.
         if self.mode == "dry-run":
@@ -1791,22 +1825,25 @@ class Engine:
                 await self.cancel_active()
                 scalp = self.settings["strategy"] == "scalp"
                 trend = self.settings["strategy"] == "htf"
-                if scalp:
+                meta = self.settings["strategy"] in meta_strategy.FAMILIES
+                if meta:
+                    await meta_strategy.run(self)
+                elif scalp:
                     await scalping.run(self)
                 elif trend:
                     await htf.run(self)
                 else:
                     await self.valuation(enforce=True)
                 pair = self.resolve(self.settings["pair"])
-                recovered = False if scalp else await self.recover_capital()
-                if not recovered and not scalp and not trend:
+                recovered = False if scalp or meta else await self.recover_capital()
+                if not recovered and not scalp and not trend and not meta:
                     if self.settings["strategy"] in programs.STRATEGIES:
                         await programs.run(self)
                     elif self.settings["strategy"] == "arbitrage":
                         await self.arbitrage(pair)
                     else:
                         await self.directional(pair)
-                await self.valuation(enforce=not (scalp or trend))
+                await self.valuation(enforce=not (scalp or trend or meta))
                 if self.candle_retries:
                     self.event(
                         "system", {"message": "Execution candles recovered; normal checks resumed"}
