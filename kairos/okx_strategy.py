@@ -2,7 +2,7 @@
 
 import uuid
 
-from kairos import htf, programs, scalping
+from kairos import htf, meta_strategy, programs, scalping
 from kairos.domain import BPS, ZERO, SafetyError, dec
 from kairos.okx_engine import fingerprint
 
@@ -20,6 +20,9 @@ def markets(e):
 def prepare_position(e):
     """Quarantine pre-existing bot dust; never adopt it into a new signal lineage."""
     strategy = e.settings["strategy"]
+    if strategy in meta_strategy.FAMILIES:
+        meta_strategy.arm(e)
+        return
     if strategy not in {"htf", "scalp"}:
         return
     module = htf if strategy == "htf" else scalping
@@ -244,7 +247,7 @@ async def preview(e, values):
             if strategy in programs.STRATEGIES
             else None,
             "protocol": "okx-demo-bounded-strategies-v1; separate from the frozen Alpaca trial",
-            "dust_policy": "Existing inventory remains owned. HTF/scalp exclude unrelated inventory. No cleanup buy, reset or automatic liquidation.",
+            "dust_policy": "Existing inventory remains owned. Metas reject unrelated inventory; HTF/scalp exclude it. No cleanup buy, reset or automatic liquidation.",
             "execution_policy": "HTF initial book reads may wait up to 60s within the original authorization before evaluation; no orders or protective exits while data is unavailable, and recovered entry candidates are re-baselined. Before HTF evaluation, authenticated fees are refreshed with up to 30s total grace for transient fee reads and post-fee book timeouts, within the original deadline; no orders or protective exits until fresh fees and books pass checks. Fee-age and authorized fee limits are unchanged. Later execution failures still stop the run. One outstanding order; IOC or demo post-only. Resting orders are locally canceled after at most 30s plus scheduler/settlement latency, or on Stop/expiry. OKX post-only has no server-side expiry here and can remain open during an outage. Restart never rearms. Price bounds also constrain protective exits; holdings can remain after permission ends.",
             "budget_policy": "Cumulative buy commitments per market in each listed native quote; starting-currency spending is also capped across markets. Intermediate currencies are never added together or treated at parity. Sales use allocated/acquired inventory only. Every durable attempt consumes the global count, even when rejected or unfilled.",
         }
@@ -312,6 +315,8 @@ async def run(e):
     strategy = e.settings["strategy"]
     if strategy in programs.STRATEGIES:
         await programs.run(e)
+    elif strategy in meta_strategy.FAMILIES:
+        await meta_strategy.run(e)
     elif strategy == "htf":
         await e.wait_htf_book()
         await e.wait_htf_fees()

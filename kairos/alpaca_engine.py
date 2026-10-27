@@ -724,6 +724,8 @@ class AlpacaEngine(Engine):
             )
 
     def validate_capabilities(self, values):
+        if values["strategy"] in {"vwap-meta", "fib-meta"}:
+            raise SafetyError("VWAP/Fibonacci metas support Kraken dry-run and OKX Demo only")
         if self.fee_settlement_pending and any(
             values[k] != self.settings[k] for k in ("pair", "strategy", "product")
         ):

@@ -79,11 +79,23 @@ class WeightedPrices:
 
 
 class Signals:
-    def __init__(self, minutes, variant):
-        if minutes not in (5, 15) or variant not in VARIANTS:
+    def __init__(self, minutes, variant, *, context=None):
+        if (
+            minutes not in (5, 15)
+            or variant not in VARIANTS
+            or context is not None
+            and minutes != 15
+        ):
             raise SafetyError("Unknown VWAP/Fibonacci research variant or timeframe")
         self.minutes, self.variant = minutes, variant
-        self.rows = deque(maxlen=RULES["swing_max_age_bars"] + 2 * RULES["pivot_left_right"])
+        self.context = context
+        self.seen_anchor_known = None
+        self.rows = deque(
+            maxlen=max(
+                RULES["swing_max_age_bars"] + 2 * RULES["pivot_left_right"],
+                (2 * RULES["pivot_left_right"] + 1) * (context.minutes // 15) + 2 if context else 0,
+            )
+        )
         self.tr = deque(maxlen=RULES["atr_bars"])
         self.count = 0
         self.fast = self.slow = None
@@ -113,18 +125,23 @@ class Signals:
                 self.cancel("session_expired")
             elif close <= self.pending["stop"]:
                 self.cancel("invalidated")
-        prior_close = dec(self.rows[-1][4]) if self.rows else close
-        self.tr.append(max(high - low, abs(high - prior_close), abs(low - prior_close)))
-        self.fast = (
-            close
-            if self.fast is None
-            else self.fast + dec(2) / (RULES["ema_fast"] + 1) * (close - self.fast)
-        )
-        self.slow = (
-            close
-            if self.slow is None
-            else self.slow + dec(2) / (RULES["ema_slow"] + 1) * (close - self.slow)
-        )
+        context = self.context
+        if context is None:
+            prior_close = dec(self.rows[-1][4]) if self.rows else close
+            self.tr.append(max(high - low, abs(high - prior_close), abs(low - prior_close)))
+            self.fast = (
+                close
+                if self.fast is None
+                else self.fast + dec(2) / (RULES["ema_fast"] + 1) * (close - self.fast)
+            )
+            self.slow = (
+                close
+                if self.slow is None
+                else self.slow + dec(2) / (RULES["ema_slow"] + 1) * (close - self.slow)
+            )
+        else:
+            self.fast = context.engine.fast if context.engine.fast is not None else close
+            self.slow = context.engine.slow if context.engine.slow is not None else close
         window = RULES["volume_baseline_bars"]
         volumes = [dec(r[6]) for r in list(self.rows)[-window:]]
         baseline = sum(volumes) / window if len(volumes) == window else None
@@ -134,11 +151,26 @@ class Signals:
             self.day, self.daily = day, WeightedPrices()
         self.daily.add(row)
         vwap, sigma = self.daily.bands()
-        atr = sum(self.tr) / len(self.tr)
+        atr = context.atr if context else sum(self.tr) / len(self.tr)
         pivot = RULES["pivot_left_right"]
         recent = list(self.rows)[-(2 * pivot + 1) :]
         new_anchor = False
-        if len(recent) == 2 * pivot + 1 and all(
+        if context:
+            self.low, self.swing = context.engine.low, context.engine.swing
+            if context.engine.anchor_known != self.seen_anchor_known:
+                self.seen_anchor_known = context.engine.anchor_known
+                if not (self.variant == "vwap-anchored" and self.pending):
+                    self.anchor, self.anchor_known = (
+                        context.engine.anchor,
+                        context.engine.anchor_known,
+                    )
+                    self.anchored = WeightedPrices()
+                    if self.anchor is not None:
+                        for r in self.rows:
+                            if r[0] >= self.anchor:
+                                self.anchored.add(r)
+                        new_anchor = True
+        elif len(recent) == 2 * pivot + 1 and all(
             b[0] - a[0] == step for a, b in zip(recent, recent[1:], strict=False)
         ):
             center, others = recent[pivot], recent[:pivot] + recent[pivot + 1 :]
@@ -176,6 +208,11 @@ class Signals:
             "adjacent_closed_bars": contiguous,
             "positive_atr": atr > 0,
         }
+        if context:
+            checks.update(
+                structure_warmup_observed_bars=context.engine.count >= RULES["warmup_bars"],
+                structure_adjacent_closed_bars=context.contiguous and context.fresh,
+            )
         same_day = bool(old and old["day"] == day and old["vwap"] is not None and vwap is not None)
         if self.variant in DAILY_VARIANTS:
             checks.update(
@@ -186,7 +223,9 @@ class Signals:
         ready = all(checks.values())
         bullish = close > opening
         tolerance, buffer = atr * dec(RULES["touch_atr"]), atr * dec(RULES["stop_buffer_atr"])
-        slope = (self.slow - old["slow"]) / atr if old and atr else ZERO
+        slope = (
+            context.slope if context else (self.slow - old["slow"]) / atr if old and atr else ZERO
+        )
         threshold = dec(RULES["regime_slope_atr"])
         regime = (
             "falling"
@@ -206,6 +245,18 @@ class Signals:
             "sigma": str(sigma) if sigma is not None else None,
             "prior_volume_mean": str(baseline) if baseline is not None else None,
         }
+        if context:
+            facts.update(
+                structure_minutes=context.minutes,
+                confirmation_minutes=15,
+                context_closed_at=context.closed_at,
+                context_observed_bars=context.engine.count,
+                context_prior_slow=str(context.prior_slow)
+                if context.prior_slow is not None
+                else None,
+                context_slow_nonfalling=context.nonfalling,
+            )
+        nonfalling = context.nonfalling if context else bool(old and self.slow >= old["slow"])
         setup = None
         if ready and self.pending:
             p = self.pending
@@ -249,7 +300,7 @@ class Signals:
             elif self.variant == "fib-ema":
                 confirm = (
                     self.fast > self.slow
-                    and self.slow >= old["slow"]
+                    and nonfalling
                     and close >= self.fast
                     and bullish
                     and micro_break
@@ -262,6 +313,10 @@ class Signals:
                 )
             elif self.variant == "fib-sweep":
                 confirm = close > p["level"] and bullish and (higher_low or micro_break)
+            if context and self.variant == "fib-ema":
+                confirm = self.fast > self.slow and nonfalling and bullish and micro_break
+            if context and self.variant == "fib-extension":
+                confirm = low >= p["level"] - tolerance and close >= p["level"] and bullish
             stop = min(p["stop"], close - atr)
             target = vwap if self.variant == "vwap-reversion" else p["target"]
             if target is None:
@@ -323,7 +378,8 @@ class Signals:
                 s = self.swing
                 valid = bool(
                     s
-                    and end - s[5] <= RULES["swing_max_age_bars"] * step
+                    and end - s[5]
+                    <= RULES["swing_max_age_bars"] * (context.minutes * 60 if context else step)
                     and s[4] - s[1] >= atr * dec(RULES["minimum_swing_atr"])
                 )
                 checks["confirmed_meaningful_upswing"] = valid
@@ -340,6 +396,12 @@ class Signals:
                         "fib_382": str(upper),
                         "fib_618": str(lower),
                     }
+                    if context:
+                        details.update(
+                            impulse_policy="causal-parent-retention-v1",
+                            impulse_original_expiry=high_known
+                            + RULES["swing_max_age_bars"] * context.minutes * 60,
+                        )
                     stop, target = top - width * dec(".786") - buffer, top
                     touch = low <= upper and high >= lower
                     if self.variant == "fib-confluence":
@@ -347,7 +409,7 @@ class Signals:
                             RULES["confluence_atr"]
                         ) <= vwap <= upper + atr * dec(RULES["confluence_atr"])
                     elif self.variant == "fib-ema":
-                        trigger = touch and self.fast > self.slow and self.slow >= old["slow"]
+                        trigger = touch and self.fast > self.slow and nonfalling
                     elif self.variant == "fib-extension":
                         trigger = bool(
                             old["close"] <= top < close
@@ -384,6 +446,31 @@ class Signals:
                     **details,
                 }
                 self.events["armed"] += 1
+        if (
+            context
+            and ready
+            and self.variant == "fib-extension"
+            and setup is None
+            and self.pending is not None
+            and self.pending["armed_at"] == end
+        ):
+            p = self.pending
+            stop, target = min(p["stop"], close - atr), p["target"]
+            if ZERO < stop < close < target:
+                candidate_facts = {
+                    **p["facts"],
+                    **facts,
+                    "arming_facts": p["facts"],
+                    "armed_at": p["armed_at"],
+                    "candidate_id": p["id"],
+                    "confirmed_at": end,
+                }
+                setup = Setup(self.variant, end, close, stop, target, candidate_facts)
+                self.events["confirmed"] += 1
+                self.pending = None
+                checks.update(
+                    pending_setup=True, closed_bar_confirmation=True, valid_long_price_plan=True
+                )
         checks.setdefault("pending_setup", self.pending is not None)
         checks.setdefault("closed_bar_confirmation", setup is not None)
         self.previous = current
