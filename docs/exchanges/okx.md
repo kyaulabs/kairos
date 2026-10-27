@@ -18,6 +18,8 @@ Offline fixtures are not OKX executions. Existing hosted-demo cycle and TWAP evi
 
 All gates default to `false`. The existing `OKX_*` credential names are live credentials, never demo fallbacks. Alpaca remains paper-only. No key, passphrase or signature is returned to the browser.
 
+HTTP failures include the numeric OKX error code when a small, valid response provides one. Error bodies larger than 4 KiB are not interpreted; raw venue messages, bodies and credentials are never displayed or logged. A missing/malformed body leaves the HTTP failure authoritative. Authentication failures do not retry, change environments or fall back to public instruments. Check the code before changing a key, passphrase or IP restriction; keep trading paused and never reset the allocation to clear authentication recovery.
+
 Restart the service safely after changing its environment. Missing OKX keys do not prevent Kraken or Alpaca startup. `KAIROS_EXCHANGE` accepts `kraken`, `alpaca`, `okx-demo` and `okx` for a new installation. The saved dashboard selection takes precedence; changing this variable cannot bypass an existing non-flat venue.
 
 ## Environment and instrument identity
