@@ -97,6 +97,26 @@ def code(value):
     return value if re.fullmatch(r"\d{1,8}", value) else "invalid"
 
 
+async def http_error_code(response):
+    """Retain only a bounded numeric venue code; never echo error bodies/messages."""
+    try:
+        try:
+            raw = await response.content.readexactly(4097)
+        except asyncio.IncompleteReadError as exc:
+            raw = exc.partial
+        if len(raw) > 4096:
+            return None
+        result = json.loads(raw)
+        if not isinstance(result, dict):
+            return None
+        value = code(result.get("code"))
+        return (
+            value if value not in {"invalid", "0"} and diagnostics.redact(value) == value else None
+        )
+    except (aiohttp.ClientError, TimeoutError, ValueError, TypeError, RecursionError):
+        return None  # The known HTTP failure remains authoritative even if its body is unavailable.
+
+
 class OKX:
     native_history_policy = "okx-us-confirmed-native-bars-v1"
     fee_name = "OKX account"
@@ -381,13 +401,18 @@ class OKX:
                             self.blocked_until, time.monotonic() + max(2, wait)
                         )
                     if response.status != 200:
+                        venue_code = await http_error_code(response)
+                        detail = ""
+                        if venue_code is not None:
+                            self.last_request["venue_code"] = venue_code
+                            detail = f" code {venue_code}"
                         error = (
                             SafetyError
                             if writing or response.status < 500 and response.status != 429
                             else PendingOKX
                         )
                         raise error(
-                            f"OKX {method} {path} HTTP {response.status}; no automatic write retry"
+                            f"OKX {method} {path} HTTP {response.status}{detail}; no automatic write retry"
                         )
                     raw = await response.read()
                     if len(raw) > 8 * 1024 * 1024:
