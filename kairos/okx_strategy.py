@@ -62,6 +62,8 @@ async def preview(e, values):
         idle(e)
         generation = e.stop_generation
         e.validate_capabilities(e.settings)
+        if e.settings["strategy"] == "fib-meta" and not meta_strategy.snapshot(e)["position"]:
+            meta_strategy.require_percentages(e)
         if values.get("pair", e.settings["pair"]) != e.settings["pair"]:
             raise SafetyError(
                 "Save the strategy market/settings before requesting its authorization"
@@ -243,6 +245,9 @@ async def preview(e, values):
             "write_gate": e.client.allow_writes,
             "claimed": False,
             "confirmation": confirmation(e, "strategy"),
+            "meta_terms": meta_strategy.configuration(e)
+            if strategy in meta_strategy.FAMILIES
+            else None,
             "program_terms": programs.configuration(e.settings)
             if strategy in programs.STRATEGIES
             else None,
