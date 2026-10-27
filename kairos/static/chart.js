@@ -14,6 +14,7 @@ class LiveChart {
     this.indicators = ChartIndicators.normalize(null);
     this.indicatorSettings = ChartIndicators.configuration(null);
     this.fills = [];
+    this.fibonacci = null;
     this.transform = d3.zoomIdentity;
     const defs = this.svg.append('defs');
     const gradient = defs.append('linearGradient').attr('id', `${prefix}-gradient`)
@@ -30,6 +31,7 @@ class LiveChart {
     this.plot = this.svg.append('g').attr('clip-path', `url(#${prefix}-clip)`);
     this.area = this.plot.append('path').attr('fill', `url(#${prefix}-gradient)`);
     this.line = this.plot.append('path').attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.8);
+    this.fibBands = this.plot.append('g').attr('class', 'fib-bands').attr('pointer-events', 'none');
     this.bandGroup = this.plot.append('g').attr('class', 'study-bollinger');
     this.bandArea = this.bandGroup.append('path').attr('fill', 'var(--info)').attr('fill-opacity', .10);
     this.bandLines = ['lower', 'middle', 'upper'].map(key => ({key, path: this.bandGroup.append('path')
@@ -38,6 +40,11 @@ class LiveChart {
     this.averageGroup = this.plot.append('g').attr('class', 'study-sma');
     this.averageLines = ['smaFast', 'smaSlow'].map((key, i) => ({key, path: this.averageGroup.append('path').attr('class', `study-${key}`)
       .attr('fill', 'none').attr('stroke', i ? 'var(--warning)' : 'var(--indicator-primary)').attr('stroke-width', 1.6).attr('stroke-dasharray', i ? '6 3' : null)}));
+    this.fibForeground = this.plot.append('g').attr('class', 'fib-overlay').attr('pointer-events', 'none');
+    this.fibImpulse = this.fibForeground.append('path').attr('class', 'fib-impulse');
+    this.fibKnown = this.fibForeground.append('line').attr('class', 'fib-known');
+    this.fibLines = this.fibForeground.append('g');
+    this.fibLabels = this.fibForeground.append('g');
     this.oscillators = {};
     for (const name of ['macd', 'rsi']) {
       const group = this.svg.append('g').attr('class', `study-${name}`);
@@ -76,7 +83,7 @@ class LiveChart {
     const zoomFilter = this.zoom.filter();
     this.zoom.filter(event => {
       if (!zoomFilter(event)) return false;
-      const scrolling = this.intervalMs && (this.indicators.macd || this.indicators.rsi) && this.node.clientHeight > this.node.parentElement.clientHeight + 1;
+      const scrolling = this.intervalMs && this.node.clientHeight > this.node.parentElement.clientHeight + 1;
       if (!scrolling) return true;
       if (event.type === 'wheel') return event.ctrlKey;
       if (event.type === 'touchstart') return event.touches.length > 1;
@@ -134,7 +141,111 @@ class LiveChart {
     this.node.style.setProperty('--extra-chart-panes', Math.max(0, panes - 1));
     this.draw();
   }
+  static fibColors = Object.freeze({
+    '0': 'var(--muted)', '0.236': 'var(--danger)', '0.382': 'var(--success)',
+    '0.5': 'var(--success)', '0.618': 'color-mix(in srgb, var(--info) 50%, var(--success))',
+    '0.786': 'var(--info)', '1': 'var(--muted)', '1.618': 'var(--info)',
+    '2.618': 'color-mix(in srgb, var(--danger) 65%, var(--warning))',
+    '3.618': 'var(--indicator-primary)',
+    '4.236': 'color-mix(in srgb, var(--danger) 60%, var(--indicator-primary))',
+  });
+  static fibonacciFor(state, market) {
+    const settings = state?.settings, data = state?.meta?.fibonacci;
+    if (!settings || typeof settings.pair !== 'string' || typeof state.exchange !== 'string' || typeof state.mode !== 'string' || settings.strategy !== 'fib-meta' || settings.product !== 'spot' ||
+        market?.id !== settings.pair || (market?.exchange && market.exchange !== state.exchange) || !data) return null;
+    const scope = {exchange: state.exchange, mode: state.mode, pair: settings.pair, strategy: settings.strategy,
+      context_minutes: settings.fib_context_minutes, structure_minutes: settings.meta_structure_minutes,
+      confirmation_minutes: settings.fib_confirmation_minutes};
+    if (Object.entries(scope).some(([key, value]) => data.scope?.[key] !== value)) return null;
+    if (['waiting','unavailable'].includes(data.status)) return {status: data.status, scope};
+    const time = n => typeof n === 'number' && n >= 0 && Number.isFinite(new Date(n*1000).getTime());
+    const price = n => ['number','string'].includes(typeof n) && n !== '' && Number.isFinite(Number(n)) && Number(n) > 0;
+    if (data.status !== 'available' || !['retracement','extension'].includes(data.kind) ||
+        !['reference','armed','confirmed','entry-plan','owned'].includes(data.phase) ||
+        ![null,'fib-confluence','fib-ema','fib-extension','fib-sweep'].includes(data.family) ||
+        (data.kind === 'extension') !== (data.family === 'fib-extension') ||
+        !time(data.known_at) || !time(data.observed_at) || !time(data.low?.at) || !time(data.high?.at) ||
+        !price(data.low?.price) || !price(data.high?.price) ||
+        !(data.low.at < data.high.at && data.high.at <= data.known_at && data.known_at <= data.observed_at) ||
+        !(Number(data.low.price) < Number(data.high.price)) || !Array.isArray(data.levels)) return null;
+    const seen = new Set(), low = Number(data.low.price), high = Number(data.high.price);
+    const levels = [];
+    for (const row of data.levels) {
+      if (!row || typeof row.ratio !== 'string' || !Object.hasOwn(LiveChart.fibColors, row.ratio) || seen.has(row.ratio) || !price(row.price)) return null;
+      const value = Number(row.price), expected = data.kind === 'extension' ? low+Number(row.ratio)*(high-low) : high-Number(row.ratio)*(high-low);
+      if (Math.abs(value-expected) > Math.max(1e-8, Math.abs(expected)*1e-12)) return null;
+      seen.add(row.ratio); levels.push({ratio: row.ratio, value});
+    }
+    if (!seen.has('0') || !seen.has('1')) return null;
+    return {...data, levels: levels.sort((a,b) => Number(a.ratio)-Number(b.ratio)), knownTime: data.known_at*1000};
+  }
+  bindFibonacciStatus(node) {
+    this.fibonacciStatus = node;
+    this.updateFibonacciStatus();
+  }
+  updateFibonacciStatus() {
+    if (!this.fibonacciStatus) return;
+    const f = this.fibonacci;
+    this.fibonacciStatus.hidden = !f;
+    let text = '';
+    if (f?.status === 'available') {
+      const family = {'fib-confluence':'Confluence','fib-ema':'EMA pullback','fib-extension':'Breakout','fib-sweep':'Sweep'}[f.family] || 'Structure reference';
+      const phase = {reference:'no armed setup',armed:'armed candidate, not an entry',confirmed:'confirmed signal, not a fill','entry-plan':'entry plan, fill confirmation pending',owned:'saved trade geometry'}[f.phase];
+      text = `Auto Fib ${f.kind.toUpperCase()} · ${family} · ${f.running ? phase : `paused snapshot: ${phase}`} · ${f.scope.structure_minutes}m structure · levels known ${new Date(f.knownTime).toISOString().replace('T',' ').slice(0,19)} UTC. Reference levels, not a forecast or TP orders.`;
+    } else if (f) text = f.status === 'waiting' ? 'Auto Fib · waiting for a confirmed structure swing. No guessed anchors.' : 'Auto Fib · geometry unavailable; no stale overlay shown.';
+    if (this.fibonacciStatus.textContent !== text) this.fibonacciStatus.textContent = text;
+  }
+  setFibonacci(state, market) {
+    const next = this.intervalMs ? LiveChart.fibonacciFor(state, market) : null;
+    if (JSON.stringify(next) === JSON.stringify(this.fibonacci)) return;
+    this.fibonacci = next;
+    this.node.style.setProperty('--fib-chart-min-height', next?.status === 'available' ? '24rem' : '17.5rem');
+    this.updateFibonacciStatus();
+    this.draw();
+  }
+  fibonacciValues(domain) {
+    const f = this.fibonacci;
+    return f?.status === 'available' && f.knownTime <= domain[1] ? f.levels.map(row => row.value) : [];
+  }
+  drawFibonacci(domain) {
+    const f = this.fibonacci, active = this.intervalMs && this.points.length && this.fibonacciValues(domain).length;
+    this.fibBands.attr('display', active ? null : 'none');
+    this.fibForeground.attr('display', active ? null : 'none');
+    if (!active) return;
+    const {margin: m, textSize} = this, right = this.width-m.right;
+    const start = Math.max(m.left, this.x(f.knownTime));
+    const bands = f.levels.slice(1).map((row,i) => ({...row, prior: f.levels[i].value}));
+    this.fibBands.selectAll('rect').data(bands, row => row.ratio).join('rect')
+      .attr('x', start).attr('width', Math.max(0,right-start))
+      .attr('y', row => Math.min(this.y(row.value),this.y(row.prior)))
+      .attr('height', row => Math.abs(this.y(row.value)-this.y(row.prior)))
+      .attr('fill', row => LiveChart.fibColors[row.ratio])
+      .attr('fill-opacity', row => row.ratio === '0.618' && ['fib-confluence','fib-ema'].includes(f.family) ? .16 : .075);
+    this.fibLines.selectAll('line').data(f.levels, row => row.ratio).join('line')
+      .attr('data-ratio', row => row.ratio).attr('x1',start).attr('x2',right)
+      .attr('y1',row=>this.y(row.value)).attr('y2',row=>this.y(row.value))
+      .attr('stroke', row => LiveChart.fibColors[row.ratio])
+      .attr('stroke-width',row => (f.kind === 'extension' && row.ratio === '1') || (f.family === 'fib-sweep' && row.ratio === '1') ? 2 : 1);
+    // Historical source candle centers, not a projected future price path.
+    const half = f.scope.structure_minutes*30000;
+    this.fibImpulse.attr('d', `M${this.x(f.low.at*1000+half)},${this.y(Number(f.low.price))}L${this.x(f.high.at*1000+half)},${this.y(Number(f.high.price))}`);
+    this.fibKnown.attr('x1',this.x(f.knownTime)).attr('x2',this.x(f.knownTime)).attr('y1',m.top).attr('y2',this.priceBottom);
+    const format=d3.format(',.6~f'), labels=f.levels.map(row=>({...row,label:`${row.ratio} (${format(row.value)})`,actualY:this.y(row.value)})).sort((a,b)=>a.actualY-b.actualY);
+    const gap=Math.min(1.25*textSize,(this.priceBottom-m.top-textSize)/Math.max(1,labels.length-1));
+    labels.forEach((row,i)=>{row.labelY=Math.max(m.top+textSize,row.actualY,i ? labels[i-1].labelY+gap : 0);});
+    for(let i=labels.length-1;i>=0;i--) labels[i].labelY=Math.min(labels[i].labelY,i===labels.length-1 ? this.priceBottom-.25*textSize : labels[i+1].labelY-gap);
+    const labelWidth=Math.max(...labels.map(row=>row.label.length))*.62*textSize;
+    const labelX=Math.max(m.left+5,Math.min(start-labelWidth-8,right-labelWidth-5));
+    const groups=this.fibLabels.selectAll('g').data(labels,row=>row.ratio).join(enter=>{const group=enter.append('g');group.append('path');group.append('text');return group;});
+    groups.select('path').attr('d',row=>`M${labelX+labelWidth+2},${row.labelY-.3*textSize}L${Math.max(start,labelX+labelWidth+6)},${row.actualY}`)
+      .attr('fill','none').attr('stroke',row=>LiveChart.fibColors[row.ratio]).attr('stroke-opacity',.5);
+    groups.select('text').attr('data-ratio',row=>row.ratio).attr('x',labelX).attr('y',row=>row.labelY)
+      .style('fill',row=>LiveChart.fibColors[row.ratio]).text(row=>row.label);
+  }
   clear() {
+    this.fibonacci = null;
+    this.node.style.setProperty('--fib-chart-min-height', '17.5rem');
+    this.updateFibonacciStatus();
     this.points = [];
     this.indicatorPoints = [];
     this.fills = [];
@@ -235,6 +346,9 @@ class LiveChart {
     const showVolume = this.intervalMs && this.indicators.volume && this.points.length;
     this.bandGroup.attr('display', this.intervalMs && this.indicators.bollinger && this.points.length ? null : 'none');
     this.averageGroup.attr('display', this.intervalMs && this.indicators.sma && this.points.length ? null : 'none');
+    if (!this.points.length) {
+      this.fibBands.attr('display', 'none'); this.fibForeground.attr('display', 'none');
+    }
     for (const [name, panel] of Object.entries(this.oscillators)) panel.group.attr('display', this.panes[name] && this.points.length ? null : 'none');
     this.volumeGroup.attr('display', showVolume ? null : 'none');
     this.volumeAxis.attr('display', showVolume ? null : 'none');
@@ -270,6 +384,7 @@ class LiveChart {
       if (this.indicators.bollinger) values.push(...[row.lower, row.upper].filter(Number.isFinite));
     }
     for (const fill of this.fills) if (fill.time >= domain[0] && fill.time <= domain[1]) values.push(fill.value);
+    values.push(...this.fibonacciValues(domain));
     const [low, high] = d3.extent(values);
     const pad = Math.max((high-low)*.15, Math.abs(high)*.00005, .000001);
     this.y = d3.scaleLinear().domain([low-pad, high+pad]).range([this.priceBottom, m.top]);
@@ -309,6 +424,7 @@ class LiveChart {
       this.line.attr('d', line(this.points)); this.area.attr('d', area(this.points));
     }
     if (this.intervalMs) this.drawIndicators(visibleIndicators);
+    this.drawFibonacci(domain);
     const latest = this.points.at(-1), latestY = this.y(latest.value);
     const inView = center(latest) <= domain[1] && center(latest) >= domain[0];
     const latestColor = this.intervalMs ? (latest.value >= latest.open ? 'var(--success)' : 'var(--danger)') : this.color;

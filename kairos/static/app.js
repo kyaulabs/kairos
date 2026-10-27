@@ -9,6 +9,7 @@
   ChartIndicators.bind(priceChart);
   priceChart.bindNavigation($('chart-navigation'));
   priceChart.bindReadout($('chart-ohlc'));
+  priceChart.bindFibonacciStatus($('fibonacci-status'));
   const number = value => value == null ? '—' : Number(value).toLocaleString(undefined, {maximumFractionDigits: 8});
   const money = value => value == null ? '—' : Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const time = ts => new Date(ts * 1000).toLocaleTimeString();
@@ -198,7 +199,7 @@
     $('connection').classList.toggle('connected', status === 'connected');
   }
   function render(next) {
-    if ((state && next.exchange !== state.exchange) || settingsSchema.exchange !== next.exchange || pairs.some(pair => pair.exchange !== next.exchange)) { location.reload(); return; }
+    if ((state && next.exchange !== state.exchange) || settingsSchema.exchange !== next.exchange || pairs.some(pair => pair.exchange !== next.exchange)) { priceChart.setFibonacci(null, null); location.reload(); return; }
     if (historyRevision !== undefined && next.order_history_revision < historyRevision) return;
     const historyChanged = historyRevision !== undefined && next.order_history_revision !== historyRevision;
     historyRevision = next.order_history_revision;
@@ -239,6 +240,7 @@
     }
     $('market-title').textContent = selected || state.settings.pair;
     updateChartHeading();
+    priceChart.setFibonacci(state, chartPair);
     $('market-open').title = `${selected} · ${MarketPicker.kindLabel(chartPair)} · Chart only`;
     $('mode').value = state.mode;
     const hosted = state.exchange === 'alpaca', native = OKXOperations.enabled(state);
