@@ -81,10 +81,8 @@ class WeightedPrices:
 class Signals:
     def __init__(self, minutes, variant, *, context=None):
         if (
-            minutes not in (5, 15)
+            minutes not in ((5, 15, 30, 60) if context is not None else (5, 15))
             or variant not in VARIANTS
-            or context is not None
-            and minutes != 15
         ):
             raise SafetyError("Unknown VWAP/Fibonacci research variant or timeframe")
         self.minutes, self.variant = minutes, variant
@@ -93,7 +91,9 @@ class Signals:
         self.rows = deque(
             maxlen=max(
                 RULES["swing_max_age_bars"] + 2 * RULES["pivot_left_right"],
-                (2 * RULES["pivot_left_right"] + 1) * (context.minutes // 15) + 2 if context else 0,
+                (2 * RULES["pivot_left_right"] + 1) * (context.minutes // minutes) + 2
+                if context
+                else 0,
             )
         )
         self.tr = deque(maxlen=RULES["atr_bars"])
@@ -248,7 +248,7 @@ class Signals:
         if context:
             facts.update(
                 structure_minutes=context.minutes,
-                confirmation_minutes=15,
+                confirmation_minutes=self.minutes,
                 context_closed_at=context.closed_at,
                 context_observed_bars=context.engine.count,
                 context_prior_slow=str(context.prior_slow)

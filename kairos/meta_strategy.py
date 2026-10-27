@@ -1,18 +1,73 @@
-"""Paper/demo cash execution of the frozen VWAP and Fibonacci metas.
+"""Paper/demo cash execution of deterministic VWAP and Fibonacci metas.
 
 Protection is bot-managed, only while running. No native attached stop is assumed.
 """
 
 import asyncio
+import math
 import uuid
 
-from kairos.domain import BPS, ZERO, SafetyError, dec, floor
+from kairos.domain import BPS, CANDLE_INTERVALS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.market_data import CandleHistory
 from kairos.meta_signals import FAMILIES, MetaSignals
 from kairos.research_diagnostics import execution_estimate
 from kairos.strategies import limit_price
 
 MAX_HOLD = 1_209_600
+FIB_FIELDS = (
+    "fib_context_minutes",
+    "fib_confirmation_minutes",
+    "fib_max_hold_seconds",
+    "fib_stop_pct",
+    "fib_target_pct",
+)
+
+
+def configuration(e):
+    fields = ("meta_structure_minutes",) + (
+        FIB_FIELDS if e.settings["strategy"] == "fib-meta" else ()
+    )
+    return {k: e.settings[k] for k in fields}
+
+
+def confirmation_minutes(e):
+    return e.settings["fib_confirmation_minutes"] if e.settings["strategy"] == "fib-meta" else 15
+
+
+def signals_for(e):
+    return MetaSignals(
+        e.settings["strategy"],
+        e.settings["meta_structure_minutes"],
+        **(
+            {
+                "confirmation_minutes": e.settings["fib_confirmation_minutes"],
+                "context_minutes": e.settings["fib_context_minutes"],
+            }
+            if e.settings["strategy"] == "fib-meta"
+            else {}
+        ),
+    )
+
+
+def require_percentages(e):
+    if e.settings["strategy"] == "fib-meta" and any(
+        dec(e.settings[k]) <= 0 for k in ("fib_stop_pct", "fib_target_pct")
+    ):
+        raise SafetyError(
+            "Set explicit positive Fibonacci stop-loss and take-profit percentages before arming"
+        )
+
+
+def context_admission(e, state):
+    background = (state.get("signals") or {}).get("background") or {}
+    status = background.get("status") or {}
+    return bool(
+        status.get("bullish")
+        and status.get("closed_at") is not None
+        and status["closed_at"]
+        <= e.clock()
+        < status["closed_at"] + e.settings["fib_context_minutes"] * 60
+    )
 
 
 def key(e, mode=None, strategy=None, pair=None):
@@ -33,13 +88,21 @@ def snapshot(e):
 def view(e):
     state = snapshot(e)
     signals = state.get("signals") or {}
-    if signals.get("frame") != e.settings["meta_structure_minutes"]:
+    if (
+        signals.get("frame") != e.settings["meta_structure_minutes"]
+        or signals.get("confirmation_minutes", 15) != confirmation_minutes(e)
+        or signals.get("context_minutes")
+        != (e.settings["fib_context_minutes"] if e.settings["strategy"] == "fib-meta" else None)
+    ):
         signals = {}
     return {
+        "configuration": configuration(e),
+        "background_context": (signals.get("background") or {}).get("status"),
+        "context_rejections": signals.get("context_rejections", {}),
         "position": state["position"],
         "entries_halted": state["entries_halted"],
         "structure_minutes": e.settings["meta_structure_minutes"],
-        "confirmation_minutes": 15,
+        "confirmation_minutes": confirmation_minutes(e),
         "structure_observed_bars": signals.get("structure", {}).get("count", 0),
         "confirmation_observed_bars": next(iter(signals.get("children", {}).values()), {}).get(
             "count", 0
@@ -97,6 +160,7 @@ def prepare(e):
     if not state["epoch"]:
         state["epoch"] = uuid.uuid4().hex
         e.store.put(key(e), state)
+    seal_protection(e, state)
 
 
 def guard_configuration(e, values):
@@ -105,6 +169,11 @@ def guard_configuration(e, values):
     if any(
         values[k] != e.settings[k]
         for k in ("strategy", "product", "pair", "meta_structure_minutes")
+        + (
+            ("fib_context_minutes", "fib_confirmation_minutes")
+            if e.settings["strategy"] == "fib-meta"
+            else ()
+        )
     ):
         for mode in ("dry-run", "paper", "trading"):
             state = e.store.get(key(e, mode)) or {}
@@ -117,7 +186,10 @@ def guard_configuration(e, values):
 def arm(e):
     prepare(e)
     state = snapshot(e)
-    state["baseline_after"] = int(e.clock()) // 900 * 900
+    if not state["position"]:
+        require_percentages(e)
+    step = confirmation_minutes(e) * 60
+    state["baseline_after"] = int(e.clock()) // step * step
     if state["signals"]:
         signals = MetaSignals.restore(state["signals"])
         signals.cancel()
@@ -137,6 +209,12 @@ def tag(e, order):
     if order["maker"] or order["pair"] != e.settings["pair"] or volume * price > 1000:
         raise SafetyError("Meta intent exceeds its cash IOC market/order scope")
     if order["side"] == "buy":
+        if e.settings["strategy"] == "fib-meta":
+            require_percentages(e)
+            if not position.get("percentages") or not context_admission(e, state):
+                raise SafetyError(
+                    "Fibonacci entry requires percentage protection and current bullish context"
+                )
         duplicate = any(
             o.get("meta_id") == position["id"]
             and o.get("meta_epoch") == state["epoch"]
@@ -194,7 +272,12 @@ def observe_risk(e, state, pair, book):
         else:
             proceeds += dec(order["cost"]) - fee
     position["risk_plan"]["filled_stop_risk"] = str(
-        gross * dec(position["risk_plan"]["loss_per_gross_unit"])
+        gross
+        * dec(
+            position["risk_plan"].get(
+                "filled_loss_per_gross_unit", position["risk_plan"]["loss_per_gross_unit"]
+            )
+        )
     )
     mark = (
         owned(e, state, position)
@@ -240,8 +323,9 @@ def report(e, action, reason, state, **data):
             "strategy": e.settings["strategy"],
             "product": "spot",
             "symbol": pair.symbol,
+            "configuration": configuration(e),
             "structure_minutes": e.settings["meta_structure_minutes"],
-            "confirmation_minutes": 15,
+            "confirmation_minutes": confirmation_minutes(e),
             "inventory": str(e.balance(pair.base)),
             "position": state["position"],
             "entries_halted": state["entries_halted"],
@@ -252,24 +336,102 @@ def report(e, action, reason, state, **data):
     e.event("decision", decision)
 
 
+def economics(pair, price, stop, target, fee, scenario, base_fees):
+    stop_exit = execution_estimate(pair, stop, "sell", scenario)
+    target_exit = execution_estimate(pair, target, "sell", scenario)
+    # Kraken paper charges quote fees. OKX may charge entry fees in base or quote:
+    # reserve the worse documented case, without assuming a particular fill currency.
+    losses = [price * (1 + fee) - stop_exit * (1 - fee)]
+    rewards = [target_exit * (1 - fee) - price * (1 + fee)]
+    if base_fees:
+        losses.append(price - (1 - fee) * stop_exit * (1 - fee))
+        rewards.append((1 - fee) * target_exit * (1 - fee) - price)
+    return max(losses), min(rewards), stop_exit
+
+
+def percentage_prices(price, percentages):
+    return (
+        price * (1 - dec(percentages["stop"]) / 100),
+        price * (1 + dec(percentages["target"]) / 100),
+    )
+
+
+def seal_protection(e, state):
+    position = state["position"]
+    if not position or not position.get("percentages") or position.get("protection_sealed"):
+        return
+    buys = [
+        o
+        for o in e.orders()
+        if o.get("meta_id") == position["id"]
+        and o.get("meta_epoch") == state["epoch"]
+        and o["side"] == "buy"
+    ]
+    if len(buys) > 1:
+        raise SafetyError("Fibonacci position has multiple entry intents; no averaging or adoption")
+    if not buys:
+        # Every transport write requires a durable order first. No intent means
+        # Stop or admission failed before submission, not an unknown live order.
+        state["position"] = None
+        e.store.put(key(e), state)
+        return
+    if buys[0]["status"] not in TERMINAL:
+        return
+    order, plan = buys[0], position["risk_plan"]
+    gross, cost = dec(order["filled"]), dec(order["cost"])
+    if gross == 0:
+        if cost != 0:
+            raise SafetyError("Zero-fill Fibonacci IOC reports nonzero cost")
+        state["position"] = None
+        e.store.put(key(e), state)
+        return
+    if not order.get("fee_reported", True):
+        return
+    price = cost / gross
+    if (
+        cost <= 0
+        or gross < 0
+        or gross > dec(plan["requested_quantity"])
+        or price > dec(plan["entry_price"])
+        or order["pair"] != e.settings["pair"]
+        or dec(order["price"]) != dec(plan["entry_price"])
+    ):
+        raise SafetyError("Fibonacci fill differs from its frozen cash IOC limits")
+    stop, target = percentage_prices(price, position["percentages"])
+    loss, _, _ = economics(
+        e.resolve(order["pair"]),
+        price,
+        stop,
+        target,
+        dec(plan["planning_fee_bps"]) / BPS,
+        plan["execution_scenario"],
+        e.exchange == "okx-demo",
+    )
+    position.update(
+        stop=str(stop), target=str(target), entry_price=str(price), protection_sealed=True
+    )
+    plan["filled_loss_per_gross_unit"] = str(loss)
+    plan["filled_stop_risk"] = str(gross * loss)
+    e.store.put(key(e), state)
+
+
 def risk_plan(e, pair, book, setup):
     price = limit_price(book, "buy", e.settings["slippage_bps"])
-    if not setup.stop < price < setup.target:
+    stop, target = setup.stop, setup.target
+    if e.settings["strategy"] == "fib-meta":
+        require_percentages(e)
+        stop, target = percentage_prices(
+            price, {"stop": e.settings["fib_stop_pct"], "target": e.settings["fib_target_pct"]}
+        )
+    if not ZERO < stop < price < target:
         raise SafetyError("Current entry is outside the fixed stop/target plan")
     fee = max(ZERO, e.fees.reserve(pair)) / BPS
     if fee >= 1:
         raise SafetyError("Invalid meta fee allowance")
     scenario = {"spread_bps": str(book.spread_bps), "slippage_bps": e.settings["slippage_bps"]}
-    stop_exit = execution_estimate(pair, setup.stop, "sell", scenario)
-    target_exit = execution_estimate(pair, setup.target, "sell", scenario)
-    # Kraken paper charges quote fees. OKX may charge entry fees in base or quote:
-    # reserve the worse documented case, without assuming a particular fill currency.
-    losses = [price * (1 + fee) - stop_exit * (1 - fee)]
-    rewards = [target_exit * (1 - fee) - price * (1 + fee)]
-    if e.exchange == "okx-demo":
-        losses.append(price - (1 - fee) * stop_exit * (1 - fee))
-        rewards.append((1 - fee) * target_exit * (1 - fee) - price)
-    loss, reward = max(losses), min(rewards)
+    loss, reward, stop_exit = economics(
+        pair, price, stop, target, fee, scenario, e.exchange == "okx-demo"
+    )
     if loss <= 0 or reward <= 0 or stop_exit <= 0:
         raise SafetyError("Nonpositive cost-adjusted target reward or invalid stop estimate")
     capital = max(ZERO, min(dec(e.ledger()["initial"]), dec(e.equity), dec(1000)))
@@ -297,6 +459,9 @@ def risk_plan(e, pair, book, setup):
         price,
         {
             "entry_price": str(price),
+            "stop": str(stop),
+            "target": str(target),
+            "execution_scenario": scenario,
             "requested_quantity": str(volume),
             "planning_fee_bps": str(fee * BPS),
             "capital_budget": str(budget),
@@ -313,42 +478,64 @@ def risk_plan(e, pair, book, setup):
     )
 
 
-async def history(e, state):
-    cutoff = int(e.clock()) // 900 * 900
-    if state.get("history_checked_at") == cutoff and not state.get("history_unavailable"):
-        return None
-    pair = e.resolve(e.settings["pair"])
-    async with asyncio.timeout(8):
-        rows = (
-            await e.kraken.bars(pair, 15, count=299)
-            if e.exchange == "okx-demo"
-            else await e.kraken.candles(pair, 15)
-        )
-    validator = CandleHistory(pair, 15, 1)
+async def native_rows(e, pair, minutes):
+    rows = (
+        await e.kraken.bars(pair, minutes, count=299)
+        if e.exchange == "okx-demo"
+        else await e.kraken.candles(pair, minutes)
+    )
+    validator = CandleHistory(pair, minutes, 1)
     if any(not isinstance(r, (list, tuple)) or len(r) != 8 for r in rows):
         raise SafetyError("Malformed meta execution history")
     rows = [validator.validate(r, vwap_optional=e.exchange == "okx-demo") for r in rows]
-    times = [r[0] for r in rows]
+    times, step = [r[0] for r in rows], minutes * 60
+    cutoff = int(e.clock()) // step * step
     if (
         not times
         or times != sorted(set(times))
-        or any(t + 900 > cutoff for t in times)
-        or times[-1] + 900 != cutoff
+        or any(t + step > cutoff for t in times)
+        or times[-1] + step != cutoff
     ):
-        raise SafetyError("Meta history requires ordered, current, completed native 15m bars")
-    signals = (
-        MetaSignals.restore(state["signals"])
-        if state["signals"]
-        else MetaSignals(e.settings["strategy"], e.settings["meta_structure_minutes"])
-    )
-    if signals.structure_minutes != e.settings["meta_structure_minutes"]:
-        signals = MetaSignals(e.settings["strategy"], e.settings["meta_structure_minutes"])
+        raise SafetyError("Meta history requires ordered, current, completed native bars")
+    return rows
+
+
+async def history(e, state):
+    step = confirmation_minutes(e) * 60
+    cutoff = int(e.clock()) // step * step
+    if state.get("history_checked_at") == cutoff and not state.get("history_unavailable"):
+        return None
+    pair = e.resolve(e.settings["pair"])
+    desired = signals_for(e)
+    signals = MetaSignals.restore(state["signals"]) if state["signals"] else desired
+    if (signals.structure_minutes, signals.confirmation_minutes, signals.context_minutes) != (
+        desired.structure_minutes,
+        desired.confirmation_minutes,
+        desired.context_minutes,
+    ):
+        signals = desired
     last = signals.context.last_now
+    async with asyncio.timeout(8):
+        rows = await native_rows(e, pair, confirmation_minutes(e))
+        if last is None and signals.background:
+            # Seed only history already known at the first replayed confirmation.
+            # Starting on a shared boundary avoids inventing partial higher bars.
+            boundary = math.lcm(signals.structure_minutes, signals.context_minutes) * 60
+            start = (rows[0][0] + boundary - 1) // boundary * boundary
+            rows = [r for r in rows if r[0] >= start]
+            if not rows:
+                raise SafetyError("Insufficient confirmation history for aligned Fibonacci clocks")
+            higher_rows = {}
+            for context in (signals.context, signals.background):
+                if context.minutes in CANDLE_INTERVALS:
+                    if context.minutes not in higher_rows:
+                        higher_rows[context.minutes] = await native_rows(e, pair, context.minutes)
+                    context.seed(higher_rows[context.minutes], start)
     setup = None
     for row in rows:
-        if last is None or row[0] + 900 > last:
+        if last is None or row[0] + step > last:
             setup = signals.push(row, e.clock())
-    if state.get("history_unavailable") or last is not None and cutoff - last > 900:
+    if state.get("history_unavailable") or last is not None and cutoff - last > step:
         state["baseline_after"] = cutoff
         signals.cancel()
         setup = None
@@ -366,6 +553,9 @@ async def run(e):
     book.fresh(e.settings["stale_seconds"])
     position = state["position"]
     exited = False
+    if position and position.get("percentages") and not position.get("protection_sealed"):
+        report(e, "hold", "Awaiting terminal native entry fills; no duplicate buy", state)
+        return
     if position:
         observe_risk(e, state, pair, book)
         held = owned(e, state, position)
@@ -442,6 +632,9 @@ async def run(e):
     ):
         report(e, "hold", "Startup/recovery baseline or missed first execution minute", state)
         return
+    if e.settings["strategy"] == "fib-meta" and not context_admission(e, state):
+        report(e, "hold", "Fibonacci requires current bullish background context", state)
+        return
     try:
         volume, price, plan = risk_plan(e, pair, book, setup)
     except SafetyError as exc:
@@ -449,12 +642,23 @@ async def run(e):
         return
     state["position"] = {
         "id": uuid.uuid4().hex,
-        "stop": str(setup.stop),
-        "target": str(setup.target),
-        "deadline": e.clock() + MAX_HOLD,
+        "stop": plan["stop"],
+        "target": plan["target"],
+        "deadline": e.clock()
+        + (
+            e.settings["fib_max_hold_seconds"] if e.settings["strategy"] == "fib-meta" else MAX_HOLD
+        ),
         "signal": setup.facts,
         "risk_plan": plan,
     }
+    if e.settings["strategy"] == "fib-meta":
+        state["position"].update(
+            percentages={
+                "stop": e.settings["fib_stop_pct"],
+                "target": e.settings["fib_target_pct"],
+            },
+            protection_sealed=False,
+        )
     e.store.put(key(e), state)
     report(e, "buy", "Fixed-priority, cost-qualified meta setup", state)
     await e.place(
@@ -465,3 +669,4 @@ async def run(e):
         book,
         review={"observed_at": e.clock(), "expires_at": setup.closed_at + 60},
     )
+    seal_protection(e, snapshot(e))

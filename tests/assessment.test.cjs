@@ -196,3 +196,22 @@ test('meta status shows deterministic warm-up and durable protection, never mode
   }
   assert.equal(JSON.stringify({state,decision}),before);
 });
+
+test('Fibonacci status reports three clocks and percentage inputs without stale profile decisions', () => {
+  const {root,view}=instrumentFixture();
+  const settings={strategy:'fib-meta',pair:'XXBTZUSD',product:'spot',meta_structure_minutes:60,fib_context_minutes:240,fib_confirmation_minutes:5,fib_max_hold_seconds:28800,fib_stop_pct:'0',fib_target_pct:'0'};
+  const state={mode:'dry-run',settings,meta:{background_context:{observed_bars:70,bullish:true,support:'9500',resistance:'11000'},structure_observed_bars:200,confirmation_observed_bars:250}};
+  const decision={strategy:'fib-meta',pair:settings.pair,mode:'dry-run',deterministic:true,reason:'Current Fibonacci profile',state:{product:'spot',structure_minutes:60,configuration:{...settings}}};
+  view.render(decision,state);
+  const text=()=>root.querySelectorAll('p').map(n=>n.textContent).join(' ');
+  assert.ok(text().includes('240m context · 60m structure · 5m confirmation'));
+  assert.ok(text().includes('70/50 context'));
+  assert.ok(text().includes('support 9500 · resistance 11000'));
+  assert.ok(text().includes('SL required · TP required'));
+  assert.ok(text().includes('Current Fibonacci profile'));
+  for(const key of ['fib_context_minutes','fib_confirmation_minutes','fib_max_hold_seconds','fib_stop_pct','fib_target_pct']) {
+    view.render({...decision,state:{...decision.state,configuration:{...settings,[key]:'different'}}},state);
+    assert.ok(!text().includes('Current Fibonacci profile'));
+  }
+  assert.equal(root.querySelector('svg'),null);
+});
