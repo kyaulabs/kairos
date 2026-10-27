@@ -63,10 +63,16 @@ class AssessmentView {
     if (['vwap-meta', 'fib-meta'].includes(state.settings.strategy)) {
       root.attr('data-kind', 'meta');
       const meta = state.meta || {}, position = meta.position;
-      const current = AssessmentView.matches(decision, state) && decision.state?.structure_minutes === state.settings.meta_structure_minutes ? decision : null;
+      const fib = state.settings.strategy === 'fib-meta';
+      const fields = fib ? ['meta_structure_minutes','fib_context_minutes','fib_confirmation_minutes','fib_max_hold_seconds','fib_stop_pct','fib_target_pct'] : [];
+      const current = AssessmentView.matches(decision, state) && decision.state?.structure_minutes === state.settings.meta_structure_minutes && fields.every(k => decision.state?.configuration?.[k] === state.settings[k]) ? decision : null;
       root.append('p').attr('class', 'instrument-caption').text(`${state.settings.strategy.toUpperCase()} · DETERMINISTIC`);
-      root.append('p').attr('class', 'assessment-protection').text(`${state.settings.meta_structure_minutes}m structure · 15m confirmation · no Jev`);
-      root.append('p').attr('class', 'muted').text(`Observed bars: ${meta.structure_observed_bars ?? 0}/50 structure, ${meta.confirmation_observed_bars ?? 0}/50 confirmation. ${meta.entries_halted ? 'Entry loss latch active.' : current?.reason || 'Awaiting evaluation.'}`);
+      root.append('p').attr('class', 'assessment-protection').text(`${fib ? `${state.settings.fib_context_minutes}m context · ` : ''}${state.settings.meta_structure_minutes}m structure · ${fib ? state.settings.fib_confirmation_minutes : 15}m confirmation · no Jev`);
+      root.append('p').attr('class', 'muted').text(`Observed bars: ${fib ? `${meta.background_context?.observed_bars ?? 0}/50 context, ` : ''}${meta.structure_observed_bars ?? 0}/50 structure, ${meta.confirmation_observed_bars ?? 0}/50 confirmation. ${meta.entries_halted ? 'Entry loss latch active.' : current?.reason || 'Awaiting evaluation.'}`);
+      if (fib) {
+        root.append('p').attr('class', 'muted').text(`Context ${meta.background_context?.bullish ? 'bullish' : 'not eligible'} · support ${meta.background_context?.support ?? '—'} · resistance ${meta.background_context?.resistance ?? '—'}. Informational levels; no additional exit.`);
+        root.append('p').attr('class', 'assessment-protection').text(`SL ${Number(state.settings.fib_stop_pct) > 0 ? `${state.settings.fib_stop_pct}%` : 'required'} · TP ${Number(state.settings.fib_target_pct) > 0 ? `${state.settings.fib_target_pct}%` : 'required'} · maximum hold ${state.settings.fib_max_hold_seconds}s · entry-VWAP price offsets`);
+      }
       root.append('p').attr('class', 'assessment-protection').text(position ? `Stop ${position.stop} · target ${position.target} · deadline ${new Date(position.deadline * 1000).toLocaleString()}` : 'One shared cash account · one owned plan · no leverage');
       root.append('p').attr('class', 'muted').text('Bot-managed protection only while running with valid data and permission. Stop/offline or expiry retains holdings; planned risk is not a guaranteed loss cap.');
       return;

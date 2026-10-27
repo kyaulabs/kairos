@@ -104,10 +104,25 @@ FIELDS = {
     "htf_max_hold_seconds": setting(604800, (3600, 2592000), strategies=("htf",), migrate=True),
     "meta_structure_minutes": setting(
         60,
-        choices={15: "15m", 30: "30m", 60: "1h", 360: "6h", 720: "12h"},
+        choices={15: "15m", 30: "30m", 60: "1h", 240: "4h", 360: "6h", 720: "12h"},
         strategies=("vwap-meta", "fib-meta"),
         migrate=True,
     ),
+    "fib_context_minutes": setting(
+        240,
+        choices={15: "15m", 30: "30m", 60: "1h", 240: "4h", 360: "6h", 720: "12h"},
+        strategies=("fib-meta",),
+        migrate=True,
+    ),
+    "fib_confirmation_minutes": setting(
+        15,
+        choices={5: "5m", 15: "15m", 30: "30m", 60: "1h"},
+        strategies=("fib-meta",),
+        migrate=True,
+    ),
+    "fib_max_hold_seconds": setting(28800, (60, 1209600), strategies=("fib-meta",), migrate=True),
+    "fib_stop_pct": setting("0", ("0", "100"), strategies=("fib-meta",), migrate=True),
+    "fib_target_pct": setting("0", ("0", "1000000"), strategies=("fib-meta",), migrate=True),
     "scalp_window": setting(30, (20, 120), strategies=("scalp",), migrate=True),
     "scalp_sigma": setting("2", ("1", "3"), strategies=("scalp",), migrate=True),
     "scalp_max_efficiency": setting("0.35", ("0.05", "0.8"), strategies=("scalp",), migrate=True),
@@ -211,6 +226,8 @@ def applies(field, values):
 def load_settings(saved):
     # Only named, already-introduced additions may migrate. Never invent a missing risk limit.
     additions = {key: field["default"] for key, field in FIELDS.items() if field.get("migrate")}
+    if "fib_context_minutes" not in saved:
+        additions["fib_context_minutes"] = max(240, saved.get("meta_structure_minutes", 60))
     # Remove only the retired manual trading-fee assumptions. Existing order snapshots remain intact.
     saved = {
         key: value for key, value in saved.items() if key not in ("maker_fee_bps", "taker_fee_bps")
@@ -251,6 +268,20 @@ def validate_settings(values):
         raise SafetyError(
             "Meta strategies require a 10–30 second cycle for protection and fresh entries"
         )
+    if dec(result["fib_stop_pct"]) >= 100:
+        raise SafetyError("Fibonacci stop percentage must be less than 100")
+    if values["strategy"] == "fib-meta":
+        context, structure, confirmation = (
+            values["fib_context_minutes"],
+            values["meta_structure_minutes"],
+            values["fib_confirmation_minutes"],
+        )
+        if not context >= structure >= confirmation or any(
+            frame % confirmation for frame in (context, structure)
+        ):
+            raise SafetyError(
+                "Fibonacci requires context >= structure >= confirmation and complete aggregation groups"
+            )
     if values["strategy"] == "scalp" and values["interval_seconds"] > 30:
         raise SafetyError("Scalping requires a 10–30 second engine interval for exit checks")
     if values["strategy"] == "dca" and values["dca_period_seconds"] < values["interval_seconds"]:
