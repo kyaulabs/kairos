@@ -7,6 +7,7 @@ import asyncio
 import math
 import uuid
 
+from kairos import fibonacci_chart
 from kairos.domain import BPS, CANDLE_INTERVALS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.market_data import CandleHistory
 from kairos.meta_signals import FAMILIES, MetaSignals
@@ -97,6 +98,7 @@ def view(e):
         signals = {}
     return {
         "configuration": configuration(e),
+        "fibonacci": fibonacci_chart.view(e, state, signals),
         "background_context": (signals.get("background") or {}).get("status"),
         "context_rejections": signals.get("context_rejections", {}),
         "position": state["position"],
@@ -324,6 +326,7 @@ def report(e, action, reason, state, **data):
             "product": "spot",
             "symbol": pair.symbol,
             "configuration": configuration(e),
+            "fibonacci": fibonacci_chart.view(e, state, state.get("signals") or {}),
             "structure_minutes": e.settings["meta_structure_minutes"],
             "confirmation_minutes": confirmation_minutes(e),
             "inventory": str(e.balance(pair.base)),
@@ -540,6 +543,10 @@ async def history(e, state):
         signals.cancel()
         setup = None
     state.update(signals=signals.checkpoint(), history_checked_at=cutoff, history_unavailable=False)
+    if e.settings["strategy"] == "fib-meta":
+        state["chart_setup"] = (
+            {"closed_at": setup.closed_at, "facts": setup.facts} if setup else None
+        )
     return setup
 
 

@@ -187,6 +187,10 @@ body.sidebar-open { grid-template-columns: calc(var(--rail-size) + var(--setting
 .indicator-config-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
 .indicator-config-actions button[type="submit"] { color: var(--accent); }
 #indicator-status { position: absolute; z-index: 3; bottom: .5rem; left: .5rem; right: .5rem; margin: 0; padding: .5rem; border: 1px solid var(--warning); border-radius: var(--radius-control); background: var(--panel); color: var(--text); font-size: .75rem; }
+.fibonacci-status { flex-shrink: 0; margin: 0; padding: .4rem .75rem; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.fib-overlay text { font: .75rem var(--font-mono); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.fib-impulse { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 6 5; }
+.fib-known { stroke: var(--muted); stroke-width: 1; stroke-opacity: .4; stroke-dasharray: 2 5; }
 .chart-heading { justify-content: flex-start; flex-wrap: wrap; gap: .5rem .75rem; }
 .chart-market { display: flex; align-items: center; gap: .5rem; min-width: 0; max-width: 100%; }
 #chart-market-icons { display: flex; flex-shrink: 0; }
@@ -212,7 +216,7 @@ body.sidebar-open { grid-template-columns: calc(var(--rail-size) + var(--setting
 .chart-navigation button:hover:not(:disabled) { color: var(--accent); background: var(--accent-soft); }
 #chart-follow { position: absolute; left: calc(100% + .75rem); }
 #chart, #equity-chart { display: block; width: 100%; height: 100%; touch-action: none; }
-#chart { min-height: calc(17.5rem + var(--extra-chart-panes, 0) * 7rem); touch-action: pan-y; }
+#chart { min-height: calc(var(--fib-chart-min-height, 17.5rem) + var(--extra-chart-panes, 0) * 7rem); touch-action: pan-y; }
 #equity-chart { min-height: 9rem; }
 .chart-footer { flex-shrink: 0; padding: 6px 12px 8px; border-top: 1px solid var(--line); font-size: .75rem; }
 .market-info { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 3px 10px; color: var(--muted); font: .75rem var(--font-mono); }

@@ -48,6 +48,23 @@ protection. Context support/resistance is informational; it does not add an exit
 Regression fixtures preserve legacy research geometry and checkpoint recovery.
 They do not financially validate the new profile or other selectable parameters.
 
+Fibonacci automatically adds a color-coded chart overlay on its saved bot market.
+Confluence/EMA candidates use the retracement grid; extension candidates use the
+strategy's existing low-to-high two-point extension grid, not a separate three-
+point drawing algorithm. Sweep is labeled explicitly on the parent retracement
+reference. The view prefers a saved position, then this bar's confirmed signal,
+then a priority-ordered armed candidate, then the current confirmed parent.
+Unfilled entry plans, candidates, references and paused snapshots are labeled;
+none is a predicted future price path. Percentage TP/SL remains independent of
+reference extension levels. Changing chart market, venue, mode or strategy clears
+the overlay. Chart interval changes do not change its strategy anchors. The
+dashed impulse connects source structure-candle centers, not inferred intrabar
+tick times. Bands start when the swing became known, not at the earlier pivot
+timestamp. Invalid
+or unavailable geometry produces a waiting/unavailable state rather than guessed
+levels. Normal decision records retain the displayed geometry for later review;
+this is not a new historical replay screen or reconstruction of earlier records.
+
 Before an entry, costs must leave positive modeled target reward. Planned stop
 risk is at most 1% of the smaller of initial capital and current equity, capped
 at 10 units of the selected quote currency. Order/exposure ceilings are 1,000
