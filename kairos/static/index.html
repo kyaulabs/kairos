@@ -87,13 +87,14 @@
         </div>
         <span id="chart-context" class="chart-context">Bot market</span>
       </div>
+      <p id="fibonacci-status" class="fibonacci-status" role="status" hidden></p>
       <div class="chart-viewport">
         <div id="indicator-legend" class="indicator-legend" aria-label="Active chart indicators" hidden>
           <div class="indicator-roll-body"><div id="indicator-rows"></div></div>
           <button id="indicator-roll" type="button" aria-controls="indicator-rows" aria-expanded="true" aria-label="Hide indicator list" data-tip="Hide indicator list"><span class="icon icon-chevron" aria-hidden="true">⌄</span></button>
         </div>
         <p id="indicator-status" role="status" hidden></p>
-        <div class="chart-stage" tabindex="0" role="region" aria-label="Scrollable price and indicator panels"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlesticks with optional chart-only indicators and native-unit volume. Drag to pan; Ctrl+scroll or two fingers to zoom. Scroll tall panels with one finger or the mouse wheel. Home or Reset chart to live shows recent candles."></svg></div>
+        <div class="chart-stage" tabindex="0" role="region" aria-label="Scrollable price and indicator panels"><svg id="chart" role="img" tabindex="0" aria-label="Selected market candlesticks with automatic strategy-bound Fibonacci references, optional chart-only indicators and native-unit volume. Drag to pan; Ctrl+scroll or two fingers to zoom. Scroll tall panels with one finger or the mouse wheel. Home or Reset chart to live shows recent candles."></svg></div>
         <div id="chart-navigation" class="chart-navigation" role="group" aria-label="Chart navigation">
           <button type="button" data-chart-action="zoom-out" aria-label="Zoom out" title="Zoom out" disabled><span class="icon icon-minus" aria-hidden="true">−</span></button>
           <button type="button" data-chart-action="zoom-in" aria-label="Zoom in" title="Zoom in" disabled><span class="icon icon-plus" aria-hidden="true">+</span></button>
