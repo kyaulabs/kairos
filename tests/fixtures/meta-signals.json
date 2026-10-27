@@ -1,0 +1,124 @@
+{
+  "scope": "Signal-only synthetic regression fixture against completed frozen deterministic quarter sources; no financial or model run",
+  "generator": "tests.test_meta_signals.rows(count=3000)",
+  "source_study": "vwap-fib-meta-kraken-quarter-2026-10-22-attempt-001",
+  "source_sha256": {
+    "meta.py": "f3f90dcfab75d65fa75bae922e0661157f006d4ae039e8d06518783a0bf91e61",
+    "context.py": "0cb77cfb655651b675d8c4bbc6eaada03dbf806a0ebd02272d1ff908cf471315",
+    "impulse.py": "095e83be3986e2efb6728f8baf0d5140a9db5e2707057610ebadaa7694e9f329",
+    "signals/components.py": "0baf0dd04481d1380334b722a98667564fe08c90c6f046d6aef724013627729f",
+    "signals/structure.py": "861a148faebe91b990363320433efca6c8de12a1dffb9c514de5bbfca531cb44"
+  },
+  "expected": {
+    "vwap-meta:15": {
+      "selected_sha256": "5b13877bc8fb515b5abb7caa89181ab8c3881007b0356fc7bf23be0994b8badb",
+      "selected_counts": {
+        "vwap-pullback": 34,
+        "vwap-anchored": 185
+      },
+      "raw_counts": {
+        "vwap-pullback": 34,
+        "vwap-anchored": 185
+      }
+    },
+    "vwap-meta:30": {
+      "selected_sha256": "f22082761499141401dd4f748f490601a009d535841ef7ee406281c172b86447",
+      "selected_counts": {
+        "vwap-anchored": 16,
+        "vwap-pullback": 40
+      },
+      "raw_counts": {
+        "vwap-anchored": 18,
+        "vwap-pullback": 40
+      }
+    },
+    "vwap-meta:60": {
+      "selected_sha256": "e344492361e1fdc947a7a7467d5fd55d7b4e0ccb44638ba981399f128e4da6f8",
+      "selected_counts": {
+        "vwap-pullback": 41,
+        "vwap-anchored": 9
+      },
+      "raw_counts": {
+        "vwap-pullback": 41,
+        "vwap-anchored": 11
+      }
+    },
+    "vwap-meta:360": {
+      "selected_sha256": "63add958d77a97c70e9c3a37b661643a211c76f6154ee6ab3dc9d15465422fa9",
+      "selected_counts": {
+        "vwap-pullback": 63,
+        "vwap-anchored": 8
+      },
+      "raw_counts": {
+        "vwap-pullback": 63,
+        "vwap-anchored": 19
+      }
+    },
+    "vwap-meta:720": {
+      "selected_sha256": "decc45d0a3277c40d517e29d25b56d45683baa7321559545b719c394ad48364d",
+      "selected_counts": {
+        "vwap-pullback": 31
+      },
+      "raw_counts": {
+        "vwap-pullback": 31
+      }
+    },
+    "fib-meta:15": {
+      "selected_sha256": "deba5ce286c40c785e90f66693724344b7df509cda77158d4fec8b38e73b4277",
+      "selected_counts": {
+        "fib-ema": 26,
+        "fib-extension": 24,
+        "fib-sweep": 2
+      },
+      "raw_counts": {
+        "fib-ema": 26,
+        "fib-extension": 24,
+        "fib-sweep": 3
+      }
+    },
+    "fib-meta:30": {
+      "selected_sha256": "cc6d340835ec194a91421a035ea1cf2a8949cd7e9b7a5149e0c84d85b119e9c3",
+      "selected_counts": {
+        "fib-confluence": 114,
+        "fib-extension": 8,
+        "fib-ema": 4
+      },
+      "raw_counts": {
+        "fib-confluence": 114,
+        "fib-ema": 50,
+        "fib-extension": 8
+      }
+    },
+    "fib-meta:60": {
+      "selected_sha256": "8d1760e676bb5f6c565ef1fcc85a3790114ef8ae5fb8b4ab5879055f135f7c41",
+      "selected_counts": {
+        "fib-confluence": 121,
+        "fib-extension": 8,
+        "fib-ema": 25
+      },
+      "raw_counts": {
+        "fib-confluence": 121,
+        "fib-extension": 8,
+        "fib-ema": 116
+      }
+    },
+    "fib-meta:360": {
+      "selected_sha256": "db46e077ab7b33f69a2399a7ff25b3d629e99e5599bd9e52bd2b49f9449e39cf",
+      "selected_counts": {
+        "fib-ema": 122,
+        "fib-confluence": 57,
+        "fib-extension": 5
+      },
+      "raw_counts": {
+        "fib-ema": 172,
+        "fib-confluence": 57,
+        "fib-extension": 5
+      }
+    },
+    "fib-meta:720": {
+      "selected_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "selected_counts": {},
+      "raw_counts": {}
+    }
+  }
+}

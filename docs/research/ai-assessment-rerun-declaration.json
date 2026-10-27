@@ -1,0 +1,178 @@
+{
+  "version": "candidate-assessment-pilot-rerun-v1",
+  "contract": "candidate-assessment-v2",
+  "declared_at": "2026-10-15T01:18:21.623673+00:00",
+  "status": "frozen_before_rerun",
+  "authorization": {
+    "request": "fix all this, then you have approval to re-run",
+    "new_max_invocations": 16,
+    "prior_original_invocations_consumed": 62,
+    "failed_pilot_invocations_consumed": 1,
+    "old_unused_allowance_closed": 15,
+    "count_failures": true,
+    "stop_on_first_failure": true,
+    "automatic_retries": 0,
+    "explicit_repeat": "Full original 16-case batch; first candidate repeats once under the user-approved corrected protocol."
+  },
+  "model_alias": "gpt-6.1-sol",
+  "reasoning_effort": "high",
+  "sdk_version": "0.162.1",
+  "transport": "official Python AsyncCodex / managed app-server",
+  "unchanged_inputs": {
+    "declaration": "ai-assessment-pilot-declaration.json",
+    "declaration_sha256": "48b9b3250cb9173341adc10a32ae1c091128987d5d59a33d1f33c3be6a5967ee",
+    "snapshots_sha256": "d190d8c664acadaa9d62ac0dd7872b57b42ffe596502a72ea7d002bab7289878",
+    "collector_sha256": "36c9e6060e6c6ee257b4c40a280fdb7cc7ad1a9a2dd01bd1f5ff28e98bf7e221",
+    "selection": "Exactly the same 16 first-arming snapshots in original fixed order, no replacements or resampling."
+  },
+  "changes": [
+    "Allow at most one native userMessage only when its single text content exactly equals the submitted input; continue rejecting tool/action, duplicate, altered and attachment echoes.",
+    "Require one canonical scalar JSON pointer per evidence string via schema pattern and validator; choose at most four useful references, never bundle paths.",
+    "Retain returned usage on failed validation. Do not repair, reinterpret as accepted or replace the original failed answer."
+  ],
+  "base_instructions_sha256": "b2b19a757ba2d623c3dff2ac225b38e64302a08f31f3b0f7d54aa99bf3e2bdf7",
+  "schema_sha256": "163682624da192e7620990ffa2a911192eb4aeb9f2f775fd86463ac0d6af969d",
+  "developer_instructions_sha256": [
+    "4623482302cd1c91029626295746893594caebd3bb4c10754022e66e2454f55e",
+    "5269971163f8a27a0b2d9bf20b40b3701df91a35802904e2559bbece71190d53",
+    "bc38a79aa8747f94caab2429231447f1b3bef84c193097a3c1f493366bef844e",
+    "355ef45769050e5e49759db2733ee6e923b51ebc207c297d733cdf4ce54f8b29",
+    "2e6f7187fa01619671104486989c5fffc103871df7266152f7ff5765b562f78d",
+    "c9e05dcaeb8926c77d4b640474becf5434f8be56ec111d2b06f7a5e98a54508e",
+    "6e2c64ae8bd038878f9dff9057849dc42ff03f4fc1bf38eb66d3cd179ba1606a",
+    "46a64e8144a91885acdd5f2d2fb0cbb51bffab0124490d74be7aed26dba4914e",
+    "4623482302cd1c91029626295746893594caebd3bb4c10754022e66e2454f55e",
+    "5269971163f8a27a0b2d9bf20b40b3701df91a35802904e2559bbece71190d53",
+    "bc38a79aa8747f94caab2429231447f1b3bef84c193097a3c1f493366bef844e",
+    "355ef45769050e5e49759db2733ee6e923b51ebc207c297d733cdf4ce54f8b29",
+    "2e6f7187fa01619671104486989c5fffc103871df7266152f7ff5765b562f78d",
+    "c9e05dcaeb8926c77d4b640474becf5434f8be56ec111d2b06f7a5e98a54508e",
+    "6e2c64ae8bd038878f9dff9057849dc42ff03f4fc1bf38eb66d3cd179ba1606a",
+    "46a64e8144a91885acdd5f2d2fb0cbb51bffab0124490d74be7aed26dba4914e"
+  ],
+  "source_hashes": {
+    "research_shadow.py": "8a1a615c16055e8300df51a35c1522380f153f812db0a7474bff72ff596cd75e",
+    "research_assessment.py": "8e9edd7373687be2de17c80f13123d5a1812248caa248f4aec88cfb4023f42c3"
+  },
+  "case_input_hashes": [
+    {
+      "case": "fib-confluence:5",
+      "candidate_id": "fib-confluence:1706770200",
+      "input_sha256": "be355150c7404b6b31082394c9f19493c3fd607abebb8a64a3d95502ec363db2"
+    },
+    {
+      "case": "fib-ema:5",
+      "candidate_id": "fib-ema:1706770200",
+      "input_sha256": "faddf23bb1d20c1f2c78bf4d5347ee95c60dfa3cdc9366db2b605f7ae9907812"
+    },
+    {
+      "case": "fib-extension:5",
+      "candidate_id": "fib-extension:1706769900",
+      "input_sha256": "bc073b4cc404bc9cf7e22813fc26b4d0c49dcce654221d6bf1a0dffc5bfa6590"
+    },
+    {
+      "case": "fib-sweep:5",
+      "candidate_id": "fib-sweep:1706781600",
+      "input_sha256": "2c518586bad4273449a340f581c037aed73120ec3fda24c496ef420ece2574fb"
+    },
+    {
+      "case": "vwap-anchored:5",
+      "candidate_id": "vwap-anchored:1706753100",
+      "input_sha256": "7f0a4488491dcf2cbc5db5bce2d0c7a1ae9c36bdf0c10ff5309d0c4cb97a70ff"
+    },
+    {
+      "case": "vwap-pullback:5",
+      "candidate_id": "vwap-pullback:1706770200",
+      "input_sha256": "e83255ac071035f9b822c1492e3d25273133351e943dfd62aee55f71d3164360"
+    },
+    {
+      "case": "vwap-reclaim:5",
+      "candidate_id": "vwap-reclaim:1706776800",
+      "input_sha256": "fb98692cde79ad53a793bf263484611e8da90595eaed1c72b919731443ab773c"
+    },
+    {
+      "case": "vwap-reversion:5",
+      "candidate_id": "vwap-reversion:1706751600",
+      "input_sha256": "05db4d03462c38dd1839fa8a7cb9fb0189c0f998d5aa16d82c648ec285d283f7"
+    },
+    {
+      "case": "fib-confluence:15",
+      "candidate_id": "fib-confluence:1706778000",
+      "input_sha256": "97d113a53d30e69e73062ab0485099f1891a8d40814dfc94b660c2a300ff7a45"
+    },
+    {
+      "case": "fib-ema:15",
+      "candidate_id": "fib-ema:1706804100",
+      "input_sha256": "8df09368da7cf3f3054b10a5ee247d79ed1c35d5fbafbfa0c519cd7a1d695ee8"
+    },
+    {
+      "case": "fib-extension:15",
+      "candidate_id": "fib-extension:1706783400",
+      "input_sha256": "385813e0de4ac61e784688ca5735b8e7aa84e171197f72973179faf66f412280"
+    },
+    {
+      "case": "fib-sweep:15",
+      "candidate_id": "fib-sweep:1706782500",
+      "input_sha256": "226a2fc4bbf9db86ffcf869bfd301ac0a9950f3065b58e41990a0bcae830905d"
+    },
+    {
+      "case": "vwap-anchored:15",
+      "candidate_id": "vwap-anchored:1706759100",
+      "input_sha256": "8c39773c06d6d4e06950f310b5043d2245aba3d519ac3e5a2052df7cbd3aae4b"
+    },
+    {
+      "case": "vwap-pullback:15",
+      "candidate_id": "vwap-pullback:1706805900",
+      "input_sha256": "7d917790ba5e277e69cc55515f14d35f3c01f2dd3fc454be99ca849fe53ea984"
+    },
+    {
+      "case": "vwap-reclaim:15",
+      "candidate_id": "vwap-reclaim:1706779800",
+      "input_sha256": "1a0a37ee9b10a3f1de972bbf84dd9b1e6575d1d86c04d8164b7fc4505e0a4655"
+    },
+    {
+      "case": "vwap-reversion:15",
+      "candidate_id": "vwap-reversion:1706861700",
+      "input_sha256": "b64b1c0538812aa3c8f61529b865053fa2312d3667164b43737ff8a8db41804a"
+    }
+  ],
+  "evaluation": "Original grounding/usage/latency and no-financial-effect criteria remain; this is a protocol repair, not an independent model-quality comparison. Preserve both attempts and repeat disclosure.",
+  "first_attempt": {
+    "status": "original attempt stopped; offline diagnosis only; no extra inference",
+    "original_invocations": 1,
+    "valid_assessments": 0,
+    "native_item_types": [
+      "userMessage",
+      "reasoning",
+      "reasoning",
+      "agentMessage"
+    ],
+    "exact_echo_passes_fixed_gate": true,
+    "answer_remains_rejected": "Evidence must be one canonical scalar pointer",
+    "latency_seconds": 30.081024,
+    "usage": {
+      "cache_write_input_tokens": 0,
+      "cached_input_tokens": 0,
+      "input_tokens": 8067,
+      "output_tokens": 1237,
+      "reasoning_output_tokens": 809,
+      "total_tokens": 9304
+    },
+    "unspent_original_allowance": 15,
+    "original_allowance_closed": true,
+    "content_checks": {
+      "target_room": "24.4",
+      "atr": "28.45",
+      "downside_distance": "59.3475",
+      "low_below_vwap_and_fib382": true,
+      "close_back_above_both": true,
+      "lower_high_and_close_than_previous": true,
+      "above_prior_mean_volume": true
+    },
+    "interpretation": "Raw content has grounded observations but invalid references; no accepted answer, selection benefit or financial effect."
+  },
+  "new_model_invocations_before_freeze": 0,
+  "financial_replays": 0,
+  "exchange_writes": 0,
+  "deployment": false
+}

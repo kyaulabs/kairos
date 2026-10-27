@@ -1,0 +1,655 @@
+{
+  "version": "ai-entry-quarter-partial-outcome-v1",
+  "status": "Inference stopped at first failure; all partial-coverage financial comparisons completed",
+  "financial_completed_at": "2026-10-16T04:44:38.952115+00:00",
+  "inference_finished_at": "2026-10-15T23:54:54.147912+00:00",
+  "methods": "ai-entry-filter-quarter.md",
+  "declaration": "ai-entry-filter-quarter-declaration.json",
+  "freeze_commit": "4a75970bb58fe1975c38fbd0c12142078ce365aa",
+  "cohort_size": 7895,
+  "reused_accepted": 179,
+  "fresh_invocations": 582,
+  "fresh_accepted": 581,
+  "fresh_failed": 1,
+  "accepted_total": 760,
+  "unattempted_slots_closed": 7134,
+  "unresolved_turns": 0,
+  "unstarted_continuation_calls": 0,
+  "cumulative_research_invocations": 840,
+  "active_inference_allowance": 0,
+  "accepted_decisions": {
+    "abstain": 600,
+    "permit": 160
+  },
+  "usage": {
+    "reused": {
+      "known_turns": 179,
+      "unknown_turns": 0,
+      "native_reported_tokens_known_subset": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 408064,
+        "input_tokens": 1471201,
+        "output_tokens": 240338,
+        "reasoning_output_tokens": 187607,
+        "total_tokens": 1711539
+      }
+    },
+    "fresh": {
+      "known_turns": 582,
+      "unknown_turns": 0,
+      "native_reported_tokens_known_subset": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 2007808,
+        "input_tokens": 4785811,
+        "output_tokens": 730199,
+        "reasoning_output_tokens": 562397,
+        "total_tokens": 5516010
+      }
+    }
+  },
+  "baseline_reproductions": 64,
+  "comparison_simulations": 1216,
+  "market_histories": 1,
+  "comparisons": [
+    {
+      "name": "ioc-base",
+      "primary": {
+        "Baseline": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 698,
+          "positive_target_fills": 698,
+          "active_case_days": 407,
+          "closed_trades": 628,
+          "mean_closed_R": "-0.4345399843409891362442766417",
+          "mean_case_return_pct": "-2.8181413422331341265625",
+          "budget_breaches": 15,
+          "halted_cases": 7,
+          "zero_fill_cases": [],
+          "entry_attempts": 793,
+          "unfilled_entries": 95,
+          "paid_fees_quote_equivalent": "169.833476133315",
+          "mean_time_in_market_pct": 95.80182368513441,
+          "retained_BTC_diagnostic_sum": "0.00038268770"
+        },
+        "Availability": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 53,
+          "positive_target_fills": 53,
+          "active_case_days": 33,
+          "closed_trades": 45,
+          "mean_closed_R": "-0.3230745885226167239236268969",
+          "mean_case_return_pct": "-0.0512259565369559684375",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-sweep 5m"
+          ],
+          "entry_attempts": 64,
+          "unfilled_entries": 11,
+          "paid_fees_quote_equivalent": "9.557585348864",
+          "mean_time_in_market_pct": 85.57039974950423,
+          "retained_BTC_diagnostic_sum": "0.00004380606"
+        },
+        "AI filter": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 14,
+          "positive_target_fills": 14,
+          "active_case_days": 10,
+          "closed_trades": 13,
+          "mean_closed_R": "-0.2657906958088024463140357843",
+          "mean_case_return_pct": "-0.0347033703385660171875",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-sweep 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 15,
+          "unfilled_entries": 1,
+          "paid_fees_quote_equivalent": "4.601258460216",
+          "mean_time_in_market_pct": 36.05152479813267,
+          "retained_BTC_diagnostic_sum": "0.00000416470"
+        },
+        "Suppression 00": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 13,
+          "positive_target_fills": 13,
+          "active_case_days": 13,
+          "closed_trades": 11,
+          "mean_closed_R": "-0.1892885761924764756891321579",
+          "mean_case_return_pct": "-0.0416470538393107109375",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 16,
+          "unfilled_entries": 3,
+          "paid_fees_quote_equivalent": "1.793479326399",
+          "mean_time_in_market_pct": 35.57508468465049,
+          "retained_BTC_diagnostic_sum": "0.00000454350"
+        }
+      },
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "AI_minus_baseline_mean_percentage_points": "2.7834379718945681093750",
+      "AI_minus_primary_suppression_mean_percentage_points": "0.0069436835007446937500",
+      "conditional_reference_return_comparison_not_pvalue": {
+        "higher": 9,
+        "lower": 7
+      },
+      "source_json_sha256": "866a55a9a07348bef5693fd315a711c9eaeefdfdba4da836973c586a3ea9d595",
+      "source_html_sha256": "8e24773f1207fd2bd2f5a27a7022485bdf002ee785892d46d95783606fe8cb12"
+    },
+    {
+      "name": "ioc-stress",
+      "primary": {
+        "Baseline": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 376,
+          "positive_target_fills": 376,
+          "active_case_days": 255,
+          "closed_trades": 338,
+          "mean_closed_R": "-0.5117971131052042247208118876",
+          "mean_case_return_pct": "-2.011230248455925323000",
+          "budget_breaches": 8,
+          "halted_cases": 3,
+          "zero_fill_cases": [],
+          "entry_attempts": 415,
+          "unfilled_entries": 39,
+          "paid_fees_quote_equivalent": "74.011617677622",
+          "mean_time_in_market_pct": 85.45042982797392,
+          "retained_BTC_diagnostic_sum": "0.00021571295"
+        },
+        "Availability": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 13,
+          "positive_target_fills": 13,
+          "active_case_days": 11,
+          "closed_trades": 10,
+          "mean_closed_R": "-0.2319510279283210855578896442",
+          "mean_case_return_pct": "-0.039577667680685284000",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 19,
+          "unfilled_entries": 6,
+          "paid_fees_quote_equivalent": "3.039094606799",
+          "mean_time_in_market_pct": 35.11086098433452,
+          "retained_BTC_diagnostic_sum": "0.00001947110"
+        },
+        "AI filter": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 4,
+          "positive_target_fills": 4,
+          "active_case_days": 4,
+          "closed_trades": 4,
+          "mean_closed_R": "-0.1354153888822022915439250692",
+          "mean_case_return_pct": "-0.006670820041839810600",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 4,
+          "unfilled_entries": 0,
+          "paid_fees_quote_equivalent": "1.774451001607",
+          "mean_time_in_market_pct": 23.141563321346226,
+          "retained_BTC_diagnostic_sum": "2.099E-8"
+        },
+        "Suppression 00": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 2,
+          "positive_target_fills": 2,
+          "active_case_days": 2,
+          "closed_trades": 2,
+          "mean_closed_R": "0.3260669502766726627532524642",
+          "mean_case_return_pct": "0.000034227926033578800",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-anchored 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-ema 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 4,
+          "unfilled_entries": 2,
+          "paid_fees_quote_equivalent": "0.055663158310",
+          "mean_time_in_market_pct": 11.490011006632445,
+          "retained_BTC_diagnostic_sum": "1.198E-8"
+        }
+      },
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "AI_minus_baseline_mean_percentage_points": "2.004559428414085512400",
+      "AI_minus_primary_suppression_mean_percentage_points": "-0.006705047967873389400",
+      "conditional_reference_return_comparison_not_pvalue": {
+        "lower": 12,
+        "higher": 4
+      },
+      "source_json_sha256": "68bad92886d2f683aa1ca942a08b81d2ae8b851ad446870e3a05e95e881eb200",
+      "source_html_sha256": "14e16a0200c6bd64f227fbd521967144dff29a5534dea6e150f2b5502c053685"
+    },
+    {
+      "name": "maker-base",
+      "primary": {
+        "Baseline": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 413,
+          "positive_target_fills": 413,
+          "active_case_days": 310,
+          "closed_trades": 379,
+          "mean_closed_R": "-0.4321734409954016949785086348",
+          "mean_case_return_pct": "-1.402255980508487078625",
+          "budget_breaches": 8,
+          "halted_cases": 6,
+          "zero_fill_cases": [],
+          "entry_attempts": 1239,
+          "unfilled_entries": 826,
+          "paid_fees_quote_equivalent": "101.7404164992742",
+          "mean_time_in_market_pct": 91.21899343871868,
+          "retained_BTC_diagnostic_sum": "0.000245437704"
+        },
+        "Availability": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 22,
+          "positive_target_fills": 22,
+          "active_case_days": 19,
+          "closed_trades": 20,
+          "mean_closed_R": "-0.3726596838434389085733637496",
+          "mean_case_return_pct": "-0.061442461538603620625",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-reclaim 15m"
+          ],
+          "entry_attempts": 111,
+          "unfilled_entries": 89,
+          "paid_fees_quote_equivalent": "4.0234273020124",
+          "mean_time_in_market_pct": 48.958283914186225,
+          "retained_BTC_diagnostic_sum": "0.000027032840"
+        },
+        "AI filter": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 4,
+          "positive_target_fills": 4,
+          "active_case_days": 4,
+          "closed_trades": 4,
+          "mean_closed_R": "-0.356286762493297573103976969",
+          "mean_case_return_pct": "-0.064231916687527597625",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 24,
+          "unfilled_entries": 20,
+          "paid_fees_quote_equivalent": "2.0655692797396",
+          "mean_time_in_market_pct": 11.92010584395252,
+          "retained_BTC_diagnostic_sum": "1.6456E-8"
+        },
+        "Suppression 00": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 5,
+          "positive_target_fills": 5,
+          "active_case_days": 4,
+          "closed_trades": 5,
+          "mean_closed_R": "-0.2259481159728691679602638276",
+          "mean_case_return_pct": "-0.03720062890140782500",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 29,
+          "unfilled_entries": 24,
+          "paid_fees_quote_equivalent": "1.4281445696994",
+          "mean_time_in_market_pct": 17.25673622510461,
+          "retained_BTC_diagnostic_sum": "1.7600E-8"
+        }
+      },
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "AI_minus_baseline_mean_percentage_points": "1.338024063820959481000",
+      "AI_minus_primary_suppression_mean_percentage_points": "-0.027031287786119772625",
+      "conditional_reference_return_comparison_not_pvalue": {
+        "lower": 16
+      },
+      "source_json_sha256": "81b5cd470e574953ddb815b2b8adfb5a7daaef34463dee372a56fdecbbe643c2",
+      "source_html_sha256": "8181bfa3ccf8cb26de1cb6b99029f89252c65fb4b950d95c6c10dfdf8a7d4b4b"
+    },
+    {
+      "name": "maker-stress",
+      "primary": {
+        "Baseline": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 0,
+          "positive_target_fills": 0,
+          "active_case_days": 0,
+          "closed_trades": 0,
+          "mean_closed_R": null,
+          "mean_case_return_pct": "0E-7",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-anchored 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-ema 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 1402,
+          "unfilled_entries": 1402,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        },
+        "Availability": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 0,
+          "positive_target_fills": 0,
+          "active_case_days": 0,
+          "closed_trades": 0,
+          "mean_closed_R": null,
+          "mean_case_return_pct": "0E-7",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-anchored 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-ema 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 65,
+          "unfilled_entries": 65,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        },
+        "AI filter": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 0,
+          "positive_target_fills": 0,
+          "active_case_days": 0,
+          "closed_trades": 0,
+          "mean_closed_R": null,
+          "mean_case_return_pct": "0E-7",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-anchored 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-ema 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 14,
+          "unfilled_entries": 14,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        },
+        "Suppression 00": {
+          "independent_cases": 16,
+          "signals": 3935,
+          "filled_entries": 0,
+          "positive_target_fills": 0,
+          "active_case_days": 0,
+          "closed_trades": 0,
+          "mean_closed_R": null,
+          "mean_case_return_pct": "0E-7",
+          "budget_breaches": 0,
+          "halted_cases": 0,
+          "zero_fill_cases": [
+            "fib-confluence 5m",
+            "fib-ema 5m",
+            "fib-extension 5m",
+            "fib-sweep 5m",
+            "vwap-anchored 5m",
+            "vwap-pullback 5m",
+            "vwap-reclaim 5m",
+            "vwap-reversion 5m",
+            "fib-confluence 15m",
+            "fib-ema 15m",
+            "fib-extension 15m",
+            "fib-sweep 15m",
+            "vwap-anchored 15m",
+            "vwap-pullback 15m",
+            "vwap-reclaim 15m",
+            "vwap-reversion 15m"
+          ],
+          "entry_attempts": 14,
+          "unfilled_entries": 14,
+          "paid_fees_quote_equivalent": "0",
+          "mean_time_in_market_pct": 0.0,
+          "retained_BTC_diagnostic_sum": "0"
+        }
+      },
+      "conservative_descriptive_improves": {
+        "Baseline": false,
+        "Availability": false,
+        "Suppression 00": false
+      },
+      "AI_minus_baseline_mean_percentage_points": "0E-7",
+      "AI_minus_primary_suppression_mean_percentage_points": "0E-7",
+      "conditional_reference_return_comparison_not_pvalue": {
+        "equal": 16
+      },
+      "source_json_sha256": "74f5b0109f5d8da363ee37fb94a517557893d66ae13c4e461369939acab3b7b7",
+      "source_html_sha256": "932fc9339a9fc824e02b1cd90cc61ad7617b8dca5c4993681a505dde7e02ad7d"
+    }
+  ],
+  "all_16_conditional_reference_results_retained": true,
+  "frozen_plans_roles_timing_and_risk_verified": true,
+  "selection": "No primary conservative improvement rule passed. Partial coverage and reduced activity prohibit full-quarter AI-value claims. Base maker AI is below all sixteen conditional references; IOC sensitivity is mixed. No promotion or further inference.",
+  "reporting_addendum": "The original analysis limitation sentence says 7716 new calls; the saved addendum corrects this planned-cap wording to actual582 without rewriting original audits.",
+  "limitations": [
+    "760/7895 accepted candidates only; failed and unattempted candidates fail closed. This is not complete quarter AI coverage.",
+    "Repeatedly inspected February\u2013April 2024 development data, dependent setup/timeframe cases and possible model-pretraining contamination; not a holdout.",
+    "All 179 pilot answers reused exactly; 582 fresh invocations at later acquisition times, of which 581 accepted and one rejected. 7134 unattempted slots closed. Alias is not immutable.",
+    "Conditional controls match allowed-arm counts, not fills, and condition on future case totals. Not deployable causal controls or p-values.",
+    "Mapped per-case client-wall latency plus assumed 1s bar delivery; no shared inference queue or historical OKX venue books/queues/fees/rules.",
+    "Native opinions are unchanged; structural validation is not semantic truth. Reduced activity, undefined R or inactive adverse maker cases do not prove incremental value.",
+    "Simulated trading costs, retained BTC marks without fictional liquidation; subscription tokens reported without an invented Platform-dollar cost."
+  ],
+  "artifacts": {
+    "declaration.json": {
+      "sha256": "9709a3e4b93676e61b8a26ead962f01a012ae3b71ae5f57c0ed771aca84add3a"
+    },
+    "launch-finished.json": {
+      "sha256": "1a83efe7028427d589f6b4cf184eef1e752785f577d491a01bdd11890943b417"
+    },
+    "cohort-results.json": {
+      "sha256": "c6d0e5716cac04d24a4a407c9c6632392dbf0bf79ed5fded68f52cd5cd453794"
+    },
+    "inference-verification.json": {
+      "sha256": "e53b2da9fada8fd6db5bb6db86e027a704bf70f3f4bd2ac12b417bbb2a891b8a"
+    },
+    "analysis.json": {
+      "sha256": "9fec33beb58a54adbf13ab670684d86a30b390b3d3acc4ad8a969ef60472cc39"
+    },
+    "analysis-reporting-addendum.json": {
+      "sha256": "4f1e39f7fec3649c910e73159fbbc14a8d0cb1ac26f0c168221121fdd0438d01"
+    },
+    "opportunity-audit.json": {
+      "sha256": "91848f91fc90b3738dd891dad768c5b47047145524fafa9e4853309a51d9f450"
+    },
+    "gate-selection.json": {
+      "sha256": "6e137aec5d966e9207414d1fbcae9186060d0623cd1e82122e8d2165906e3a7a"
+    },
+    "comparison/COMPLETE.json": {
+      "sha256": "6bc40d19fe97b039d0a7b6a771c8030e92506071deb1b89c10f98dc8680f5d48"
+    },
+    "continuation-cancelled.json": {
+      "sha256": "3ac7837d835bfe925504968b7ffb0e1521f5bef1582ba2f561f493565ffd4026"
+    },
+    "comparison/ioc-base.json": {
+      "sha256": "866a55a9a07348bef5693fd315a711c9eaeefdfdba4da836973c586a3ea9d595"
+    },
+    "comparison/ioc-base.html": {
+      "sha256": "8e24773f1207fd2bd2f5a27a7022485bdf002ee785892d46d95783606fe8cb12"
+    },
+    "comparison/ioc-stress.json": {
+      "sha256": "68bad92886d2f683aa1ca942a08b81d2ae8b851ad446870e3a05e95e881eb200"
+    },
+    "comparison/ioc-stress.html": {
+      "sha256": "14e16a0200c6bd64f227fbd521967144dff29a5534dea6e150f2b5502c053685"
+    },
+    "comparison/maker-base.json": {
+      "sha256": "81b5cd470e574953ddb815b2b8adfb5a7daaef34463dee372a56fdecbbe643c2"
+    },
+    "comparison/maker-base.html": {
+      "sha256": "8181bfa3ccf8cb26de1cb6b99029f89252c65fb4b950d95c6c10dfdf8a7d4b4b"
+    },
+    "comparison/maker-stress.json": {
+      "sha256": "74f5b0109f5d8da363ee37fb94a517557893d66ae13c4e461369939acab3b7b7"
+    },
+    "comparison/maker-stress.html": {
+      "sha256": "932fc9339a9fc824e02b1cd90cc61ad7617b8dca5c4993681a505dde7e02ad7d"
+    }
+  },
+  "new_model_calls_by_reporting": 0,
+  "additional_financial_replays_by_reporting": 0,
+  "promotion": false
+}

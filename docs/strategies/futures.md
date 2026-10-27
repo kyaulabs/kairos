@@ -1,6 +1,6 @@
 # Linear Futures
 
-Kairos supports paper and explicitly gated live execution for qualified USD-quoted linear crypto perpetuals on Kraken Derivatives. HTF, market making, DCA and TWAP support both modes. [Bollinger range scalping](SCALPING.md) supports paper Futures only. Inverse contracts, dated Futures, non-crypto contracts, Futures arbitrage and Futures basket rebalancing remain blocked. Public listings do not establish your account's regional eligibility; this is not a US CME Futures integration.
+Kairos supports paper and explicitly gated live execution for qualified USD-quoted linear crypto perpetuals on Kraken Derivatives. HTF, market making, DCA and TWAP support both modes. [Bollinger range scalping](scalping.md) supports paper Futures only. Inverse contracts, dated Futures, non-crypto contracts, Futures arbitrage and Futures basket rebalancing remain blocked. Public listings do not establish your account's regional eligibility; this is not a US CME Futures integration.
 
 A supported contract has the `PF_` prefix, `flexible_futures` type, USD quote, contract size 1, published precision and margin tiers, and active, non-expired crypto metadata. One contract unit represents one base unit of exposure, not ownership of that coin. Fractional contract sizes follow Kraken's published trade precision. The Futures catalog never enters the spot execution catalog. Its equity, exposure and loss caps are separate from spot, paper margin and Earn; they are not a combined account-wide risk limit. Switching products does not liquidate existing spot holdings.
 

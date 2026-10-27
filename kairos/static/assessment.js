@@ -60,6 +60,17 @@ class AssessmentView {
       root.append('p').attr('class', 'muted').text('See finite-run evidence for exact orders and fees. No predictive signal, Jev assessment or profitability claim.');
       return;
     }
+    if (['vwap-meta', 'fib-meta'].includes(state.settings.strategy)) {
+      root.attr('data-kind', 'meta');
+      const meta = state.meta || {}, position = meta.position;
+      const current = AssessmentView.matches(decision, state) && decision.state?.structure_minutes === state.settings.meta_structure_minutes ? decision : null;
+      root.append('p').attr('class', 'instrument-caption').text(`${state.settings.strategy.toUpperCase()} · DETERMINISTIC`);
+      root.append('p').attr('class', 'assessment-protection').text(`${state.settings.meta_structure_minutes}m structure · 15m confirmation · no Jev`);
+      root.append('p').attr('class', 'muted').text(`Observed bars: ${meta.structure_observed_bars ?? 0}/50 structure, ${meta.confirmation_observed_bars ?? 0}/50 confirmation. ${meta.entries_halted ? 'Entry loss latch active.' : current?.reason || 'Awaiting evaluation.'}`);
+      root.append('p').attr('class', 'assessment-protection').text(position ? `Stop ${position.stop} · target ${position.target} · deadline ${new Date(position.deadline * 1000).toLocaleString()}` : 'One shared cash account · one owned plan · no leverage');
+      root.append('p').attr('class', 'muted').text('Bot-managed protection only while running with valid data and permission. Stop/offline or expiry retains holdings; planned risk is not a guaranteed loss cap.');
+      return;
+    }
     const color = action => ({buy: 'var(--success)', sell: 'var(--danger)', hold: 'var(--muted)'}[action] || 'var(--accent)');
     const svg = root.append('svg').attr('viewBox', '0 0 360 214').attr('role', 'img').attr('class', 'assessment-instrument');
     const text = (x, y, value, cls = '', anchor = 'start') => svg.append('text').attr('x', x).attr('y', y).attr('class', cls).attr('text-anchor', anchor).text(value);

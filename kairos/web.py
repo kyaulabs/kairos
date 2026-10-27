@@ -210,7 +210,9 @@ async def settings_schema(request):
         for name, field in contract["fields"].items():
             field["default"] = AlpacaEngine.defaults[name]
         contract["strategies"] = {
-            k: dict(v) for k, v in contract["strategies"].items() if k != "arbitrage"
+            k: dict(v)
+            for k, v in contract["strategies"].items()
+            if k not in {"arbitrage", "vwap-meta", "fib-meta"}
         }
         contract["fields"]["strategy"]["choices"] = {
             k: v["label"] for k, v in contract["strategies"].items()

@@ -1,0 +1,289 @@
+{
+  "selection_declaration": {
+    "declared_at": "2026-10-14T01:41:11.679141+00:00",
+    "parent_commit": "e0432b1f219bf2590b44ff03e2455d84ef79c7c9",
+    "selection": "Rank complete native daily months by standard deviation of daily log returns, requiring at least eight up days, eight down days and six daily direction changes. Center a fixed three-calendar-month window on the highest-ranked month with at least 80% observed execution-minute coverage and 99% native 5m/15m coverage. Audit candidates in rank order; do not examine strategy outcomes. If none qualifies, report the limitation rather than invent prices. This intentionally selects an extreme development period, not representative or holdout evidence.",
+    "scope": "#0 existing diagnostic and positive-target policies; subsequent factors start from positive-target and keep improvements only. Retain all eight setups, independent $1,000 cases, <=1% planned risk and every halt/protective rule.",
+    "ai": "Subscription OAuth support must be verified; no token access, paid inference or orders authorized."
+  },
+  "selection_audit": {
+    "audited_in_rank_order": [
+      {
+        "month": "2020-03",
+        "days": 31,
+        "up_days": 14,
+        "down_days": 17,
+        "direction_changes": 20,
+        "daily_log_return_stdev_pct": 10.62279106918736,
+        "high_to_low_range_pct": 149.75539420155516,
+        "start": "2020-02-01",
+        "end_exclusive": "2020-05-01",
+        "coverage_pct": {
+          "1": 10.293981481481481,
+          "5": 31.983024691358025,
+          "15": 58.90046296296296
+        },
+        "qualified": false
+      },
+      {
+        "month": "2021-05",
+        "days": 31,
+        "up_days": 14,
+        "down_days": 17,
+        "direction_changes": 20,
+        "daily_log_return_stdev_pct": 5.986473675308692,
+        "high_to_low_range_pct": 99.58618189873035,
+        "start": "2021-04-01",
+        "end_exclusive": "2021-07-01",
+        "coverage_pct": {
+          "1": 72.88690476190476,
+          "5": 98.48519536019536,
+          "15": 99.88553113553114
+        },
+        "qualified": false
+      },
+      {
+        "month": "2021-01",
+        "days": 31,
+        "up_days": 15,
+        "down_days": 16,
+        "direction_changes": 15,
+        "daily_log_return_stdev_pct": 5.435578806836322,
+        "high_to_low_range_pct": 72.81989934823861,
+        "start": "2020-12-01",
+        "end_exclusive": "2021-03-01",
+        "coverage_pct": {
+          "1": 58.673611111111114,
+          "5": 92.51929012345678,
+          "15": 99.02777777777779
+        },
+        "qualified": false
+      },
+      {
+        "month": "2021-02",
+        "days": 28,
+        "up_days": 15,
+        "down_days": 13,
+        "direction_changes": 15,
+        "daily_log_return_stdev_pct": 5.1185283159229416,
+        "high_to_low_range_pct": 83.59133126934985,
+        "start": "2021-01-01",
+        "end_exclusive": "2021-04-01",
+        "coverage_pct": {
+          "1": 68.63194444444444,
+          "5": 97.57716049382717,
+          "15": 99.65277777777779
+        },
+        "qualified": false
+      },
+      {
+        "month": "2021-06",
+        "days": 30,
+        "up_days": 14,
+        "down_days": 16,
+        "direction_changes": 18,
+        "daily_log_return_stdev_pct": 5.059789644173717,
+        "high_to_low_range_pct": 43.274651061203826,
+        "start": "2021-05-01",
+        "end_exclusive": "2021-08-01",
+        "coverage_pct": {
+          "1": 66.20621980676329,
+          "5": 96.65609903381642,
+          "15": 99.5697463768116
+        },
+        "qualified": false
+      },
+      {
+        "month": "2022-06",
+        "days": 30,
+        "up_days": 11,
+        "down_days": 19,
+        "direction_changes": 14,
+        "daily_log_return_stdev_pct": 4.631137784000862,
+        "high_to_low_range_pct": 81.33862733976176,
+        "start": "2022-05-01",
+        "end_exclusive": "2022-08-01",
+        "coverage_pct": {
+          "1": 64.66108091787439,
+          "5": 96.21829710144928,
+          "15": 99.75090579710145
+        },
+        "qualified": false
+      },
+      {
+        "month": "2022-02",
+        "days": 28,
+        "up_days": 14,
+        "down_days": 14,
+        "direction_changes": 14,
+        "daily_log_return_stdev_pct": 4.270358281948522,
+        "high_to_low_range_pct": 33.27510917030567,
+        "start": "2022-01-01",
+        "end_exclusive": "2022-04-01",
+        "coverage_pct": {
+          "1": 61.14120370370371,
+          "5": 96.19984567901234,
+          "15": 99.76851851851852
+        },
+        "qualified": false
+      },
+      {
+        "month": "2022-11",
+        "days": 30,
+        "up_days": 14,
+        "down_days": 16,
+        "direction_changes": 11,
+        "daily_log_return_stdev_pct": 4.270172817807973,
+        "high_to_low_range_pct": 44.180437995431966,
+        "start": "2022-10-01",
+        "end_exclusive": "2023-01-01",
+        "coverage_pct": {
+          "1": 52.356582125603865,
+          "5": 92.8743961352657,
+          "15": 99.61503623188406
+        },
+        "qualified": false
+      },
+      {
+        "month": "2026-02",
+        "days": 28,
+        "up_days": 10,
+        "down_days": 18,
+        "direction_changes": 15,
+        "daily_log_return_stdev_pct": 4.224167485282614,
+        "high_to_low_range_pct": 31.006716947502166,
+        "start": "2026-01-01",
+        "end_exclusive": "2026-04-01",
+        "coverage_pct": {
+          "1": 74.17129629629629,
+          "5": 99.17052469135803,
+          "15": 99.98842592592592
+        },
+        "qualified": false
+      },
+      {
+        "month": "2022-05",
+        "days": 31,
+        "up_days": 16,
+        "down_days": 15,
+        "direction_changes": 16,
+        "daily_log_return_stdev_pct": 4.207985522612479,
+        "high_to_low_range_pct": 50.021947678235804,
+        "start": "2022-04-01",
+        "end_exclusive": "2022-07-01",
+        "coverage_pct": {
+          "1": 62.32142857142857,
+          "5": 96.47435897435898,
+          "15": 99.80540293040293
+        },
+        "qualified": false
+      },
+      {
+        "month": "2021-09",
+        "days": 30,
+        "up_days": 16,
+        "down_days": 14,
+        "direction_changes": 16,
+        "daily_log_return_stdev_pct": 3.9784172790404173,
+        "high_to_low_range_pct": 33.676650158133036,
+        "start": "2021-08-01",
+        "end_exclusive": "2021-11-01",
+        "coverage_pct": {
+          "1": 66.63118961352656,
+          "5": 97.79589371980676,
+          "15": 99.90942028985508
+        },
+        "qualified": false
+      },
+      {
+        "month": "2024-03",
+        "days": 31,
+        "up_days": 18,
+        "down_days": 13,
+        "direction_changes": 16,
+        "daily_log_return_stdev_pct": 3.819301631116643,
+        "high_to_low_range_pct": 24.91525423728813,
+        "start": "2024-02-01",
+        "end_exclusive": "2024-05-01",
+        "coverage_pct": {
+          "1": 81.32021604938272,
+          "5": 99.15895061728395,
+          "15": 99.6875
+        },
+        "qualified": true
+      }
+    ],
+    "selected": {
+      "month": "2024-03",
+      "days": 31,
+      "up_days": 18,
+      "down_days": 13,
+      "direction_changes": 16,
+      "daily_log_return_stdev_pct": 3.819301631116643,
+      "high_to_low_range_pct": 24.91525423728813,
+      "start": "2024-02-01",
+      "end_exclusive": "2024-05-01",
+      "coverage_pct": {
+        "1": 81.32021604938272,
+        "5": 99.15895061728395,
+        "15": 99.6875
+      },
+      "qualified": true
+    },
+    "method": "Timestamp counts only for coverage; no strategy outcomes examined",
+    "selected_at": "2026-10-14T01:42:25.333377+00:00"
+  },
+  "input_receipt": {
+    "source": "/home/kyau/.local/share/kairos-research/kraken-btc-eth-001/Kraken_OHLCVT_Full_2026Q2.zip",
+    "source_size": 8972380104,
+    "start": 1706745600,
+    "end": 1714521600,
+    "members": {
+      "XBTUSDT_1.csv": {
+        "source_crc32": 288389024,
+        "source_bytes": 117262382,
+        "selected_rows": 105391,
+        "study_observed": 105391,
+        "study_expected": 129600,
+        "study_missing": 24209,
+        "coverage_pct": 81.32021604938272,
+        "warmup_seconds": 60
+      },
+      "XBTUSDT_5.csv": {
+        "source_crc32": 1391111992,
+        "source_bytes": 37023979,
+        "selected_rows": 26269,
+        "study_observed": 25702,
+        "study_expected": 25920,
+        "study_missing": 218,
+        "coverage_pct": 99.15895061728395,
+        "warmup_seconds": 172800
+      },
+      "XBTUSDT_15.csv": {
+        "source_crc32": 4116629029,
+        "source_bytes": 13551630,
+        "selected_rows": 8805,
+        "study_observed": 8613,
+        "study_expected": 8640,
+        "study_missing": 27,
+        "coverage_pct": 99.6875,
+        "warmup_seconds": 172800
+      },
+      "XBTUSDT_60.csv": {
+        "source_crc32": 477384745,
+        "source_bytes": 3606964,
+        "selected_rows": 2322,
+        "study_observed": 2154,
+        "study_expected": 2160,
+        "study_missing": 6,
+        "coverage_pct": 99.72222222222223,
+        "warmup_seconds": 604800
+      }
+    },
+    "selected_sha256": "380165e326961eeddd41dcedd4a6e623479fcd093ed43deaaaa74678e4c63d78",
+    "selected_bytes": 2645216,
+    "created_at": "2026-10-14T02:04:21.994139+00:00",
+    "selection_receipt_sha256": "6221e11a71262c70d2c3b57ad94dbf2a95c464c5bb0421011c6f752f529511e0"
+  },
+  "role": "Intentionally volatile development series, not holdout. No strategy outcomes examined before this selection receipt."
+}

@@ -1,0 +1,585 @@
+{
+  "recorded_at": "2026-10-14T17:16:59.904652+00:00",
+  "freeze_commit": "33ed4510f471be610bc34f37da44e482ac4f0e64",
+  "parent_declaration_sha256": "2dd6ec9478e73f7b7586f2e1c1c2c483a800e8d1781e6bb7b3408e67e026c67e",
+  "declaration_sha256": "a9c7cf8cdc885859d2f37bb35b1a2a711d56ec83548f7ff02514e6deaaccaaa5",
+  "model_alias": "gpt-6.1-sol",
+  "reasoning_effort": "high",
+  "authentication": "official Codex ChatGPT sign-in",
+  "new_invocations": 30,
+  "completed": 30,
+  "same_30_inputs_prompt_schema_and_report": true,
+  "luna_low": {
+    "completed": 30,
+    "latency_seconds": {
+      "p50": 3.5749105,
+      "p95_nearest_rank": 9.015795,
+      "max": 10.344933,
+      "total": 123.360787
+    },
+    "usage": {
+      "input_tokens": 303307,
+      "cached_input_tokens": 153344,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 2443,
+      "reasoning_output_tokens": 0
+    }
+  },
+  "sol_high": {
+    "completed": 30,
+    "latency_seconds": {
+      "p50": 12.717032,
+      "p95_nearest_rank": 21.285312,
+      "max": 27.870043,
+      "total": 419.857196
+    },
+    "usage": {
+      "input_tokens": 324007,
+      "cached_input_tokens": 42240,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 6681,
+      "reasoning_output_tokens": 4250
+    }
+  },
+  "reference_agreement": {
+    "luna_low": {
+      "invocations": 30,
+      "completed": 30,
+      "financial_effect": "none",
+      "regime_agreement": 10,
+      "room_quality_agreement": 23,
+      "interpretation": "Agreement is not accuracy; room R is not expected R. No model veto selected."
+    },
+    "sol_high": {
+      "invocations": 30,
+      "completed": 30,
+      "financial_effect": "none",
+      "regime_agreement": 16,
+      "room_quality_agreement": 25,
+      "interpretation": "Agreement is not accuracy; room R is not expected R. No model veto selected."
+    }
+  },
+  "paired_regime_agreement": 24,
+  "paired_quality_agreement": 22,
+  "post_shadow": {
+    "all_16_financial_controls_reproduced": true,
+    "wall_seconds": 263.98196352180094,
+    "json_sha256": "5cb8ccaecb8369d790e872671fd19986b2229c9f74de2cddc72499c7c5bc8872",
+    "html_sha256": "250449df1d0175c6780e0f77848c2ed2ea5b86f9533dc9d06b0c7ee0f7c7bef2"
+  },
+  "files": [
+    {
+      "path": "7-sol-high-shadow-attempt-001/00-answer.json",
+      "bytes": 304,
+      "sha256": "ca7bf7812235d86b7751fd81330c1e102828005adf391916d8b2f62567e9e610"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/00-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/00-events.jsonl",
+      "bytes": 893,
+      "sha256": "7a735d276cc9d6325af84a5ef04885bac2eeef5acebc4ced47cd1f9653502913"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/01-answer.json",
+      "bytes": 291,
+      "sha256": "ed1597f5c5d78ee759a6b309a77f3364212b31f834716fe4c469c2bc21778fe1"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/01-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/01-events.jsonl",
+      "bytes": 880,
+      "sha256": "5f34ee6d9c29b300543a43d9938077bd6a952da1d5bba6232e2af845b0ff8b32"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/02-answer.json",
+      "bytes": 329,
+      "sha256": "d44a514e23dadd370bd4a2c00fbedc922419272d35990e745f47905a466cde38"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/02-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/02-events.jsonl",
+      "bytes": 917,
+      "sha256": "bbaf43d255f117e01c49d50cb3f14d13102e68137808a75d0bda037fe2a1886b"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/03-answer.json",
+      "bytes": 285,
+      "sha256": "5f14060a9ffea8ff4e1068f1ec67e2ac5b9a026f5ce4a86df60a8978dabc1818"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/03-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/03-events.jsonl",
+      "bytes": 877,
+      "sha256": "223a262d44d449366b297ff6fd1a990db7effc26275d0d40d378b2bef9fa1c56"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/04-answer.json",
+      "bytes": 311,
+      "sha256": "c75efe10286e9f1a59690368b294f7923c41fee969d705d3dafeb63db1c9d2ad"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/04-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/04-events.jsonl",
+      "bytes": 900,
+      "sha256": "5ccfc7423ee60aed3b7f7bf4449be58eeec61eb68fb76865f15e7852ab8f805e"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/05-answer.json",
+      "bytes": 313,
+      "sha256": "5947e7d2988b3b0fe98ea47d47871e71a66f00a805a221822a5b4431dbe63b09"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/05-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/05-events.jsonl",
+      "bytes": 902,
+      "sha256": "a8fc05832e6674a98bfb10802a88c6aa9098ccf7a0574394a176f6bd2bc4db8d"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/06-answer.json",
+      "bytes": 287,
+      "sha256": "b868716a7500657b76f80055f68c3679f50f53b699dda536495d5746639213b5"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/06-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/06-events.jsonl",
+      "bytes": 876,
+      "sha256": "3e2bb99d20d807a8a01fbbae68355ed106fe5d10dcaa96ec55c29bacadf72e1c"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/07-answer.json",
+      "bytes": 322,
+      "sha256": "04593942b21867cbdc57fe15b0226b0e3a37f3fcd664fb6fe6f591e918a60022"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/07-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/07-events.jsonl",
+      "bytes": 911,
+      "sha256": "25b20cebc88844910f7856937531384ad6627d9eb47eacdc1ccc4d3e201e6876"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/08-answer.json",
+      "bytes": 325,
+      "sha256": "d1853777095e0e1ec99733a84291ad521b09f0b939ce52f03ca94acecc27baf4"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/08-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/08-events.jsonl",
+      "bytes": 913,
+      "sha256": "41a2be1f3b472c6f841aff09a0dbca77bd29598680af262017f77614bb4e351d"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/09-answer.json",
+      "bytes": 342,
+      "sha256": "3c4f1e9b1d368ce0820ab5fd75519baa77381d7781ed5765518319ece58db7af"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/09-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/09-events.jsonl",
+      "bytes": 930,
+      "sha256": "e28b02003d44a2d37177bc3cfbd2da77d4c1a7f53239c5dc80e7cd17f9385f55"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/10-answer.json",
+      "bytes": 284,
+      "sha256": "7b6f99f418821916f02a44b1b451e3328da6c4629e6b1a2cba2361ffa93131b2"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/10-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/10-events.jsonl",
+      "bytes": 876,
+      "sha256": "2f7617144099803dcee0a17dc45fac0586f94c8a19f152844948e4a31e89eedc"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/11-answer.json",
+      "bytes": 277,
+      "sha256": "e4fa7f3e39e168940fe8dd236463ec120d5416cbe0002c2ba41db2701dced38a"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/11-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/11-events.jsonl",
+      "bytes": 866,
+      "sha256": "743ace9463162322369c21637d54050f1df84c92bea67409526e691d0d8d30d7"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/12-answer.json",
+      "bytes": 355,
+      "sha256": "e6f08fafa6b25a1f0966cb1186ea0f1b630e8eb2dad2cf8968c8861709e69374"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/12-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/12-events.jsonl",
+      "bytes": 944,
+      "sha256": "72aad1827944d53e0f44dc276034d9b6c87e62c76940bff5d2023386655ae7ab"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/13-answer.json",
+      "bytes": 313,
+      "sha256": "3fbbefc2b2747362340b3358cdd7064aa8c80a5f2f1735111daab652076934da"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/13-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/13-events.jsonl",
+      "bytes": 902,
+      "sha256": "efa8fc2fc38f2771c52f63199a431498ee2538665db68a4cd3a0394a49c6d000"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/14-answer.json",
+      "bytes": 255,
+      "sha256": "44291744d9609a66e25a019bd93feef1a3f9c71e0fb0babd1fecb2f0f39b9231"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/14-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/14-events.jsonl",
+      "bytes": 843,
+      "sha256": "4db6eecd4da4a54965e8f67282c0e70d0a81a1f9c13dc173c420392b97cb4609"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/15-answer.json",
+      "bytes": 355,
+      "sha256": "036af16464babb15822fd5f41e463c77c2edf7f27c0b12092883d7ea7f862fd1"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/15-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/15-events.jsonl",
+      "bytes": 943,
+      "sha256": "77747b9dc09aaa0822bd924c002120f4305544c4c5a3aa146974f6096405b1bd"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/16-answer.json",
+      "bytes": 334,
+      "sha256": "fb5099f0e72dca1630d7e9dd3e80f8a0b39b301d00c687457fa991805cf4dbdb"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/16-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/16-events.jsonl",
+      "bytes": 922,
+      "sha256": "6c2ba1d8375c7b0f50375f7a333d92c392b9aa23b1c5b39f0d8d63c5baecf726"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/17-answer.json",
+      "bytes": 324,
+      "sha256": "1a78266afff2d89c30544bb71489f198762d460d89987f7196b92c534fd4d684"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/17-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/17-events.jsonl",
+      "bytes": 915,
+      "sha256": "e2f0b4d4b2591b3c7e0e71caa5408ae862e8453ea1c3db1fac6d44a37e78979c"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/18-answer.json",
+      "bytes": 310,
+      "sha256": "59b796c8a09287b77450a0bf1d8dd089b00e9663746b530833c9a5ed1c2fda6d"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/18-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/18-events.jsonl",
+      "bytes": 902,
+      "sha256": "abce8b7f2e7610145fd9b32a4bc902d296ee3ce536ed8379f50985bf4768536b"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/19-answer.json",
+      "bytes": 296,
+      "sha256": "2dce79f9b0ce3c5954e3c48a9d0a72482dd2b1f5ed921a49a97a5e18c0544b4f"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/19-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/19-events.jsonl",
+      "bytes": 884,
+      "sha256": "8a9dadf0d34d6bcec22c108cb7342e99763e4af6b3d93f72aaf12a885ee4debf"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/20-answer.json",
+      "bytes": 334,
+      "sha256": "2f048953dae5200e450c82c2e842ff2f506dd3d7bd586434dcdb4cc6fca7cbef"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/20-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/20-events.jsonl",
+      "bytes": 923,
+      "sha256": "0a8d23323c7f283e40ccc4ef32e753e0df8da83c792fe8c44bedc524f1e03354"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/21-answer.json",
+      "bytes": 324,
+      "sha256": "98c210635ab92fa91b2d9a49b5470d493f989fed05d856873cc6c486d7740744"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/21-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/21-events.jsonl",
+      "bytes": 913,
+      "sha256": "524978d4df5c9968b65156bbdd45fac38da0efd15bef476109b1de5b2bb1ec16"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/22-answer.json",
+      "bytes": 306,
+      "sha256": "fed95be083afe8af278ae8a0d80eb55c031f7967278255ce83232f14553cb962"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/22-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/22-events.jsonl",
+      "bytes": 895,
+      "sha256": "d302741a66578a1560bbf6d51f2813062324ae4b59dc14336bfd9dc55abebaac"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/23-answer.json",
+      "bytes": 325,
+      "sha256": "d2516381714329be75e1b5649b786c00b4016255618a5410d40a91a93a1d9658"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/23-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/23-events.jsonl",
+      "bytes": 914,
+      "sha256": "9ed6c4436946e345744afa48f3f789d3ae0c7fd9684b5bec95351337da5e1c30"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/24-answer.json",
+      "bytes": 328,
+      "sha256": "989e516d9425a7175462f466fc140a103aa51d0505fc80df2fce2e56631d2301"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/24-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/24-events.jsonl",
+      "bytes": 916,
+      "sha256": "e798441e26e8cd115519545b867410587faae88e9b69f3f351af489e0d4790a6"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/25-answer.json",
+      "bytes": 332,
+      "sha256": "6115867114a246f025b7bb588af63f1bf66e9d7423e28d6e85a233f4ed2bfd56"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/25-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/25-events.jsonl",
+      "bytes": 921,
+      "sha256": "1b104bdc18169512542c9e6c3bac20011982f908308aa4a7db55ec675c92525c"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/26-answer.json",
+      "bytes": 319,
+      "sha256": "25759078e754a95b1b41857458f5d29d16a0692486c02597a16a6c6d2092a101"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/26-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/26-events.jsonl",
+      "bytes": 908,
+      "sha256": "73a93700d2871dbe9bda72dfa868ec40e67706bd1f31de0b1234cf202ca45522"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/27-answer.json",
+      "bytes": 296,
+      "sha256": "b48713c7d19e1990865790d37ee11f51000e9b87388f928dd88ae700abdef05f"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/27-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/27-events.jsonl",
+      "bytes": 885,
+      "sha256": "e7512f2cb9426d5884856b5fbd051d8ea94b2a2a7ce039278156ff562446b7f1"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/28-answer.json",
+      "bytes": 304,
+      "sha256": "d792c7484c98a77389d0a9ff4e3eb541eb2de4268b90a9784c2b2a1efe4f5919"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/28-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/28-events.jsonl",
+      "bytes": 895,
+      "sha256": "e0561956eb82e562ab7a1ebb7fdf480f20b22ef2143dc9d600e40333c1341c55"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/29-answer.json",
+      "bytes": 310,
+      "sha256": "24635602db3c1cd11bc947c0d91fc0afc751696940ed41525926c91be8fdd180"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/29-client.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/29-events.jsonl",
+      "bytes": 899,
+      "sha256": "17451e2ca654fd52f7b4f00c51710aa6bc33f81c8bc3101d6f699c91a4a34fe4"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/7-sol-high-comparison.html",
+      "bytes": 29444,
+      "sha256": "28d93ec9419c37df76a332498bcc5b47e68ffa5ce048a07a1bf867bf558d8dfb"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/comparison.json",
+      "bytes": 28874,
+      "sha256": "de87b6cf4e68cb0ef98a1cccea0a4d942693f35de464c75ddd0ae031519ae3c0"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/declaration.json",
+      "bytes": 76973,
+      "sha256": "a9c7cf8cdc885859d2f37bb35b1a2a711d56ec83548f7ff02514e6deaaccaaa5"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/official-source-receipts.json",
+      "bytes": 634,
+      "sha256": "2536bc9d10c17cdfd45994a906fabf0e827981f77777a7d0a244bfc0521934b5"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/pre-inference-freeze.json",
+      "bytes": 1615,
+      "sha256": "e78c73faf6a5d36ebcaa29b4ff7ac69c3c40ee94e5b9eafde7a4bc1d1683ae8e"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/results.json",
+      "bytes": 31998,
+      "sha256": "1caf45d7211974b45ace4c52acb8152bba315b9aceed6351ec68185d422a663c"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/schema.json",
+      "bytes": 432,
+      "sha256": "291887c206ca79540b0429df8dd7b862a1d890d1560a07ec3da6a14b9ec271d6"
+    },
+    {
+      "path": "7-sol-high-shadow-attempt-001/summary.json",
+      "bytes": 231,
+      "sha256": "5789d1125f9c40d49d56ec1c264011eccd7a9af30d3dfb7938c6269832aa6265"
+    },
+    {
+      "path": "quarter-2024-feb-apr-sol-high-financial/7-shadow-financial.html",
+      "bytes": 921594,
+      "sha256": "250449df1d0175c6780e0f77848c2ed2ea5b86f9533dc9d06b0c7ee0f7c7bef2"
+    },
+    {
+      "path": "quarter-2024-feb-apr-sol-high-financial/7-shadow-financial.json",
+      "bytes": 39149182,
+      "sha256": "5cb8ccaecb8369d790e872671fd19986b2229c9f74de2cddc72499c7c5bc8872"
+    },
+    {
+      "path": "quarter-2024-feb-apr-sol-high-financial/declaration.json",
+      "bytes": 453,
+      "sha256": "4b4c3428bbce3554fd2ebf2f88d988a3903496a575dceb18465c0457265e77e1"
+    },
+    {
+      "path": "quarter-2024-feb-apr-sol-high-financial/verification.json",
+      "bytes": 259,
+      "sha256": "539db8102a75000a304718c0c1dd191257fbebeb93c50ef3bddaa30f06bb827a"
+    }
+  ],
+  "limitations": "Configuration comparison changes model AND effort, not either factor alone. Agreement is not accuracy or alpha; dependent retrospective samples cover 15 of 16 cases; no model veto selected.",
+  "environmental_failure": "Apollo DNS lookup failed before replay launch; user supplied a VPN route. Existing Apollo SSH host key verified; replay then succeeded.",
+  "selection": "No model veto, production promotion or economic-alpha claim. Configurations differ in both model and effort."
+}

@@ -1,0 +1,14 @@
+{
+  "source": "https://us.okx.com/api/v5/public/instruments?instType=SPOT&instId=BTC-USDT",
+  "retrieved_on_utc": "2026-10-13",
+  "historical_rules_verified": false,
+  "instrument": {
+    "instId": "BTC-USDT",
+    "baseCcy": "BTC",
+    "quoteCcy": "USDT",
+    "tickSz": "0.1",
+    "lotSz": "0.00000001",
+    "minSz": "0.00001",
+    "state": "live"
+  }
+}

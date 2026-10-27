@@ -1,0 +1,300 @@
+{
+  "version": "ai-entry-filter-full-quarter-v1",
+  "declared_at": "2026-10-15T18:25:36.371751+00:00",
+  "status": "frozen_before_new_quarter_inference_and_AI_financial_replay",
+  "user_authorization": "Run full February\u2013April; user selected reuse all 179 pilot responses and approve at most 7,716 new calls including failures.",
+  "authorization": {
+    "new_max_invocations": 7716,
+    "prior_consumed": 258,
+    "reused_answers_not_new_invocations": 179,
+    "maximum_cumulative_if_fully_consumed": 7974,
+    "automatic_retries": 0,
+    "stop_entire_allocation_at_first_inference_protocol_startup_cleanup_or_quota_failure": true,
+    "unused_slots_closed_on_stop": true,
+    "old_unused_slots_remain_closed": 15,
+    "new_invocations_at_freeze": 0,
+    "new_financial_replays_at_freeze": 0
+  },
+  "model": {
+    "sdk": "openai-codex==0.162.1",
+    "alias": "gpt-6.1-sol",
+    "effort": "high",
+    "contract": "candidate-assessment-v3",
+    "authentication": "Existing ChatGPT only; no login, credential copying or Platform fallback",
+    "tools": "denied; same disabled-feature configuration",
+    "clients_in_parallel": 1,
+    "batch_size_ceiling_unchanged": 179,
+    "batches": 44,
+    "batch_sizes": [
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      179,
+      19
+    ],
+    "deadline_seconds": 120,
+    "interruption_caveat": "Interruption/client close does not prove backend stopped; unknown usage is not zero; save potential unresolved turn bounds."
+  },
+  "inputs": {
+    "window": [
+      1706745600,
+      1714521600
+    ],
+    "UTC_window": "2024-02-01 through exclusive 2024-05-01",
+    "warmup_days": 2,
+    "observed_arms": 8138,
+    "eligible": 7895,
+    "input_rejections": 243,
+    "archive_sha256": "380165e326961eeddd41dcedd4a6e623479fcd093ed43deaaaa74678e4c63d78",
+    "signal_source_sha256": "4f5d121f1c0a5aeb40ff83d5d39f05591f8f86dcd497e2d8f132c278ca950093",
+    "selection": "All new arms, no confirmation/fill/outcome selection; chronological (as_of, minutes, setup).",
+    "reuse": "Every one of the 179 saved pilot inputs equals the quarter prefix, all opinions/native usage/latency copied unchanged; mixed acquisition times disclosed, not independent observations."
+  },
+  "instructions": {
+    "base_sha256": "b2b19a757ba2d623c3dff2ac225b38e64302a08f31f3b0f7d54aa99bf3e2bdf7",
+    "schema_sha256": "163682624da192e7620990ffa2a911192eb4aeb9f2f775fd86463ac0d6af969d",
+    "per_input_developer_hashes": "instructions-manifest.json"
+  },
+  "financial": {
+    "baseline_before_new_inference": 64,
+    "archived_controls": "passive-maker-quarter-attempt-001/accepted-{base,stress}.json",
+    "comparison_cases": 1216,
+    "all_8_setups_at_minutes": [
+      5,
+      15
+    ],
+    "capital_per_independent_account": "1000",
+    "planned_risk_percent_of_min_initial_current_equity": "1",
+    "UTC_daily_entry_loss_latch": "12.50",
+    "economic_policy": "positive-target",
+    "entry_executions": [
+      "ioc",
+      "maker-best-bid-30s"
+    ],
+    "scenarios": [
+      "base",
+      "stress"
+    ],
+    "fees_bps": {
+      "maker": 8,
+      "taker": 10
+    },
+    "protection": "All owned stops, targets and 4h deadlines unchanged; bot-managed taker IOC, not native attached protection.",
+    "primary": [
+      "Baseline",
+      "Availability",
+      "AI filter",
+      "Suppression 00"
+    ],
+    "suppression_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "suppression_hash": "SHA256(assessment-suppression-v1|seed|setup|minutes|candidate_id); lowest hashes to case-level AI permit count",
+    "suppression_caveat": "Conditional on case-total future AI permits, not deployable causal policies or significance tests. Matches arm permissions, not fills/days/exposure.",
+    "response_available_at": "snapshot.as_of + 1 second assumed native candle availability + measured request-to-receipt wall latency, independently per case. No shared queue or historical venue delivery evidence.",
+    "missing_failed_late_warmup_excluded_unattempted": "fail closed; do not fabricate latency, revive expired plans or queue catch-up entries",
+    "frozen_criteria": "No lower positive-target fills/active days, no higher zero-fill cases/breaches, strictly higher mean marked return and pooled closed R against each primary comparator. Undefined R/inactive adverse cases cannot pass.",
+    "report_metrics": [
+      "marked return",
+      "sold-share closed R",
+      "attempts",
+      "fills",
+      "active case-days",
+      "fees",
+      "exposure",
+      "retained BTC",
+      "halt/breach paths",
+      "baseline-only and AI-only opportunities",
+      "native tokens/latency/unknowns separately; no invented dollar inference price"
+    ]
+  },
+  "limitations": [
+    "Previously inspected development quarter, not a holdout or independent market histories; possible model-pretraining contamination.",
+    "179 known pilot observations reused exactly, alias/backend mutable across acquisition times.",
+    "Kraken candles/current metadata/synthetic execution do not establish historical OKX books/queues/fees/rules.",
+    "Structural acceptance is not semantic truth; saved answers are never repaired from outcomes.",
+    "No production permission, orders, exchange writes, deployment, retiming, threshold sweep, different period or extra inference allocation.",
+    "Real browser/canvas visual review remains unverified."
+  ],
+  "code": [
+    {
+      "location": "repository",
+      "path": "kairos/research_gate.py",
+      "sha256": "697fb49fcf96e53af15b20c4cd3ab56e8b7c9846682350b5fffc543fd0ee1908"
+    },
+    {
+      "location": "repository",
+      "path": "kairos/research_backtest.py",
+      "sha256": "3ff3faa77f668f427c7cb4e16e6c5deef4a2a44d884778f51a1436d4b3ae5876"
+    },
+    {
+      "location": "repository",
+      "path": "kairos/research_shadow.py",
+      "sha256": "ead5aa5f166ca60f1f33398b30997c521655940938e7c51d7610fb272f9cc6af"
+    },
+    {
+      "location": "repository",
+      "path": "kairos/research_assessment.py",
+      "sha256": "8a4b62dc4f48b96793c8b128b7e19079a025dc310c4aa20e3496752b4e18b0b1"
+    },
+    {
+      "location": "repository",
+      "path": "kairos/fees.py",
+      "sha256": "1674eb940b61ab56be48949f7daedbc9fd9ed5ef8900b7399aa8873bc1924db9"
+    },
+    {
+      "location": "repository",
+      "path": "kairos/research_diagnostics.py",
+      "sha256": "bcf8e815dfd65e7690977018d53eadaf445afe87d48a588236c99c40df79844a"
+    },
+    {
+      "location": "repository",
+      "path": "kairos/research_series.py",
+      "sha256": "e3f7b3a1c9f524cd096c220283ece5cd0aa2f350a31a70acff696ee3e7dd8696"
+    },
+    {
+      "location": "repository",
+      "path": "kairos/research_instrument.json",
+      "sha256": "292a4a2612828a90d3c13f29dd1ab588a869ca58c7989a07f34e0944578b9c68"
+    },
+    {
+      "location": "evidence",
+      "path": "prepare.py",
+      "sha256": "297673d99a327103da89e6196f46da70d28097f303f5fda7aea16beacfe08e0e"
+    },
+    {
+      "location": "evidence",
+      "path": "replay.py",
+      "sha256": "47440c5018847c023a721bd5ac8a5a2d6307ae6e8a5fa2ab99c04151083b4da4"
+    },
+    {
+      "location": "evidence",
+      "path": "launch.py",
+      "sha256": "3275c038c7b7617d66e0d31608a2acbe541b84f5854ec89e14dc9f7c63d5f3bd"
+    },
+    {
+      "location": "evidence",
+      "path": "cohort.py",
+      "sha256": "2d92a3a38c01d36fefaba454f1db18e37cde9bd8730c534913f46e08e2f10105"
+    },
+    {
+      "location": "evidence",
+      "path": "analyze.py",
+      "sha256": "7a16603617dc0e39271b27039b00400288c909828cfb2f90f4f1b50ce25cf753"
+    },
+    {
+      "location": "evidence",
+      "path": "progress.py",
+      "sha256": "32d9cd20fcdc940d09fb125f5a2f43f5e921ee511470c6bee4f1a89628f21b8c"
+    },
+    {
+      "location": "evidence",
+      "path": "handoff.sh",
+      "sha256": "5ab28d5d8c5b0392f1b2bd7947288eaa23b38d3c48bdc5b109285f52a6b88ded"
+    }
+  ],
+  "frozen_files": [
+    {
+      "path": "snapshots.json",
+      "sha256": "6bbac03cd60607e8e83e1fc46555527d97c3ffffd4bbafeb3807842d8936f885"
+    },
+    {
+      "path": "new-snapshots.json",
+      "sha256": "68232aa40e08ef74a68123d016d385cfe5568a3fe599996f727d11a0a7a69988"
+    },
+    {
+      "path": "inventory.json",
+      "sha256": "6d95f26a3630aa24d8caef48116a4bc45922196573ffbdb02b376af1f0eb09f5"
+    },
+    {
+      "path": "exclusions.json",
+      "sha256": "a28ee3f509df1d47befa7f8dd1f7bef2c4020a5bea564b12c8e56b04b87d4e5b"
+    },
+    {
+      "path": "preparation.json",
+      "sha256": "85673506c25236fa382a70f3d5bbd2757c58df64bb2d544c65d5e6d262d99ee3"
+    },
+    {
+      "path": "cohort-sources.json",
+      "sha256": "0906c0907303df15e573bc8d6004deb3daef9427e1e1bf912764740425a616c0"
+    },
+    {
+      "path": "batch-plan.json",
+      "sha256": "286c2930e3544ad14bc7ca2f213d345e2e78c1fc98c4572dbc475a29f220a913"
+    },
+    {
+      "path": "instructions-manifest.json",
+      "sha256": "7b15c5dcd48b7d7b3867002a5fbccae245d64ed53fcac33c0fc6463644004f71"
+    },
+    {
+      "path": "reuse/manifest.json",
+      "sha256": "2ce3f6ae74cde076b06b601874a1816c81e605971ce16ab05e4df5d38ae21f5e"
+    },
+    {
+      "path": "inputs/kairos_trader-0.13.1-py3-none-any.whl",
+      "sha256": "118e2e655c8d5c59963aa3cd4ed98486d6449ef34453fe3af701db39e57550b8"
+    },
+    {
+      "path": "inputs/kraken-xbtusdt-2024-feb-apr.zip",
+      "sha256": "380165e326961eeddd41dcedd4a6e623479fcd093ed43deaaaa74678e4c63d78"
+    },
+    {
+      "path": "inputs/accepted-research-signals.py",
+      "sha256": "4f5d121f1c0a5aeb40ff83d5d39f05591f8f86dcd497e2d8f132c278ca950093"
+    }
+  ]
+}

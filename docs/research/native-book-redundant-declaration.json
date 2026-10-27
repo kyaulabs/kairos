@@ -1,0 +1,194 @@
+{
+  "declared_at": "2026-10-20T17:51:50.633956+00:00",
+  "id": "native-book-12h-redundant-attempt-001",
+  "kind": "Two live streams with durable bounded automatic recovery",
+  "authorization": "User approved up to5 additional connections and requested redundancy and automatic recovery. Preserve the original deadline,1.5GB per connection, hard validation/access/storage/clock stops and zero inference/financial/account/order allowance.",
+  "capture_host": "apollo.kyaulabs",
+  "capture_root": "/srv/kairos-research/kyau-vwap-fib/reports/native-book-12h-redundant-attempt-001",
+  "endpoint": "wss://wsus.okx.com:8443/ws/v5/public",
+  "instrument": "BTC-USDT",
+  "channels": [
+    "books",
+    "trades"
+  ],
+  "goal_source_ms": 43200000,
+  "prior_eligible_source_ms": 39469095,
+  "initial_remaining_source_ms": 3730905,
+  "maximum_attempts": 8,
+  "maximum_campaign_seconds": 172800,
+  "campaign_deadline_resets_on_retry": false,
+  "maximum_serialized_capture_bytes_per_attempt": 1500000000,
+  "maximum_native_frame_bytes": 2000000,
+  "chunk_seconds": 300,
+  "maximum_attempt_runtime_rule": "ceil(remaining source milliseconds/1000)+120 seconds; source time, not startup/calendar time, completes the target.",
+  "private_code": [
+    {
+      "path": "capture.py",
+      "sha256": "65d280235d461d3880da27a09c7c4308fef3ef7acd46026c945fac9f42ff8555"
+    },
+    {
+      "path": "protocol.py",
+      "sha256": "dfb80bfc8384f666652bdb7e3dd6f36386a590653563fcdf40457b42baeac381"
+    },
+    {
+      "path": "monitor.py",
+      "sha256": "7e87f5ef2dce941bdaa079d4940dc72028c42373aa0c6af38ee426236323701b"
+    },
+    {
+      "path": "audit.py",
+      "sha256": "bf470cb79b1dcf804cb0a0ff7b1de7ab64d7b58626e25fe1b8a2042b17ef412b"
+    },
+    {
+      "path": "recovery.py",
+      "sha256": "13b65f136ec0593a156d881693bedda34e69ee96ef00e02b71645607af36c89f"
+    },
+    {
+      "path": "desktop.py",
+      "sha256": "afee091ac4b08894888c302ffa654b208656e2a248b6517edf2ae822f293f424"
+    },
+    {
+      "path": "report.py",
+      "sha256": "4ce757411e48c84f2ba180f3917fb5be72ad51ca3cd65154fe2163fb2bb6b5f5"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "ac32ffd465a6abe1ca7ccffc687f7569163ea8da092d057b0e55867f822a7029"
+    },
+    {
+      "path": "test_capture.py",
+      "sha256": "769da69fc54c4f9165edff5e953b53e83906cd8e5aedcbf20ec99cdaa32e05f6"
+    },
+    {
+      "path": "test_monitor.py",
+      "sha256": "adc342ef55c1b271b868dd4ac3253bccf05a8686f5fd35dae6a23b3147d2a8bd"
+    },
+    {
+      "path": "test_recovery.py",
+      "sha256": "6e0ba8078b29ca1abcbbedb872ea50eb2d8e5e360f2552eec5e6afe62e164cc0"
+    },
+    {
+      "path": "audit_priors.py",
+      "sha256": "772d6e86c8fde15522ad1f30062ca7af688632543914814e74ba14495afe276e"
+    },
+    {
+      "path": "desktop.service",
+      "sha256": "3ae0558a223849a97c33734c2f003adf9bbd5a2b6640acdd0c29cf0aa6b11319"
+    },
+    {
+      "path": "apollo.service",
+      "sha256": "f0c9bb4985e8d1d76a8659e2a6eed75d25c5b188e053aca091fa916f3a1dad54"
+    }
+  ],
+  "prior_segment_audit": {
+    "sha256": "baf0c4ffec560c56c97d4c2b2d6b496dab7f194a514017424e8d75a343f7e7e7"
+  },
+  "snapshot_delta_correction": [
+    "Official books documentation specifies400 levels in the initial snapshot and incremental changes every100ms. A change list is not the standing book.",
+    "The saved453-ask update includes204 zero-quantity deletions;18,082 saved book messages reconstruct to at most400 live levels per side. Its original rejected gate and time credit remain unchanged.",
+    "New code validates snapshot and reconstructed live depth at400, applies zero-size deletion/replacement/insertion, and rejects empty/crossed books, malformed/nonfinite levels, duplicate prices and sequence gaps. Delta row count is bounded by the2MB frame limit, not an arbitrary larger row limit."
+  ],
+  "start_gate": "New signed freeze with exact-head push/PR CI,51 private offline checks on each host,134 unchanged prior closed hashes/proofs and actual updated desktop alert acknowledgement. Real live systemd watchdog/adoption and first sealed dual-stream union checks must precede PR approval, not be misrepresented as already completed.",
+  "retry_policy": [
+    "Exactly five additional connections numbered4\u20138, at most two live; no connection9. Every connection has separate snapshot, sequence, files, runtime and1.5GB serialized cap. Reserve slots durably before launch; do not reuse failed directories or renew any budget.",
+    "Normal transport failures audit closed prefixes then replace after5seconds while the other stream remains independent. Replacements cease at12 aggregate source hours or the original2026-10-22T03:28:32.160295Z deadline.",
+    "Known owned-child SIGKILL/SIGTERM or watchdog-stall loss may recover after independent sealed-prefix validation. Preserve/hash the excluded unsealed tail; never fabricate a completed receipt. Unknown exits or any sealed-prefix validation failure stop all streams.",
+    "Confirmed supervisor loss may recover its existing valid workers using Linux PID/start-ticks and exact command ownership. Single-controller and per-slot flock guards prevent duplicate launch. At most5 supervisor recoveries; persisted slot budget and interval union survive process restart.",
+    "Systemd user service:notify readiness,12s independent watchdog,SIGKILL for a hung controller,2s restart,KillMode=process so healthy worker connections survive. Worker stops after30s without controller heartbeat. Known hard terminal faults exit without automatic restart. User unit start is bounded5/300s; neither local relay nor runner resets that limit.",
+    "Independent local desktop relay alerts on degradation, failures, stale heartbeat and connection loss. When an active job is stale it may start only the exact owned Apollo user unit; no terminal fault override, arbitrary remote command, sudo, login or phone service.",
+    "TLS/access, framing, unknown controls, invalid market data, source/receipt/suspend/epoch, storage, byte/runtime bounds and unknown/internal faults remain hard stops. No endpoint/provider/region or entitlement fallback."
+  ],
+  "continuity_guards": {
+    "maximum_book_source_or_monotonic_gap_ms": 10000,
+    "maximum_source_vs_monotonic_progress_drift_ms": 5000,
+    "maximum_BOOTTIME_vs_monotonic_discontinuity_seconds": 1,
+    "minimum_startup_free_bytes": 2147483648
+  },
+  "monitoring": [
+    "Apollo user service supervises at most two owned recorders; controller persists every2seconds. Independent systemd watchdog12seconds and2second restart recover a killed/hung supervisor, preserving slots and valid worker connections.",
+    "Worker stops if its watchdog heartbeat is older than30seconds. Parent stops a stale worker after45seconds, without blind retry. SIGINT/SIGTERM close/hash gzip; unclean SIGKILL/power/storage outcomes are never falsely sealed.",
+    "Local user service polls Apollo every15seconds, emits persistent desktop alerts and deduplicates event IDs. If an active job is stale it may start only kairos-native-12h-redundant-001.service; it cannot reset rate limits or override terminal faults.",
+    "No phone or external push service is active. The earlier generic scheduled phone test was not confirmed and phone notifications were explicitly declined. No further phone publishing.",
+    "Desktop notifications cannot arrive while the local computer is asleep/logged out or its notification service is unavailable. Server events persist and are delivered on wake/login. Existing SSH/YubiKey access is required; connection-loss alerts do not prove server failure.",
+    "HTML and copied local data are saved views, not browser auto-refresh or between-turn chat pushes. Notification-server acknowledgement is not confirmed human receipt."
+  ],
+  "accounting_and_limits": [
+    "Six preserved windows credit39,469,095ms from134 closed chunks. New overlap is counted once by union of independently validated source intervals, never by summing simultaneous connections. Active union is provisional until sealed audit. Gaps, startup, cleanup, suspend, control notices and all unsealed tails add zero time or liquidity. Original failures/gates remain unchanged.",
+    "Keep each source window, source/UTC/monotonic/BOOTTIME clock and host identity. Monotonic values are not comparable across hosts. Do not fabricate sequences, warmup, pending plans, ownership, protection, financial labels, loss-latch resets or terminal sales across boundaries.",
+    "Twelve-hour time accounting is provisional until full data-quality review. Gzip CRC/hash is not native book checksum acceptance; checksum0 is unavailable. L2/trades do not establish own-order fills, queue priority, historical fee/rule identity, calibrated wire latency or profitability.",
+    "No financial replay, model call, account API, VIP/login endpoint, paid data, order, strategy/risk change, deployment or system power-policy/privilege change. A later financial study needs its own freeze."
+  ],
+  "original_continuous24h_gate_passed": false,
+  "continuous12h_gate_claimed": false,
+  "full_market_quality_passed": false,
+  "financial_replay_ready": false,
+  "active_inference_allowance": 0,
+  "cumulative_model_calls_unchanged": 840,
+  "financial_replays_authorized": 0,
+  "private_API_calls": 0,
+  "order_writes": 0,
+  "offline_fixture": {
+    "path": "native-book-feasibility-attempt-001/us-feed/messages.jsonl",
+    "sha256": "13c7fa70593402c8bd91f8cf9e08927795b42be91a69086060b0f03b4f1f341e"
+  },
+  "first_attempt_number": 4,
+  "attempts_already_used": 3,
+  "original_campaign_started_at": "2026-10-20T03:28:32.160295+00:00",
+  "original_campaign_started_boottime_ns": 3543360506767743,
+  "original_campaign_deadline_utc": "2026-10-22T03:28:32.160295+00:00",
+  "prior_attempts": [
+    {
+      "number": 1,
+      "target_source_ms": 27254103,
+      "started_at": "2026-10-20T03:28:32.168870+00:00",
+      "pid": 83065,
+      "returncode": 1,
+      "status": "stopped_at_failure",
+      "failure_kind": "transport",
+      "finished_at": "2026-10-20T08:10:00.053801+00:00",
+      "audited_credit_ms": 16886901,
+      "source_root": "native-book-12h-monitor-attempt-001"
+    },
+    {
+      "number": 2,
+      "target_source_ms": 10367202,
+      "started_at": "2026-10-20T08:11:23.497426+00:00",
+      "pid": 155426,
+      "returncode": 1,
+      "status": "stopped_at_failure",
+      "failure_kind": "validation",
+      "finished_at": "2026-10-20T09:08:16.645134+00:00",
+      "source_root": "native-book-12h-monitor-attempt-001",
+      "externally_audited_prefix_source_ms": 3412200
+    },
+    {
+      "number": 3,
+      "target_source_ms": 6955002,
+      "started_at": "2026-10-20T15:16:22.174393+00:00",
+      "pid": 175461,
+      "returncode": 1,
+      "status": "stopped_at_failure",
+      "failure_kind": "transport",
+      "finished_at": "2026-10-20T16:10:08.357166+00:00",
+      "audited_credit_ms": 3224097,
+      "source_root": "native-book-12h-final-attempt-001"
+    }
+  ],
+  "service_upgrade_notice": {
+    "official_reference": "https://us.okx.com/docs-v5/en/",
+    "code": "64008",
+    "semantics": "Documented notice60seconds before a service-upgrade disconnection. Accept only the exact documented notice envelope as non-market control metadata. It never advances book sequence/source credit or resets validation. Keep normal liveness/sequence guards until actual closure; no reconnect inside an attempt. Unknown/malformed notices remain hard stops.",
+    "saved_notice_fixture": {
+      "path": "inputs/service-upgrade-native.json",
+      "sha256": "4d642b4d6a9c55d105b6acdc9c288072fdc5ac2c47679802fe16471521f3555b"
+    }
+  },
+  "maximum_concurrent_streams": 2,
+  "maximum_added_connections": 5,
+  "maximum_added_serialized_bytes": 7500000000,
+  "prior_max_end_source_ms": 1792512608106,
+  "redundancy_limits": [
+    "Both streams share Apollo, its network and the same authorized public endpoint. Independent connections are not independent hosts/uplinks/providers. No guarantee against whole-host or shared-network failure.",
+    "Apollo user manager is running with existing active sessions but Linger=no. No host power/privilege/linger change. Logout/reboot service persistence is not promised; changed BOOTTIME epoch remains a hard stop.",
+    "Automatic recovery is bounded, not a promise that a socket never fails or that12hours must finish despite every possible fault."
+  ]
+}

@@ -3,6 +3,10 @@
 ## Documentation
 
 - All major documentation requires the `distill` skill
+- Store project guides, plans and reviews in organized folders under `docs/`;
+  keep `docs/README.md` as the index and update references when moving files.
+- Keep repository discovery/policy files and GitHub templates in their standard
+  locations. Preserve vendor notices and the supplied brand handoff beside assets.
 - When modifying `README.md` files, do not touch layout, logos, primary
   headers or any shields.io badges unless explicitly instructed
 
@@ -79,6 +83,36 @@ Explicit user instructions for this task override the defaults below.
 
 ### Testing
 
+- Run historical backtest batches over SSH on `apollo.kyaulabs`; sudo is
+  available. Keep research isolated from deployed trading state.
+- Primary research target is OKX spot; keep using the existing Kraken
+  historical archive as explicitly labelled cross-venue price/volume inputs.
+- Start new strategy research with a short pilot, refine it before extending
+  the period, and never begin with a massive historical batch.
+- Keep all eight VWAP/Fibonacci research variants; refine their signals rather
+  than recommending removal.
+- VWAP/Fibonacci pilots use $1,000 per independent run and at most 1% planned
+  stop risk (fees/slippage included, reduced with equity and capped at the
+  starting budget). No leverage; report risk overruns rather than hiding them.
+- Verify order types through the existing KAIROS API integration before
+  assuming native exchange protection. If unsupported, use cash IOC orders
+  with bot-managed stops/targets; never assume attached native stops.
+- Prioritize consistent trading activity before profitability tuning.
+  Distinguish signal frequency, entry attempts, and fills; audit simulation
+  assumptions before loosening strategy filters. Preserve risk safeguards.
+- Keep the local offline report bundle in repository-root `reports/` (Git-ignored),
+  with `reports/index.html` as its entry point. Keep linked assets/data together.
+- After every research/backtest/AI test run, append its HTML/JSON results and
+  update the dated navigation before declaring the work done. Include failed,
+  aborted and repeated attempts; never replace an earlier result. Record unit/CI
+  verification with its related run, not as an independent research experiment.
+- Reuse the KAIROS-branded report generator and checks in `reports/_tools/`.
+  Preserve original audit HTML/JSON bytes, causal limitations and actual UTC
+  run/response times; regenerate derived pages, not historical evidence.
+  Synchronize updated reports to the isolated Apollo archive without running
+  another model call or financial test just to refresh presentation.
+- Apollo research workspace: `/srv/kairos-research/kyau-vwap-fib`; do not
+  assume its home volume has free space.
 - Verify the change and its impact. Complete required project checks.
 - Reuse existing tests first. Add tests for real behavior and regression
   risks, not tests that mechanically repeat the implementation.

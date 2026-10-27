@@ -1,14 +1,19 @@
 [project]
 name = "kairos-trader"
-version = "0.13.1"
+version = "0.14.0"
 description = "Experimental trading for Kraken and Alpaca hosted paper with a live dashboard"
 requires-python = ">=3.12"
 dependencies = ["aiohttp>=3.12,<4", "python-dotenv>=1.1,<2"]
+
+[project.optional-dependencies]
+codex-research = ["openai-codex==0.162.1"]
 
 [project.scripts]
 kairos = "kairos.web:main"
 kairos-worker = "kairos.web:worker_main"
 kairos-smoke = "kairos.smoke:main"
+kairos-backtest = "kairos.backtest:main"
+kairos-research = "kairos.research_backtest:main"
 
 [build-system]
 requires = ["hatchling"]

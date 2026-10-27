@@ -61,6 +61,24 @@ class FeeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.spot.fees.await_count, 3)
             self.assertEqual(self.fees.rate(BTC), 40)
 
+    async def test_injected_clock_preserves_expiry_refresh_and_reversal_guards(self):
+        now = 1000
+        fees = AccountFees(self.spot, self.future, clock=lambda: now)
+        with patch("kairos.fees.time.time", return_value=99999999):
+            await fees.refresh([BTC])
+            self.assertEqual(fees.rates[BTC.id]["received"], 1000)
+            self.assertEqual(fees.rate(BTC), 40)
+            self.assertFalse(fees.snapshot([BTC])["markets"][0]["stale"])
+            now = 1060
+            with self.assertRaisesRegex(SafetyError, "stale"):
+                fees.rate(BTC)
+            await fees.refresh([BTC])
+            self.assertEqual(fees.rates[BTC.id]["received"], 1060)
+            self.assertEqual(fees.rate(BTC), 40)
+            now = 1059
+            with self.assertRaises(SafetyError):
+                fees.rate(BTC)
+
     async def test_expired_and_clock_reversed_snapshots_cannot_be_used(self):
         with patch("kairos.fees.time.time", return_value=1000) as clock:
             await self.fees.refresh([BTC])

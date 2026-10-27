@@ -1,0 +1,623 @@
+{
+  "review_date": "2026-10-13",
+  "path_base": "repository_root",
+  "scope": "Versioned bibliography and review provenance, not author experiment reproduction or trading validation.",
+  "local_collection_manifest": "research/SOURCES.json",
+  "collection_manifest_sha256": "22d2fc25794ae37a0eb6a4d17660b547e940bff3b8050734ab26135ef1aa617a",
+  "summary": {
+    "pdf_files": 25,
+    "distinct_papers": 24,
+    "pdf_pages": 639,
+    "original_pdf_files": 11,
+    "original_pdf_pages": 221,
+    "added_pdf_files": 14,
+    "added_pdf_pages": 418,
+    "unavailable_full_texts": 4
+  },
+  "files": [
+    {
+      "id": "B1",
+      "paper_id": "B1",
+      "title": "The probability of backtest overfitting",
+      "authors": [
+        "David H. Bailey",
+        "Jonathan M. Borwein",
+        "Marcos López de Prado",
+        "Qiji Jim Zhu"
+      ],
+      "year": 2017,
+      "topic": "backtest-validation",
+      "relative_path": "research/backtest-validation/bailey-et-al-2017-the-probability-of-backtest-overfitting.pdf",
+      "source_url": "https://doi.org/10.21314/JCF.2016.322",
+      "download_url": "https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf",
+      "version": "Author manuscript revised February 27, 2015; journal publication 2017",
+      "bytes": 1145522,
+      "pages": 34,
+      "sha256": "d8bfbadaaedb430d9dec929646d92f3580fdf18238f34121ae7738fa1c69a63d",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#b1-probability-of-backtest-overfitting"
+    },
+    {
+      "id": "B2",
+      "paper_id": "B2",
+      "title": "The Deflated Sharpe Ratio: Correcting for Selection Bias, Backtest Overfitting and Non-Normality",
+      "authors": [
+        "David H. Bailey",
+        "Marcos López de Prado"
+      ],
+      "year": 2014,
+      "topic": "backtest-validation",
+      "relative_path": "research/backtest-validation/bailey-lopez-de-prado-2014-the-deflated-sharpe-ratio.pdf",
+      "source_url": "https://doi.org/10.3905/jpm.2014.40.5.094",
+      "download_url": "https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf",
+      "version": "Author manuscript dated July 31, 2014",
+      "bytes": 1048118,
+      "pages": 22,
+      "sha256": "ca4a1e834a2954b84eb560776e903329cd9cef318d458aadf6d67bc8166d10b5",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#b2-deflated-sharpe-ratio"
+    },
+    {
+      "id": "B3",
+      "paper_id": "B3",
+      "title": "Are simple technical trading rules profitable in bitcoin markets?",
+      "authors": [
+        "Niek Deprez",
+        "Michael Frömmel"
+      ],
+      "year": 2024,
+      "topic": "backtest-validation",
+      "relative_path": "research/backtest-validation/deprez-frommel-2024-are-simple-technical-trading-rules-profitable-in-bitcoin-markets.pdf",
+      "source_url": "https://biblio.ugent.be/publication/01HY3C3S169G1N6QNYR55NZMFB",
+      "download_url": "https://backoffice.biblio.ugent.be/download/01HY3C3S169G1N6QNYR55NZMFB/01HY60XZGZYHNQ6188MSVJT0SG",
+      "version": "Accepted author manuscript, dated May 1, 2024; journal publication 2024",
+      "bytes": 1191236,
+      "pages": 22,
+      "sha256": "65d19149fc9d46d52af73a831638f82460953139141c5c61f764ccab26ea3b8f",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#b3-cost-aware-bitcoin-technical-rules"
+    },
+    {
+      "id": "C1",
+      "paper_id": "C1",
+      "title": "Trading volume and liquidity provision in cryptocurrency markets",
+      "authors": [
+        "Daniele Bianchi",
+        "Mykola Babiak",
+        "Alexander Dickerson"
+      ],
+      "year": 2022,
+      "topic": "crypto-market-dynamics",
+      "relative_path": "research/crypto-market-dynamics/bianchi-babiak-dickerson-2022-volume-liquidity-provision.pdf",
+      "source_url": "https://doi.org/10.1016/j.jbankfin.2022.106547",
+      "download_url": "https://eprints.lancs.ac.uk/172093/1/Babiak_Trading_Volume.pdf",
+      "version": "University-hosted author manuscript",
+      "bytes": 691309,
+      "pages": 42,
+      "sha256": "6c281dc782f2982d2388f3b8317b3e2ca16425e6ca3d5ad14197c875c426b040",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#c1-volume-and-liquidity-provision"
+    },
+    {
+      "id": "C2",
+      "paper_id": "C2",
+      "title": "The effectiveness of technical trading rules in cryptocurrency markets",
+      "authors": [
+        "Shaen Corbet",
+        "Veysel Eraslan",
+        "Brian Lucey",
+        "Ahmet Sensoy"
+      ],
+      "year": 2019,
+      "topic": "crypto-market-dynamics",
+      "relative_path": "research/crypto-market-dynamics/corbet-et-al-2019-effectiveness-technical-trading-rules.pdf",
+      "source_url": "https://doi.org/10.1016/j.frl.2019.04.027",
+      "download_url": "https://doras.dcu.ie/25053/1/The_effectiveness_of_technical_trading_rules_in_cryptocurrency_markets%5B1%5D.pdf",
+      "version": "University-hosted author manuscript",
+      "bytes": 313316,
+      "pages": 13,
+      "sha256": "790f8618861bb1c6e9f285d5b67c1dc9f019a5e5efbec27e09d893f6e7e0959b",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#c2-technical-rule-conditional-returns"
+    },
+    {
+      "id": "C3",
+      "paper_id": "C3",
+      "title": "Returns from liquidity provision in cryptocurrency markets",
+      "authors": [
+        "Hisham Farag",
+        "Di Luo",
+        "Larisa Yarovaya",
+        "Damian Zieba"
+      ],
+      "year": 2025,
+      "topic": "crypto-market-dynamics",
+      "relative_path": "research/crypto-market-dynamics/farag-et-al-2025-returns-liquidity-provision.pdf",
+      "source_url": "https://doi.org/10.1016/j.jbankfin.2025.107411",
+      "download_url": "https://pure-oai.bham.ac.uk/ws/portalfiles/portal/264447617/Farag2022Returns.pdf",
+      "version": "Version of record; CC BY",
+      "bytes": 2970662,
+      "pages": 19,
+      "sha256": "802dc7fbe719de7435cbe96472a5b739d61929ab2ae3688519b21b6270450006",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#c3-returns-from-liquidity-provision"
+    },
+    {
+      "id": "C4",
+      "paper_id": "C4",
+      "title": "Periodicity in Cryptocurrency Volatility and Liquidity",
+      "authors": [
+        "Peter Reinhard Hansen",
+        "Chan Kim",
+        "Wade Kimbrough"
+      ],
+      "year": 2024,
+      "topic": "crypto-market-dynamics",
+      "relative_path": "research/crypto-market-dynamics/hansen-kim-kimbrough-2024-periodicity-volatility-liquidity-arxiv-v2.pdf",
+      "source_url": "https://doi.org/10.1093/jjfinec/nbac034",
+      "download_url": "https://arxiv.org/pdf/2109.12142v2",
+      "version": "arXiv v2, 2021-11-03; preprint of 2024 journal article",
+      "bytes": 4257910,
+      "pages": 39,
+      "sha256": "9822df8c3344a950a2b003222d0190c9953ebd5fe7e79c172ca5c74945840d60",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#c4-periodicity-in-volatility-and-liquidity"
+    },
+    {
+      "id": "C5",
+      "paper_id": "C5",
+      "title": "Short-horizon mean reversion in cryptocurrency markets: a matched cross-market measurement",
+      "authors": [
+        "Nadav A. Kitron",
+        "Jonathan M. Wengrowicz"
+      ],
+      "year": 2026,
+      "topic": "crypto-market-dynamics",
+      "relative_path": "research/crypto-market-dynamics/kitron-wengrowicz-2026-short-horizon-mean-reversion-v1.pdf",
+      "source_url": "https://arxiv.org/abs/2608.21888",
+      "download_url": "https://arxiv.org/pdf/2608.21888v1",
+      "version": "arXiv v1, 2026-08-22; preprint",
+      "bytes": 546137,
+      "pages": 24,
+      "sha256": "50385a1f9d6f2490d747f7d7ed17064fba3928e418406d2e9d64430b44909e75",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#c5-short-horizon-mean-reversion"
+    },
+    {
+      "id": "F1",
+      "paper_id": "F1",
+      "title": "Fibonacci Retracements and Self-Fulfilling Prophecy",
+      "authors": [
+        "Nikhil Gupta"
+      ],
+      "year": 2011,
+      "topic": "fibonacci",
+      "relative_path": "research/fibonacci/Fibonacci Retracements and Self-Fulfilling Prophecy.pdf",
+      "source_url": "https://digitalcommons.macalester.edu/economics_honors_projects/41/",
+      "download_url": null,
+      "version": "Honors thesis; supplied PDF",
+      "bytes": 1241624,
+      "pages": 25,
+      "sha256": "23178b26540a5b259528f786b34b4b863612ef68f2c343e3f003f09a333b7ee2",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#f1-gupta"
+    },
+    {
+      "id": "F2",
+      "paper_id": "F2",
+      "title": "The Impact of Fibonacci Retracement to Forecast the Support and Resistance of Select Indian Stocks and Indices",
+      "authors": [
+        "Arkaprava Chakrabarty",
+        "Ayan Majumdar"
+      ],
+      "year": 2023,
+      "topic": "fibonacci",
+      "relative_path": "research/fibonacci/TheImpactofFibonacciRetracement.pdf",
+      "source_url": "https://www.researchgate.net/publication/370133559_The_Impact_of_Fibonacci_Retracement_to_Forecast_the_Support_and_Resistance_of_Select_Indian_Stocks_and_Indices",
+      "download_url": null,
+      "version": "Third Concept, February 2023; supplied PDF",
+      "bytes": 401933,
+      "pages": 6,
+      "sha256": "5ecfdcc742792dd022b9683a450f088d694d3372d7fdd4d8cde6c2bfeb072360",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#f2-chakrabarty-and-majumdar"
+    },
+    {
+      "id": "F3",
+      "paper_id": "F3",
+      "title": "Implementation of Fibonacci Retracements and Exponential Moving Average (EMA) Trading Strategy in Indonesia Stock Exchange",
+      "authors": [
+        "Lusindah",
+        "Erman Sumirat"
+      ],
+      "year": 2021,
+      "topic": "fibonacci",
+      "relative_path": "research/fibonacci/editor_in_chief,+EJBMR_1033+R300821.pdf",
+      "source_url": "https://doi.org/10.24018/ejbmr.2021.6.4.1033",
+      "download_url": null,
+      "version": "Journal article; supplied PDF",
+      "bytes": 1177931,
+      "pages": 7,
+      "sha256": "2c6fae32e2eeb166e591e32e090b94217c2bd602d936ba62ef34f9bd0576aeeb",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#f3-lusindah-and-sumirat"
+    },
+    {
+      "id": "F6",
+      "paper_id": "F6",
+      "title": "Profitability trend prediction in crypto financial markets using Fibonacci technical indicator and hybrid CNN model",
+      "authors": [
+        "Bilal Hassan Ahmed Khattak",
+        "Imran Shafi",
+        "Chaudhary Hamza Rashid",
+        "Mejdl Safran",
+        "Sultan Alfarhood",
+        "Imran Ashraf"
+      ],
+      "year": 2024,
+      "topic": "fibonacci",
+      "relative_path": "research/fibonacci/khattak-2024-fibonacci-hybrid-cnn-crypto-prediction.pdf",
+      "source_url": "https://doi.org/10.1186/s40537-024-00908-7",
+      "download_url": "https://link.springer.com/content/pdf/10.1186/s40537-024-00908-7.pdf",
+      "version": "Published open-access journal PDF, Journal of Big Data 11, 58 (2024)",
+      "bytes": 2570783,
+      "pages": 25,
+      "sha256": "b8e58c5f66a18ad9873081c9dadbd07ec0370d9ea856953b0d5e4ed004cf757c",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#f6-fibonacci-and-hybrid-cnn-prediction"
+    },
+    {
+      "id": "F7",
+      "paper_id": "F7",
+      "title": "AI crypto trading: multi-class multi-granular analysis for boosting high-frequency trade predictions with fibonacci and hybrid convolutional neural networks",
+      "authors": [
+        "Bilal Hassan Ahmed Khattak",
+        "Chaudhry Hamza Rashid",
+        "Imran Shafi",
+        "Sultan Alfarhood",
+        "Mejdl Safran",
+        "Imran Ashraf"
+      ],
+      "year": 2026,
+      "topic": "fibonacci",
+      "relative_path": "research/fibonacci/khattak-2026-fibonacci-multigranular-ai-crypto-trading.pdf",
+      "source_url": "https://doi.org/10.1186/s40537-026-01372-1",
+      "download_url": "https://link.springer.com/content/pdf/10.1186/s40537-026-01372-1.pdf",
+      "version": "Published open-access journal PDF, Journal of Big Data 13, 39 (2026)",
+      "bytes": 3407409,
+      "pages": 25,
+      "sha256": "c5d27f1e76fcf4a0d88105fa70405df9f76a5c0143a143e67abaa315c3f3aed1",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#f7-multi-granular-fibonacci-and-ai"
+    },
+    {
+      "id": "F4",
+      "paper_id": "F4",
+      "title": "Energy crypto currencies and leading U.S. energy stock prices: are Fibonacci retracements profitable?",
+      "authors": [
+        "Ikhlaas Gurrib",
+        "Mohammad Nourani",
+        "Rajesh Kumar Bhaskaran"
+      ],
+      "year": 2022,
+      "topic": "fibonacci",
+      "relative_path": "research/fibonacci/s40854-021-00311-8.pdf",
+      "source_url": "https://doi.org/10.1186/s40854-021-00311-8",
+      "download_url": null,
+      "version": "Version of record; supplied PDF",
+      "bytes": 1687777,
+      "pages": 27,
+      "sha256": "4e822b3ac7c50ae723a3a16ba7b252a4c78083cb6aaf181d66706a0ab4d350cd",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#f4-gurrib-nourani-and-bhaskaran"
+    },
+    {
+      "id": "F5",
+      "paper_id": "F5",
+      "title": "Can Returns Breed Like Rabbits? Econometric Tests for Fibonacci Retracements",
+      "authors": [
+        "Savva Shanaev",
+        "Ryan Gibson"
+      ],
+      "year": 2022,
+      "topic": "fibonacci",
+      "relative_path": "research/fibonacci/ssrn-4212430.pdf",
+      "source_url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4212430",
+      "download_url": null,
+      "version": "SSRN working paper; supplied PDF",
+      "bytes": 817894,
+      "pages": 27,
+      "sha256": "8f9e711205bec046bddcb3a8195f96c384feee5ca963ef82349526923f38787c",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#f5-shanaev-and-gibson"
+    },
+    {
+      "id": "M1",
+      "paper_id": "M1",
+      "title": "Evidence and Behaviour of Support and Resistance Levels in Financial Time Series",
+      "authors": [
+        "Ken Chung",
+        "Anthony Bellotti"
+      ],
+      "year": 2021,
+      "topic": "market-microstructure",
+      "relative_path": "research/market-microstructure/chung-bellotti-2021-support-resistance-financial-time-series.pdf",
+      "source_url": "https://arxiv.org/abs/2101.07410",
+      "download_url": "https://arxiv.org/pdf/2101.07410",
+      "version": "arXiv:2101.07410v1, 19 January 2021 preprint",
+      "bytes": 540087,
+      "pages": 20,
+      "sha256": "7876a7bb72804b041fc3aff49851795a71afd7e2643f1a51708dd573430930bc",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#m1-supportresistance-memory-and-decay"
+    },
+    {
+      "id": "M2",
+      "paper_id": "M2",
+      "title": "Currency Orders and Exchange-Rate Dynamics: Explaining the Success of Technical Analysis",
+      "authors": [
+        "Carol L. Osler"
+      ],
+      "year": 2001,
+      "publication_year": 2003,
+      "topic": "market-microstructure",
+      "relative_path": "research/market-microstructure/osler-2001-currency-orders-exchange-rate-dynamics-sr125.pdf",
+      "source_url": "https://doi.org/10.1111/1540-6261.00588",
+      "download_url": "https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr125.pdf",
+      "version": "Federal Reserve Bank of New York Staff Report 125, March 2001 working-paper version of the 2003 Journal of Finance article Currency Orders and Exchange Rate Dynamics: An Explanation for the Predictive Success of Technical Analysis",
+      "bytes": 136350,
+      "pages": 45,
+      "sha256": "d72bc0a020d04f0b7dd423c0f4f2dcebc83b34ebd160ca8eca75b52d69e1341d",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#m2-order-clustering-and-exchange-rate-dynamics"
+    },
+    {
+      "id": "M3",
+      "paper_id": "M3",
+      "title": "Stop-Loss Orders and Price Cascades in Currency Markets",
+      "authors": [
+        "Carol L. Osler"
+      ],
+      "year": 2002,
+      "publication_year": 2005,
+      "topic": "market-microstructure",
+      "relative_path": "research/market-microstructure/osler-2002-stop-loss-orders-price-cascades-sr150.pdf",
+      "source_url": "https://doi.org/10.1016/j.jimonfin.2004.12.002",
+      "download_url": "https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr150.pdf",
+      "version": "Federal Reserve Bank of New York Staff Report 150, June 2002 working-paper version of the 2005 Journal of International Money and Finance article",
+      "bytes": 131865,
+      "pages": 44,
+      "sha256": "0132a12fe1116a4608e437bb36212e21589fec22e925a04edb903d0f0e601904",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#m3-stop-loss-orders-and-price-cascades"
+    },
+    {
+      "id": "V1",
+      "paper_id": "V1",
+      "title": "Two Kinds of Learning Algorithms for Continuous-Time VWAP Targeting Execution",
+      "authors": [
+        "Xingyu Zhou",
+        "Wenbin Chen",
+        "Mingyu Xu"
+      ],
+      "year": 2024,
+      "topic": "vwap",
+      "relative_path": "research/vwap/2411.06645v1.pdf",
+      "source_url": "https://arxiv.org/abs/2411.06645v1",
+      "download_url": null,
+      "version": "arXiv v1; supplied PDF",
+      "bytes": 2757243,
+      "pages": 28,
+      "sha256": "a5af6f88b01d0c1c210b36eb2cf8a557c4b882a4b5c4a6a11d890883853be9c0",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#v1-zhou-chen-and-xu"
+    },
+    {
+      "id": "V2",
+      "paper_id": "V2",
+      "title": "Deep Learning for VWAP Execution in Crypto Markets: Beyond the Volume Curve",
+      "authors": [
+        "Remi Genet"
+      ],
+      "year": 2025,
+      "topic": "vwap",
+      "relative_path": "research/vwap/2502.13722v1.pdf",
+      "source_url": "https://arxiv.org/abs/2502.13722v1",
+      "download_url": null,
+      "version": "arXiv v1; preserved historical PDF; v2 also collected",
+      "bytes": 25158259,
+      "pages": 45,
+      "sha256": "24579fcc3820c776f84dc829936b31437e7e4de362c43333d05256d807b1e480",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#v2-genet"
+    },
+    {
+      "id": "V3",
+      "paper_id": "V3",
+      "title": "A Review of VWAP Trading Algorithms: Development, Improvements and Limitations",
+      "authors": [
+        "Ruiyang Chen"
+      ],
+      "year": 2024,
+      "topic": "vwap",
+      "relative_path": "research/vwap/A_Review_of_VWAP_Trading_Algorithms_Development_Im.pdf",
+      "source_url": "https://aemps.ewapub.com/article/view/18582",
+      "download_url": null,
+      "version": "Conference proceedings; supplied PDF; printed DOI 10.54254/2754-1169/135/2024.18582",
+      "bytes": 641842,
+      "pages": 7,
+      "sha256": "d7bd90d039d5283134122c81cf3596e0d63595381cec18f1402937ddc8d6816a",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#v3-chen"
+    },
+    {
+      "id": "V4",
+      "paper_id": "V4",
+      "title": "VWAP Execution as an Optimal Strategy",
+      "authors": [
+        "Takashi Kato"
+      ],
+      "year": 2015,
+      "topic": "vwap",
+      "relative_path": "research/vwap/VWAP_JSIAML_long_preprint.pdf",
+      "source_url": "https://arxiv.org/abs/1408.6118",
+      "download_url": null,
+      "version": "Supplied long preprint revised 2017-01-31; journal article published 2015, DOI 10.14495/jsiaml.7.33",
+      "bytes": 417121,
+      "pages": 13,
+      "sha256": "4852aca1fa2d32518620fe7fb5fd89fcafc86672d86cfe31e9626f3f18a5b7cb",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#v4-kato"
+    },
+    {
+      "id": "V2-v2",
+      "paper_id": "V2",
+      "title": "Deep Learning for VWAP Execution in Crypto Markets: Beyond the Volume Curve",
+      "authors": [
+        "Remi Genet"
+      ],
+      "year": 2025,
+      "topic": "vwap",
+      "relative_path": "research/vwap/genet-2025-deep-learning-vwap-execution-crypto-v2.pdf",
+      "source_url": "https://arxiv.org/abs/2502.13722",
+      "download_url": "https://arxiv.org/pdf/2502.13722v2",
+      "version": "arXiv 2502.13722v2, 2025-04-02",
+      "bytes": 17757452,
+      "pages": 44,
+      "sha256": "cfdc8cc8e27451424471784c9e3b9e6e9aea79c423e788c0e1be53f24c46c6a1",
+      "original_snapshot": false,
+      "reviewed": true,
+      "review": "expanded-literature-review.md#v2-v2-revised-vwap-execution-paper"
+    },
+    {
+      "id": "V5",
+      "paper_id": "V5",
+      "title": "Volume Weighted Average Price (VWAP) The Holy Grail for Day Trading Systems",
+      "authors": [
+        "Carlo Zarattini",
+        "Andrew Aziz"
+      ],
+      "year": 2023,
+      "topic": "vwap",
+      "relative_path": "research/vwap/ssrn-4631351.pdf",
+      "source_url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4631351",
+      "download_url": "https://concretumgroup.com/wp-content/uploads/2026/02/Volume-Weighted-Average-Price.pdf",
+      "version": "Current author-hosted PDF, checked 2026-10-13; SSRN record revised 2025-04-29",
+      "bytes": 1012421,
+      "pages": 26,
+      "sha256": "47137abd00730dd6970d5d6409b3908342d63d75ecfc9cf2badc7d206f6905c8",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#v5-zarattini-and-aziz"
+    },
+    {
+      "id": "V6",
+      "paper_id": "V6",
+      "title": "Competitive Algorithms for VWAP and Limit Order Trading",
+      "authors": [
+        "Sham M. Kakade",
+        "Michael Kearns",
+        "Yishay Mansour",
+        "Luis E. Ortiz"
+      ],
+      "year": 2004,
+      "topic": "vwap",
+      "relative_path": "research/vwap/vwap.pdf",
+      "source_url": "https://www.cis.upenn.edu/~mkearns/papers/vwap.pdf",
+      "download_url": null,
+      "version": "ACM conference paper; supplied PDF",
+      "bytes": 159504,
+      "pages": 10,
+      "sha256": "2e15dafca208257c4c412438b6c7dc58e33755f22a1918a2bd8fd0597a2175e5",
+      "original_snapshot": true,
+      "reviewed": true,
+      "review": "vwap-fibonacci-literature-review.md#v6-kakade-kearns-mansour-and-ortiz"
+    }
+  ],
+  "unavailable_full_texts": [
+    {
+      "title": "Intraday return predictability in the cryptocurrency markets: Momentum, reversal, or both",
+      "authors": [
+        "Zhuzhu Wen",
+        "Elie Bouri",
+        "Yahua Xu",
+        "Yang Zhao"
+      ],
+      "year": 2022,
+      "topic": "crypto-market-dynamics",
+      "source_url": "https://doi.org/10.1016/j.najef.2022.101733",
+      "version": "SSRN author manuscript, revised 2022-06-14",
+      "reason": "Lawful author-uploaded full text is readable through the web research tool, but both ordinary urllib and curl downloads return ResearchGate HTTP 403. No PDF saved; no access control or paywall bypass attempted.",
+      "reviewed": false,
+      "status": "full_text_unavailable",
+      "relative_path": null
+    },
+    {
+      "title": "Automatic identification and evaluation of Fibonacci retracements: Empirical evidence from three equity markets",
+      "authors": [
+        "Prodromos Tsinaslanidis",
+        "Francisco Guijarro",
+        "Nikolaos Voukelatos"
+      ],
+      "year": 2022,
+      "topic": "fibonacci",
+      "source_url": "https://doi.org/10.1016/j.eswa.2021.115893",
+      "version": "Author manuscript hosted by Universitat Politecnica de Valencia; related peer-reviewed article Expert Systems with Applications 187, 115893 (2022)",
+      "reviewed": false,
+      "status": "full_text_unavailable",
+      "relative_path": null
+    },
+    {
+      "title": "No pain, no gain: You should always incorporate trading costs for a bias-free evaluation of trading rule overperformance",
+      "authors": [
+        "Dan Gabriel Anghel"
+      ],
+      "year": 2022,
+      "topic": "backtest-validation",
+      "source_url": "https://doi.org/10.1016/j.econlet.2022.110584",
+      "version": "Published journal article; accessible publisher snippets verified online, full text not downloaded",
+      "reason": "Publisher returned HTTP 403, including outside-sandbox retry. Author publication pages provide citation only; no legal open primary full text located. No access-block page saved as article.",
+      "reviewed": false,
+      "status": "full_text_unavailable",
+      "relative_path": null
+    },
+    {
+      "title": "Sharpe Ratio Inference: A New Standard for Decision Making and Reporting",
+      "authors": [
+        "Marcos López de Prado",
+        "Alexander Lipton",
+        "Vincent Zoonekynd"
+      ],
+      "year": 2026,
+      "topic": "backtest-validation",
+      "source_url": "https://doi.org/10.3905/jpm.2026.1.837",
+      "version": "Journal publication 2026; author-linked SSRN preprint has alternate title How to Use the Sharpe Ratio (revision dated March 25, 2026 per SSRN record), not downloaded",
+      "reason": "SSRN returned HTTP 403 for both paper page and direct PDF, including outside-sandbox retries. Official ADIA Lab page and author code README point back to SSRN; no alternate primary full text located. No fake PDF or access block saved.",
+      "reviewed": false,
+      "status": "full_text_unavailable",
+      "relative_path": null
+    }
+  ]
+}

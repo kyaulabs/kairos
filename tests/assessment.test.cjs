@@ -177,3 +177,22 @@ test('horizontal meter moves with band position, caps its needle, and labels pau
   assert.equal(root.querySelector('.instrument-score').textContent,'—');
   assert.equal(JSON.stringify({state,decision}),before);
 });
+
+test('meta status shows deterministic warm-up and durable protection, never model weights or stale assessments', () => {
+  const {root,view}=instrumentFixture();
+  const state={mode:'dry-run',settings:{strategy:'vwap-meta',product:'spot',pair:'XXBTZUSD',meta_structure_minutes:360},meta:{structure_observed_bars:12,confirmation_observed_bars:299,entries_halted:true,position:{stop:'99',target:'105',deadline:1800}}};
+  const decision={strategy:'vwap-meta',pair:'XXBTZUSD',mode:'dry-run',deterministic:true,reason:'Fixture selected setup',state:{product:'spot',structure_minutes:360}};
+  const before=JSON.stringify({state,decision});
+  view.render(decision,state);
+  assert.equal(root.getAttribute('data-kind'),'meta');
+  assert.equal(root.querySelector('svg'),null);
+  assert.ok(root.querySelectorAll('p').some(n=>n.textContent.includes('360m structure · 15m confirmation · no Jev')));
+  assert.ok(root.querySelectorAll('p').some(n=>n.textContent.includes('12/50 structure')&&n.textContent.includes('Entry loss latch active')));
+  assert.ok(root.querySelectorAll('p').some(n=>n.textContent.includes('Stop 99 · target 105')));
+  const flat={...state,meta:{...state.meta,entries_halted:false,position:null}};
+  for(const stale of [{...decision,pair:'XETHZUSD'},{...decision,mode:'trading'},{...decision,state:{...decision.state,structure_minutes:60}}]) {
+    view.render(stale,flat);
+    assert.ok(root.querySelectorAll('p').every(n=>!n.textContent.includes('Fixture selected setup')));
+  }
+  assert.equal(JSON.stringify({state,decision}),before);
+});

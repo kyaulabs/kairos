@@ -1,6 +1,6 @@
 # Multi-bar paper trial
 
-[`kairos/trial.json`](kairos/trial.json) registers `alpaca-btc-multibar-001` before prospective execution. Its hash is recorded with each trial run. The strategy uses completed Alpaca US hourly bars, deterministic entries and the existing independent exits. Jev is not called and cannot authorize or veto an order. This is a new experiment, not a repair that establishes profitability.
+[`kairos/trial.json`](../../kairos/trial.json) registers `alpaca-btc-multibar-001` before prospective execution. Its hash is recorded with each trial run. The strategy uses completed Alpaca US hourly bars, deterministic entries and the existing independent exits. Jev is not called and cannot authorize or veto an order. This is a new experiment, not a repair that establishes profitability.
 
 The trial lasts 14 calendar days from the user's first Start. Stop, outages and service restarts do not extend it. A completed bar can establish a structural candidate even when the current execution quote fails the cost gate. That candidate retains its original target, price bounds and three-hour expiry. Quotes cannot create a candidate, extend its life or revive a consumed attempt. Start/recovery retires pending candidates and establishes a new completed-bar baseline. A rising-trend failure invalidates a pending candidate. Each submission attempt consumes its candidate, including an unfilled or rejected attempt.
 
