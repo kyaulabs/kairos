@@ -21,8 +21,8 @@ from kairos.domain import BPS, ZERO, Pair, SafetyError, dec
 REST = "https://us.okx.com"
 REFERENCE_WAIT_SECONDS = 75
 PUBLIC_WS = {
-    "live": "wss://wsus.okx.com:8443/ws/v5/public",
-    "demo": "wss://wsuspap.okx.com:8443/ws/v5/public",
+    "live": "wss://wsus.okx.com/ws/v5/public",
+    "demo": "wss://wsuspap.okx.com/ws/v5/public",
 }
 PRIVATE_WS = {k: v.replace("/public", "/private") for k, v in PUBLIC_WS.items()}
 READS = {
