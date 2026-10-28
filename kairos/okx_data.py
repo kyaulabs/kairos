@@ -160,6 +160,7 @@ class OKXData:
         self.books[pair.id] = value
         self.last_message = value.arrived_at
         self.changed.set()
+        return True
 
     async def run(self):
         attempts = 0
@@ -189,7 +190,14 @@ class OKXData:
                             )
                         if msg.data == "pong":
                             continue  # Heartbeat does not refresh a market timestamp.
-                        self.message(json.loads(msg.data, parse_float=Decimal))
+                        if self.message(json.loads(msg.data, parse_float=Decimal)):
+                            try:
+                                for pair in self.pairs.values():
+                                    self.books[pair.id].fresh(self.book_age)
+                            except (KeyError, PendingOKX):
+                                pass  # Missing/stale markets do not restore the retry budget.
+                            else:
+                                attempts = 0
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -207,6 +215,11 @@ class OKXData:
                 break
             self.status = "reconnecting"
             await asyncio.sleep(min(2 ** (attempts - 1), 16))
+        if not self.blocked:
+            self.error = (self.error + "; " if self.error else "") + (
+                "OKX reconnect limit reached after 5 consecutive connection failures; "
+                "explicitly restart the feed"
+            )
         self.blocked, self.status = True, "blocked"
         self.error = self.error or "OKX reconnect limit reached; explicitly restart the feed"
         self.changed.set()
