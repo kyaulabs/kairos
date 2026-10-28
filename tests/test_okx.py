@@ -5,7 +5,10 @@ import hmac
 import json
 import time
 import unittest
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import aiohttp
 
 from kairos.domain import SafetyError, dec
 from kairos.okx import OKX, PUBLIC_WS, REST, OKXRejected, PendingOKX
@@ -391,6 +394,59 @@ class OKXDataTests(unittest.IsolatedAsyncioTestCase):
             ],
         }
 
+    async def test_port_advisory_does_not_discard_snapshots_but_upgrade_notice_does(self):
+        queue = asyncio.Queue()
+        socket = MagicMock()
+        socket.__aenter__.return_value = socket
+        socket._response = SimpleNamespace(url=PUBLIC_WS[self.client.environment])
+        socket.send_json = AsyncMock()
+
+        async def receive(**kwargs):
+            return SimpleNamespace(type=aiohttp.WSMsgType.TEXT, data=json.dumps(await queue.get()))
+
+        socket.receive = AsyncMock(side_effect=receive)
+        connect = AsyncMock(return_value=socket)
+        self.client.session = SimpleNamespace(ws_connect=connect)
+        advisory = {
+            "event": "notice",
+            "code": "64010",
+            "msg": "WebSocket port 8443 will be retired soon. Please migrate to port 443.",
+        }
+        for row in (
+            advisory,
+            {"event": "subscribe", "arg": self.feed.argument()},
+            self.message(),
+        ):
+            queue.put_nowait(row)
+        await self.feed.configure([self.pair])
+        book = await asyncio.wait_for(self.client.book(self.pair), 1)
+        connect.assert_awaited_once_with("wss://wsuspap.okx.com/ws/v5/public", max_msg_size=2**20)
+        socket.send_json.assert_awaited_once_with(
+            {"op": "subscribe", "args": [self.feed.argument()]}
+        )
+        self.assertEqual(self.feed.status, "streaming")
+        self.assertIsNone(self.feed.error)
+        stamp, generation = book.received, self.feed.generation
+        self.feed.message(advisory)
+        self.assertIs(await self.client.book(self.pair), book)
+        self.assertEqual((book.received, self.feed.generation), (stamp, generation))
+        queue.put_nowait({"event": "notice", "code": "64008", "msg": "not retained"})
+        for _ in range(100):
+            if self.feed.status == "reconnecting":
+                break
+            await asyncio.sleep(0.001)
+        self.assertEqual(self.feed.status, "reconnecting")
+        self.assertFalse(self.feed.connected)
+        self.assertFalse(self.feed.books)
+        self.assertNotIn("not retained", self.feed.error)
+        with self.assertRaises(PendingOKX):
+            book.fresh(10)
+
+    async def test_unknown_notices_still_require_a_new_snapshot(self):
+        for value in ("64008", "64099", None, "invalid-not-retained"):
+            with self.subTest(code=value), self.assertRaisesRegex(PendingOKX, "new snapshot"):
+                self.feed.message({"event": "notice", "code": value})
+
     async def test_documented_snapshot_only_books5_omits_action_but_rejects_updates(self):
         self.feed.message(self.message(instId="BTC-USD", seqId=123))
         self.assertEqual((await self.client.book(self.pair)).bids[0][0], dec(50000))
@@ -400,7 +456,7 @@ class OKXDataTests(unittest.IsolatedAsyncioTestCase):
             self.feed.message(self.message(instId="ETH-USD"))
 
     async def test_old_source_new_receipt_disconnect_and_foreign_market_stay_blocked(self):
-        self.assertIn("wsuspap", PUBLIC_WS[self.client.environment])
+        self.assertEqual(PUBLIC_WS[self.client.environment], "wss://wsuspap.okx.com/ws/v5/public")
         self.feed.message(self.message(ts=str(int((time.time() - 15) * 1000))))
         book = self.feed.books[self.pair.id]
         with self.assertRaisesRegex(PendingOKX, "source age"):

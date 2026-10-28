@@ -111,6 +111,9 @@ class OKXData:
                 f"OKX public subscription rejected ({code(row.get('code'))}); inspect instrument availability"
             )
         if row.get("event") == "notice":
+            # Port retirement is advisory, not the 64008 service-upgrade notice.
+            if code(row.get("code")) == "64010":
+                return
             raise PendingOKX("OKX public service reconnect notice; new snapshot required")
         pair = next((p for p in self.pairs.values() if row.get("arg") == self.argument(p)), None)
         if row.get("event") == "subscribe":
