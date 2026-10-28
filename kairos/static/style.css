@@ -135,6 +135,7 @@ body.sidebar-open { grid-template-columns: calc(var(--rail-size) + var(--setting
   grid-template-areas: "chart assessment" "records records";
   gap: 8px;
 }
+.workspace.records-collapsed { grid-template-rows: minmax(0, 1fr) auto; }
 .panel { min-width: 0; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--panel); overflow: hidden; display: flex; flex-direction: column; }
 .panel-head { flex-shrink: 0; min-height: 3rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
 .panel-scroll { overflow: auto; min-height: 0; padding: 1rem; overscroll-behavior: contain; }
@@ -264,6 +265,12 @@ details p { margin-top: 10px; color: var(--muted); }
 pre { font: .75rem/1.5 var(--font-mono); color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .disclaimer { color: var(--muted); font-size: .75rem; margin-top: 16px; }
 .records-panel { grid-area: records; }
+.records-bar { display: flex; flex-shrink: 0; min-width: 0; border-bottom: 1px solid var(--line); }
+.records-bar .tab-list { flex: 1; min-width: 0; border-bottom: 0; }
+.records-bar .tab-list button { flex: 0 0 auto; white-space: nowrap; }
+.records-toggle { display: grid; place-items: center; flex: 0 0 3rem; align-self: stretch; padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; color: var(--muted); background: transparent; }
+.records-toggle:hover { color: var(--text); background: var(--surface-raised); }
+.records-collapsed .records-toggle .icon { transform: rotate(180deg); }
 .tab-list { display: flex; gap: 4px; flex-shrink: 0; min-height: 3rem; padding: 0 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tab-list button { background: transparent; color: var(--muted); font-size: .875rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px 8px; }
 .tab-list button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); background: var(--accent-soft); }
@@ -515,6 +522,9 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
   .workspace[data-view="chart"] > .chart-panel,
   .workspace[data-view="assessment"] > .assessment-panel,
   .workspace[data-view="orders"] > .records-panel { display: flex; }
+  .workspace.records-collapsed[data-view="orders"] { flex-direction: column; }
+  .workspace.records-collapsed[data-view="orders"] > .chart-panel { display: flex; }
+  .workspace.records-collapsed[data-view="orders"] > .records-panel { flex: 0 0 auto; }
   .settings-scroll { padding: 14px; }
   .assessment-panel .panel-scroll { padding: 16px; }
 }
