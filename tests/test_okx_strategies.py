@@ -948,7 +948,8 @@ class DemoStrategyTests(unittest.IsolatedAsyncioTestCase):
     async def test_multibar_native_signal_to_post_only_fill_and_protected_exit(self):
         from tests.test_alpaca_htf_history import bars
 
-        now = time.time()
+        # Keep both native-hour cycles clear of the one-second intent-expiry guard.
+        now = (int(time.time()) // 3600 + 1) * 3600 + 3
         end = int(now) // 3600 * 3600
         rows = bars(end)
         for row in rows:

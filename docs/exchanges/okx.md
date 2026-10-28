@@ -28,10 +28,10 @@ Restart the service safely after changing its environment. Missing OKX keys do n
 | --- | --- | --- |
 | REST | `https://us.okx.com` | `https://us.okx.com` |
 | REST environment header | `x-simulated-trading: 1` | `x-simulated-trading: 0` |
-| Public WebSocket | `wss://wsuspap.okx.com:8443/ws/v5/public` | `wss://wsus.okx.com:8443/ws/v5/public` |
-| Documented private WebSocket | `wss://wsuspap.okx.com:8443/ws/v5/private` | `wss://wsus.okx.com:8443/ws/v5/private` |
+| Public WebSocket | `wss://wsuspap.okx.com/ws/v5/public` | `wss://wsus.okx.com/ws/v5/public` |
+| Documented private WebSocket | `wss://wsuspap.okx.com/ws/v5/private` | `wss://wsus.okx.com/ws/v5/private` |
 
-This implementation uses public `books5` full snapshots and authenticated REST order/fill reconciliation, not private-stream execution messages or a reconstructed incremental book. Business WebSockets are not needed. Credentials are not forwarded through redirects. There is no global-host, live/demo, other-venue or credential fallback.
+This implementation uses public `books5` full snapshots and authenticated REST order/fill reconciliation, not private-stream execution messages or a reconstructed incremental book. Business WebSockets are not needed. WebSockets use standard TLS port 443. The port-8443 retirement advisory (`64010`) is nonfatal; service-upgrade (`64008`) and unknown notices still require a new connection and snapshot. Credentials are not forwarded through redirects. There is no global-host, live/demo, other-venue or credential fallback.
 
 Discovery uses the authenticated account's enabled SPOT instruments and `tradeQuoteCcyList`. A selection such as `okx-demo:BTC-USD:USDC` means native instrument `BTC-USD`, settled in **USDC**. It does not mean USD cash. USD, USDC, USDG and USDT are separate assets. An unavailable variant is rejected rather than replaced.
 
