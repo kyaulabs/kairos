@@ -333,7 +333,7 @@
   </div>
   <p class="muted">Cycles allow one entry attempt. TWAP and demo strategies use saved settings. Review every market, native-currency budget, price bound and order count before authorizing. Strategies may call Jev where required. Stop and expiry retain holdings, not liquidate them. Demo post-only orders use local cancellation, not exchange-side expiry, and can remain open during an outage. No transfers, borrowing or automatic rearming.</p>
   <button id="okx-preview" type="button">Run read-only preflight / preview</button>
-  <p id="okx-status" role="status" class="muted"></p>
+  <p id="okx-status" role="status" class="muted" tabindex="-1"></p>
   <pre id="okx-preview-data" class="okx-preview-data" tabindex="0"></pre>
   <label>Type the confirmation shown in the preview<input id="okx-confirmation" type="text" autocomplete="off" spellcheck="false"></label>
   <div class="form-actions"><button id="okx-authorize" type="button" class="primary" disabled>Authorize this finite run</button></div>

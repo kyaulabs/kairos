@@ -53,6 +53,11 @@ When account fee discovery is unavailable, only a demo execution cycle can use a
 
 The command flow is `POST /api/okx-preview` followed by `POST /api/okx-authorize`. The latter accepts exactly `preview_id` and `confirmation`; it cannot increase approved terms. Both retain normal Origin, JSON and CSRF checks. Use the dashboard rather than putting credentials or CSRF tokens in shell history.
 
+A rejected authorization consumes its one-use preview once rechecks begin. The
+dialog refreshes current state and brings the failure reason into view. Correct
+the blocker and request a new preview; authorization is never retried. A missing
+response is not proof that no run started.
+
 ## Outcomes and recovery
 
 | Result | Meaning |
@@ -115,6 +120,13 @@ The separate protocol `okx-demo-bounded-strategies-v1` connects the existing HTF
 4. Read the opening owned balances and execution policy. Confirm only with `AUTHORIZE OKX DEMO STRATEGY`. This one-use preview expires after two minutes; settings changes, Stop and restart invalidate it. A fee increase or changed market rule requires a new preview.
 
 All strategy markets must use their native price currency. A USD-priced instrument settled in a different stablecoin remains eligible only for the existing cycle/TWAP paths; strategy cost and history checks do not assume the currencies are equal. Additional account balances remain outside the bot allocation.
+
+VWAP/Fibonacci meta previews also validate ownership. Only proven, terminal
+native TWAP dust strictly below one lot can be segregated from a new meta epoch.
+The preview discloses its quantity and evidence; authorization rechecks both.
+The [meta guide](../strategies/vwap-fibonacci-metas.md) explains how that dust
+stays in the ledger, valuation and risk reserve without becoming meta inventory.
+No balance, fee, loss, history or existing protection is reset.
 
 HTF requires 30 adjacent, confirmed native bars. Scalping requires its completed native one-minute window. Reads use OKX's `confirm=1` marker and UTC-aligned intervals; gaps, malformed bars and false completion are blockers. VWAP and trade counts are unavailable on this endpoint; shared history rows use the existing zero-as-unavailable convention for those two unused signal fields. OHLC and base volume stay native. There is no minute synthesis, chart fallback or startup/outage catch-up. `multibar-v2` uses the existing deterministic signal and candidate lifecycle, but its run deadline is this demo authorization—not the frozen Alpaca trial. Legacy HTF, maker and arbitrage still require Jev; missing model/data requirements block orders.
 

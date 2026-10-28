@@ -96,6 +96,14 @@ Stop, restart and UTC rollover. Kraken's explicit paper reset clears its meta
 state. OKX has no implicit balance or latch reset. Unrelated inventory cannot be
 adopted; retained ownership prevents switching strategies, markets or frames.
 
+OKX Demo has one exception: a new meta epoch can reserve legacy TWAP dust
+strictly below one venue lot. Terminal native cash orders, complete fills/fees
+and an exact ledger match must prove its source. Preview discloses the reserve;
+authorization rechecks it before binding or arming. The first epoch freezes its
+quantity and evidence. Dust stays in the ledger, valuation and risk reserve,
+never in meta sellable ownership. Cash, fees, losses and original trade history
+are unchanged. Unproven or executable inventory remains blocking.
+
 For OKX Demo, save the market, Fibonacci profile and explicit percentages, then
 use the existing finite strategy preview. It includes the saved meta terms;
 review those terms, native-currency limits, fees, duration and order count before
