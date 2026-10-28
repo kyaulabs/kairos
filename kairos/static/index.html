@@ -28,6 +28,7 @@
   <script defer src="/static/sidebar.js"></script>
   <script defer src="/static/review.js"></script>
   <script defer src="/static/okx.js"></script>
+  <script defer src="/static/records.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -123,12 +124,15 @@
     </section>
 
     <section id="records-panel" class="panel records-panel" aria-label="Orders and portfolio">
-      <div class="tab-list" role="tablist" aria-label="Trading records">
-        <button type="button" id="orders-tab" role="tab" aria-selected="true" aria-controls="orders-view"><span class="icon icon-orders" aria-hidden="true">≡</span> Orders <span id="orders-count" class="count">0</span></button>
-        <button type="button" id="activity-tab" role="tab" aria-selected="false" aria-controls="activity-view" tabindex="-1"><span class="icon icon-activity" aria-hidden="true">∿</span> Activity</button>
-        <button type="button" id="portfolio-tab" role="tab" aria-selected="false" aria-controls="portfolio-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true"></span> Portfolio</button>
-        <button type="button" id="accounts-tab" role="tab" aria-selected="false" aria-controls="accounts-view" tabindex="-1"><span class="icon icon-bank" aria-hidden="true"></span> Exchange accounts</button>
-        <button type="button" id="equity-tab" role="tab" aria-selected="false" aria-controls="equity-view" tabindex="-1"><span class="icon icon-chart" aria-hidden="true">↗</span> Equity</button>
+      <div class="records-bar">
+        <div class="tab-list" role="tablist" aria-label="Trading records">
+          <button type="button" id="orders-tab" role="tab" aria-selected="true" aria-controls="orders-view"><span class="icon icon-orders" aria-hidden="true">≡</span> Orders <span id="orders-count" class="count">0</span></button>
+          <button type="button" id="activity-tab" role="tab" aria-selected="false" aria-controls="activity-view" tabindex="-1"><span class="icon icon-activity" aria-hidden="true">∿</span> Activity</button>
+          <button type="button" id="portfolio-tab" role="tab" aria-selected="false" aria-controls="portfolio-view" tabindex="-1"><span class="icon icon-wallet" aria-hidden="true"></span> Portfolio</button>
+          <button type="button" id="accounts-tab" role="tab" aria-selected="false" aria-controls="accounts-view" tabindex="-1"><span class="icon icon-bank" aria-hidden="true"></span> Exchange accounts</button>
+          <button type="button" id="equity-tab" role="tab" aria-selected="false" aria-controls="equity-view" tabindex="-1"><span class="icon icon-chart" aria-hidden="true">↗</span> Equity</button>
+        </div>
+        <button type="button" id="records-toggle" class="records-toggle" aria-label="Collapse lower panels" title="Collapse lower panels" aria-expanded="true" aria-controls="orders-view activity-view portfolio-view accounts-view equity-view"><span class="icon icon-solid icon-chevron" aria-hidden="true">⌄</span></button>
       </div>
       <div id="orders-view" class="dock-view" role="tabpanel" aria-labelledby="orders-tab">
         <div class="table-wrap" tabindex="0" role="region" aria-label="Bot orders">

@@ -32,6 +32,7 @@
     .then(faces => { if (faces.every(loaded => loaded.length)) document.documentElement.classList.add('icons-ready'); })
     .catch(() => { /* Licensed Pro files are optional; keep the text icon fallbacks. */ });
 
+  const records = new RecordsPanel($('records-panel'), selectTab);
   function selectTab(tab) {
     if (tab.closest('#settings-sidebar')) {
       sidebar.reveal(tab.id);
@@ -44,6 +45,7 @@
       sibling.tabIndex = selected ? 0 : -1;
       $(sibling.getAttribute('aria-controls')).hidden = !selected;
     }
+    if (tab.closest('#records-panel')) records.setOpen(true);
     const panel = $(tab.getAttribute('aria-controls'));
     const scroll = panel.closest('.settings-scroll');
     if (scroll) scroll.scrollTop = 0;
@@ -55,7 +57,8 @@
       tab.addEventListener('click', () => {
         if (tab.closest('#settings-sidebar') && sidebar.expanded && sidebar.selected === tab.id) {
           sidebar.setOpen(false);
-        } else selectTab(tab);
+        } else if (tab.closest('#records-panel')) records.click(tab);
+        else selectTab(tab);
       });
       tab.addEventListener('keydown', event => {
         const i = tabs.indexOf(tab);
@@ -211,7 +214,7 @@
     }
     if (next.csrf) csrf = next.csrf;
     if (next.separate_worker) separateWorker = true;
-    if (next.version) {
+    if (next.version && (!separateWorker || next.separate_worker)) {
       $('brand-version').textContent = `v${next.version}`;
       $('brand-version').hidden = false;
     }
