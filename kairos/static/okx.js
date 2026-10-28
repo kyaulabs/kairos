@@ -26,6 +26,12 @@ class OKXOperations {
     this.$('pair').replaceChildren(option('', 'Choose an account-enabled instrument / currency…'), ...markets.map(p => option(p.id, p.name || p.symbol)));
     this.$('pair').value = markets.some(p => p.id === chosen) ? chosen : '';
   }
+  showError(message) {
+    const status = this.$('status');
+    status.textContent = message;
+    status.focus({preventScroll: true});
+    status.scrollIntoView({block: 'center'});
+  }
   changed() {
     this.proposal = null; this.$('confirmation').value = '';
     this.$('preview-data').textContent = '';
@@ -82,18 +88,19 @@ class OKXOperations {
     const body = {kind, pair: this.$('pair').value, allocation: this.$('allocation').value};
     if (cycle) Object.assign(body, {budget: this.$('budget').value, buy_ceiling: this.$('buy').value, sell_floor: this.$('sell').value, max_exit_attempts: Number(this.$('exits').value), duration_seconds: Number(this.$('duration').value), demo_fee_allowance_bps: this.state.environment === 'demo' ? this.$('allowance').value : null});
     if (kind === 'strategy') Object.assign(body, {budget: this.$('budget').value, buy_ceiling: this.$('buy').value, sell_floor: this.$('sell').value, max_orders: Number(this.$('max-orders').value), duration_seconds: Number(this.$('duration').value)});
-    this.pending = true; this.proposal = null; this.buttons();
+    this.pending = true; this.proposal = null;
+    this.$('preview-data').textContent = ''; this.$('confirmation').value = ''; this.buttons();
     this.$('status').textContent = 'Read-only preflight; a fresh USD reference may take up to 75 seconds. Stop cancels the wait. No orders are authorized.';
     try {
       const response = await this.request('okx-preview', body);
       this.renderState(response.state);
       this.proposal = response.preview;
-      const keys = ['strategy','meta_terms','protocol','markets','max_orders','opening_owned_balances','execution_policy','budget_policy','kind','environment','account','instrument','spending_currency','allocation','budget','quantity','fee_bps','fee_source','venue_limit_preview','buy_ceiling','sell_floor','price_check','slippage_bps','attempts','duration_seconds','dust_policy','write_gate','confirmation'];
+      const keys = ['strategy','meta_terms','legacy_dust','protocol','markets','max_orders','opening_owned_balances','execution_policy','budget_policy','kind','environment','account','instrument','spending_currency','allocation','budget','quantity','fee_bps','fee_source','venue_limit_preview','buy_ceiling','sell_floor','price_check','slippage_bps','attempts','duration_seconds','dust_policy','write_gate','confirmation'];
       this.$('preview-data').textContent = JSON.stringify(Object.fromEntries(keys.map(k => [k, this.proposal[k]])), null, 2);
       this.$('confirmation').value = '';
       this.$('confirmation').placeholder = this.proposal.confirmation;
       this.$('status').textContent = `Preflight completed; no orders submitted. Expires ${new Date(this.proposal.expires_at * 1000).toLocaleTimeString()}. Type the exact confirmation to authorize only these terms.${this.proposal.kind === 'twap' ? ' This does not reserve a price. Each window checks the unchanged limit again; a price-blocked window is skipped without retry.' : ''}${this.proposal.write_gate ? '' : ' Server write gate is disabled.'}`;
-    } catch (error) { this.$('status').textContent = error.message; }
+    } catch (error) { this.showError(error.message); }
     finally { this.pending = false; this.buttons(); }
   }
   async authorize() {
@@ -108,7 +115,13 @@ class OKXOperations {
       this.dialog.close();
       this.$('evidence').open = true;
       this.message('Finite permission issued. Inspect execution evidence; order acceptance is not a successful cycle.');
-    } catch (error) { this.proposal = null; this.$('status').textContent = error.message; }
+    } catch (error) {
+      this.proposal = null; this.$('confirmation').value = '';
+      let detail = error.message;
+      try { this.renderState(await this.request('state', undefined, AbortSignal.timeout(5000))); }
+      catch { detail += ' Current state could not be refreshed. Inspect the run before requesting another preview; authorization was not retried.'; }
+      this.showError(detail);
+    }
     finally { this.pending = false; this.buttons(); }
   }
 }
