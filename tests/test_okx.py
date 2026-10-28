@@ -5,6 +5,7 @@ import hmac
 import json
 import time
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -441,6 +442,109 @@ class OKXDataTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("not retained", self.feed.error)
         with self.assertRaises(PendingOKX):
             book.fresh(10)
+
+    async def reconnect_sessions(self, sessions, *, blocked):
+        sockets, old_books = [], []
+        for rows in sessions:
+            queue = asyncio.Queue()
+            for row in rows:
+                queue.put_nowait(row)
+            socket = MagicMock()
+            socket.__aenter__.return_value = socket
+            socket._response = SimpleNamespace(url=PUBLIC_WS[self.client.environment])
+            socket.send_json = AsyncMock()
+
+            async def receive(queue=queue, **kwargs):
+                row = await queue.get()
+                if row is None:
+                    old_books.extend(self.feed.books.values())
+                    return SimpleNamespace(type=aiohttp.WSMsgType.CLOSED, data=None)
+                return SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=row if isinstance(row, str) else json.dumps(row),
+                )
+
+            socket.receive = AsyncMock(side_effect=receive)
+            sockets.append(socket)
+        connect = AsyncMock(side_effect=sockets)
+        self.client.session = SimpleNamespace(ws_connect=connect)
+        sleep = asyncio.sleep
+
+        async def backoff(seconds):
+            await sleep(0)
+
+        with patch("kairos.okx_data.asyncio.sleep", side_effect=backoff):
+            await self.feed.configure(list(self.feed.pairs.values()))
+            for _ in range(1000):
+                if self.feed.blocked or (
+                    not blocked
+                    and connect.await_count == len(sockets)
+                    and len(self.feed.books) == len(self.feed.pairs)
+                ):
+                    break
+                await sleep(0.001)
+            else:
+                self.fail("Public reconnect fixture did not reach its bounded terminal state")
+        return connect, old_books
+
+    async def test_healthy_snapshots_reset_reconnect_budget_and_old_books_stay_invalid(self):
+        ack = {"event": "subscribe", "arg": self.feed.argument()}
+        connect, old_books = await self.reconnect_sessions(
+            [[ack, self.message(), None] for _ in range(6)] + [[ack, self.message()]],
+            blocked=False,
+        )
+        self.assertFalse(self.feed.blocked)
+        self.assertEqual(connect.await_count, 7)
+        self.assertEqual(self.feed.status, "streaming")
+        self.assertIsNone(self.feed.error)
+        (await self.client.book(self.pair)).fresh(10)
+        self.assertEqual(len(old_books), 6)
+        for book in old_books:
+            with self.assertRaisesRegex(PendingOKX, "connection changed"):
+                book.fresh(10)
+        self.assertEqual({call.args[0] for call in connect.await_args_list}, {PUBLIC_WS["demo"]})
+
+    async def test_controls_and_stale_snapshots_do_not_reset_failure_budget(self):
+        ack = {"event": "subscribe", "arg": self.feed.argument()}
+        for snapshot in ([], [self.message(ts=str(int((time.time() - 60) * 1000)))]):
+            with self.subTest(stale_snapshot=bool(snapshot)):
+                await self.feed.close()
+                self.client.session = None
+                await self.feed.configure([self.pair])
+                rows = [ack, "pong", {"event": "notice", "code": "64010"}, *snapshot, None]
+                connect, _ = await self.reconnect_sessions([rows] * 5, blocked=True)
+                self.assertEqual(connect.await_count, 5)
+                self.assertTrue(self.feed.blocked)
+                self.assertEqual(self.feed.status, "blocked")
+                self.assertFalse(self.feed.books)
+                self.assertIn("5 consecutive connection failures", self.feed.error)
+                self.assertIn("explicitly restart the feed", self.feed.error)
+
+    async def test_partial_market_readiness_cannot_reset_failure_budget(self):
+        second = replace(self.pair, id="okx-demo:ETH-USD:USDC", symbol="ETH/USDC", base="ETH")
+        self.client.pairs[second.id] = second
+        self.client.instruments[second.id] = {"instId": "ETH-USD"}
+        await self.feed.configure([self.pair, second])
+        rows = [
+            *({"event": "subscribe", "arg": self.feed.argument(p)} for p in (self.pair, second)),
+            self.message(),
+            None,
+        ]
+        connect, _ = await self.reconnect_sessions([rows] * 5, blocked=True)
+        self.assertEqual(connect.await_count, 5)
+        self.assertTrue(self.feed.blocked)
+        self.assertIn("5 consecutive connection failures", self.feed.error)
+        self.assertFalse(self.feed.books)
+
+    async def test_invalid_snapshot_blocks_immediately_without_recovery_retries(self):
+        ack = {"event": "subscribe", "arg": self.feed.argument()}
+        connect, _ = await self.reconnect_sessions(
+            [[ack, self.message(bids=[["50002", "1"]]), None]], blocked=True
+        )
+        self.assertEqual(connect.await_count, 1)
+        self.assertTrue(self.feed.blocked)
+        self.assertFalse(self.feed.books)
+        self.assertNotIn("consecutive connection failures", self.feed.error)
 
     async def test_unknown_notices_still_require_a_new_snapshot(self):
         for value in ("64008", "64099", None, "invalid-not-retained"):
