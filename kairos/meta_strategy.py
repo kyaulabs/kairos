@@ -4,6 +4,8 @@ Protection is bot-managed, only while running. No native attached stop is assume
 """
 
 import asyncio
+import hashlib
+import json
 import math
 import uuid
 
@@ -102,6 +104,7 @@ def view(e):
         "background_context": (signals.get("background") or {}).get("status"),
         "context_rejections": signals.get("context_rejections", {}),
         "position": state["position"],
+        "legacy_dust": state.get("legacy_dust"),
         "entries_halted": state["entries_halted"],
         "structure_minutes": e.settings["meta_structure_minutes"],
         "confirmation_minutes": confirmation_minutes(e),
@@ -148,19 +151,99 @@ def owned(e, state, position=None, mode=None):
     )
 
 
-def prepare(e):
-    validate(e, e.settings)
-    pair, state = e.resolve(e.settings["pair"]), snapshot(e)
+def ownership(e):
+    """Read-only eligibility; a legacy dust reserve never becomes meta ownership."""
+    pair, state, ledger = e.resolve(e.settings["pair"]), snapshot(e), e.ledger()
+    if ledger is None:  # An unbound Demo allocation starts with quote cash only.
+        return None
     if any(
-        dec(q)
-        for asset, q in e.ledger()["balances"].items()
-        if asset not in {pair.base, pair.quote}
+        dec(q) for asset, q in ledger["balances"].items() if asset not in {pair.base, pair.quote}
     ):
         raise SafetyError("A meta requires one cash portfolio without unrelated assets")
-    if e.balance(pair.base) != owned(e, state):
-        raise SafetyError("A meta cannot adopt unrelated inventory or missing ownership history")
+    excess = e.balance(pair.base) - owned(e, state)
+    saved = state.get("legacy_dust")
+    if excess == 0 and saved is None:
+        return None
+    reason = "A meta cannot adopt unrelated inventory or missing ownership history; only proven below-lot legacy TWAP dust can remain segregated"
+    if (
+        e.exchange != "okx-demo"
+        or e.mode != "paper"
+        or not ZERO < excess < pair.lot
+        or saved is None
+        and (state.get("epoch") or state["position"])
+    ):
+        raise SafetyError(reason)
+    orders = [o for o in e.orders(e.mode) if o["pair"] == pair.id and not o.get("meta_epoch")]
+    if not orders or any(
+        o["strategy"] != "twap"
+        or o["mode"] != "paper"
+        or o["side"] not in {"buy", "sell"}
+        or o["status"] not in TERMINAL
+        or o.get("fee_reported") is not True
+        or not o.get("txid")
+        or o.get("write_outcome") != "accepted"
+        or o.get("payload", {}).get("tdMode") != "cash"
+        or o["base"] != pair.base
+        or o["quote"] != pair.quote
+        or o["instrument"] != e.client.instruments[pair.id]["instId"]
+        for o in orders
+    ):
+        raise SafetyError(reason)
+    net, seen, evidence = ZERO, set(), []
+    for order in sorted(orders, key=lambda o: o["id"]):
+        fills = order.get("executions", [])
+        required = {"id", "order_id", "quote", "quantity", "cost", "fee_signed", "fee_currency"}
+        if not isinstance(fills, list) or any(
+            not isinstance(x, dict) or not required <= x.keys() for x in fills
+        ):
+            raise SafetyError(reason)
+        if sum((dec(x["quantity"]) for x in fills), ZERO) != dec(order["filled"]):
+            raise SafetyError(reason)
+        if sum((dec(x["cost"]) for x in fills), ZERO) != dec(order["cost"]):
+            raise SafetyError(reason)
+        for fill in fills:
+            if (
+                not fill.get("id")
+                or fill["id"] in seen
+                or fill.get("order_id") != order["txid"]
+                or fill.get("quote") != pair.quote
+                or dec(fill["quantity"]) <= 0
+                or dec(fill["cost"]) <= 0
+                or dec(fill["fee_signed"]) != 0
+                and not fill.get("fee_currency")
+            ):
+                raise SafetyError(reason)
+            seen.add(fill["id"])
+            net += dec(fill["quantity"]) * (1 if order["side"] == "buy" else -1)
+            if fill["fee_currency"] == pair.base:
+                net += dec(fill["fee_signed"])
+        evidence.append(
+            {
+                **{k: order[k] for k in ("id", "txid", "side", "filled", "cost", "payload")},
+                "executions": fills,
+            }
+        )
+    proof = {
+        "pair": pair.id,
+        "quantity": str(net),
+        "source": "terminal-native-twap-fills",
+        "order_ids": [o["id"] for o in sorted(orders, key=lambda o: o["id"])],
+        "evidence_sha256": hashlib.sha256(
+            json.dumps(evidence, sort_keys=True).encode()
+        ).hexdigest(),
+    }
+    if net != excess or saved is not None and saved != proof:
+        raise SafetyError(reason)
+    return proof
+
+
+def prepare(e):
+    validate(e, e.settings)
+    legacy, state = ownership(e), snapshot(e)
     if not state["epoch"]:
         state["epoch"] = uuid.uuid4().hex
+        if legacy is not None:
+            state["legacy_dust"] = legacy
         e.store.put(key(e), state)
     seal_protection(e, state)
 
@@ -330,6 +413,7 @@ def report(e, action, reason, state, **data):
             "structure_minutes": e.settings["meta_structure_minutes"],
             "confirmation_minutes": confirmation_minutes(e),
             "inventory": str(e.balance(pair.base)),
+            "legacy_dust": state.get("legacy_dust"),
             "position": state["position"],
             "entries_halted": state["entries_halted"],
             **data,

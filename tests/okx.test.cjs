@@ -12,12 +12,13 @@ function fixture() {
       querySelectorAll() { return []; },
       replaceChildren(...children) { this.children = children; },
       reportValidity() { return true; }, closest() { return {hidden:false}; },
-      showModal() { this.open = true; }, close() { this.open = false; }, focus() {},
+      showModal() { this.open = true; }, close() { this.open = false; },
+      focus() { this.focused = true; }, scrollIntoView() { this.scrolled = true; },
     });
     return nodes.get(id);
   };
   const document = {getElementById:node, createElement:() => ({})};
-  runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/okx.js'), 'utf8'), {window:browser, document, Date});
+  runInNewContext(readFileSync(path.join(__dirname, '../kairos/static/okx.js'), 'utf8'), {window:browser, document, Date, AbortSignal});
   const state = {exchange:'okx-demo', environment:'demo', settings:{pair:'okx-demo:BTC-USD:USDC'}, credentials_configured:true, write_gate:true, running:false, armed:false};
   const preview = {id:'one-use-id', kind:'execution_cycle', environment:'demo', instrument:'BTC-USD', spending_currency:'USDC', write_gate:true, expires_at:Date.now()/1000 + 60, confirmation:'AUTHORIZE OKX DEMO EXECUTION_CYCLE', budget:'25'};
   const request = async (route, body) => { calls.push({route, body}); return route === 'okx-preview' ? {state, preview} : state; };
@@ -121,6 +122,65 @@ test('OKX pending preview locks terms and reopening until its response, without 
   assert.equal(node('open').disabled, false);
   assert.equal(node('budget').value, '17.123456789');
   assert.equal(node('authorize').disabled, true);
+});
+
+test('OKX rejection refreshes state and exposes its reason without retrying authorization', async () => {
+  const {controller, node, state, preview, calls} = fixture();
+  await controller.preview();
+  node('confirmation').value = preview.confirmation; controller.buttons();
+  controller.renderState = next => controller.render(next, true);
+  controller.request = async (route, body) => {
+    calls.push({route, body});
+    if (route === 'state') return state;
+    controller.render({...state, running:true, armed:true}, true);
+    throw new Error('A meta cannot adopt unrelated inventory or missing ownership history');
+  };
+  await controller.authorize();
+  assert.equal(calls.filter(c => c.route === 'okx-authorize').length, 1);
+  assert.equal(calls.at(-1).route, 'state');
+  assert.equal(controller.pending, false);
+  assert.equal(controller.proposal, null);
+  assert.equal(node('confirmation').value, '');
+  assert.equal(node('preview').disabled, false);
+  assert.equal(node('authorize').disabled, true);
+  assert.equal(node('dialog-stop').disabled, false);
+  assert.match(node('status').textContent, /cannot adopt/);
+  assert.equal(node('status').focused, true);
+  assert.equal(node('status').scrolled, true);
+});
+
+test('OKX failed preflight clears obsolete terms and brings the blocker into view', async () => {
+  const {controller, node} = fixture();
+  await controller.preview();
+  assert.notEqual(node('preview-data').textContent, '');
+  controller.request = async () => { throw new Error('Ownership blocked during preview'); };
+  await controller.preview();
+  assert.equal(node('preview-data').textContent, '');
+  assert.equal(controller.proposal, null);
+  assert.equal(controller.pending, false);
+  assert.equal(node('preview').disabled, false);
+  assert.equal(node('authorize').disabled, true);
+  assert.match(node('status').textContent, /Ownership blocked/);
+  assert.equal(node('status').focused, true);
+  assert.equal(node('status').scrolled, true);
+});
+
+test('OKX lost authorization response never assumes a refreshed active run is stopped', async () => {
+  const {controller, node, state, preview, calls} = fixture();
+  await controller.preview();
+  node('confirmation').value = preview.confirmation; controller.buttons();
+  controller.renderState = next => controller.render(next, true);
+  controller.request = async (route, body) => {
+    calls.push({route, body});
+    if (route === 'state') return {...state, running:true, armed:true};
+    throw new Error('Authorization response unavailable');
+  };
+  await controller.authorize();
+  assert.equal(calls.filter(c => c.route === 'okx-authorize').length, 1);
+  assert.equal(controller.state.running, true);
+  assert.equal(node('preview').disabled, true);
+  assert.equal(node('dialog-stop').disabled, false);
+  assert.doesNotMatch(node('status').textContent, /no orders|nothing submitted/i);
 });
 
 test('OKX displays exact residual evidence without erasing input drafts or claiming mocks are hosted', () => {

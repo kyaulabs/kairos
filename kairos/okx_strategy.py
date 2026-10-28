@@ -87,6 +87,9 @@ async def preview(e, values):
         proof = await e.probe()
         if binding:
             await e.settle()
+        legacy_dust = (
+            meta_strategy.ownership(e) if e.settings["strategy"] in meta_strategy.FAMILIES else None
+        )
         if not proof["config"]["can_trade"] or proof["config"]["fee_type"] not in {"0", "1"}:
             raise SafetyError("Demo strategy requires Trade permission and native fee policy")
         clock = await e.client.request("GET", "/api/v5/public/time")
@@ -248,11 +251,12 @@ async def preview(e, values):
             "meta_terms": meta_strategy.configuration(e)
             if strategy in meta_strategy.FAMILIES
             else None,
+            "legacy_dust": legacy_dust,
             "program_terms": programs.configuration(e.settings)
             if strategy in programs.STRATEGIES
             else None,
             "protocol": "okx-demo-bounded-strategies-v1; separate from the frozen Alpaca trial",
-            "dust_policy": "Existing inventory remains owned. Metas reject unrelated inventory; HTF/scalp exclude it. No cleanup buy, reset or automatic liquidation.",
+            "dust_policy": "Existing inventory remains owned. Metas reject unrelated inventory except disclosed, proven below-lot legacy TWAP dust, which stays segregated, marked and risk-reserved. HTF/scalp exclude existing inventory. No cleanup buy, reset or automatic liquidation.",
             "execution_policy": "HTF initial book reads may wait up to 60s within the original authorization before evaluation; no orders or protective exits while data is unavailable, and recovered entry candidates are re-baselined. Before HTF evaluation, authenticated fees are refreshed with up to 30s total grace for transient fee reads and post-fee book timeouts, within the original deadline; no orders or protective exits until fresh fees and books pass checks. Fee-age and authorized fee limits are unchanged. Later execution failures still stop the run. One outstanding order; IOC or demo post-only. Resting orders are locally canceled after at most 30s plus scheduler/settlement latency, or on Stop/expiry. OKX post-only has no server-side expiry here and can remain open during an outage. Restart never rearms. Price bounds also constrain protective exits; holdings can remain after permission ends.",
             "budget_policy": "Cumulative buy commitments per market in each listed native quote; starting-currency spending is also capped across markets. Intermediate currencies are never added together or treated at parity. Sales use allocated/acquired inventory only. Every durable attempt consumes the global count, even when rejected or unfilled.",
         }
@@ -308,6 +312,10 @@ async def recheck(e, proposal):
         raise SafetyError("Demo owned balances/fees changed after preview; inspect a new preview")
     if e.client.environment != "demo" or {p.id for p in markets(e)} != set(proposal["markets"]):
         raise SafetyError("Demo strategy environment/market scope changed")
+    if e.settings["strategy"] in meta_strategy.FAMILIES and meta_strategy.ownership(
+        e
+    ) != proposal.get("legacy_dust"):
+        raise SafetyError("Legacy dust terms changed since preview; prepare a new preview")
     for identifier, limit in proposal["markets"].items():
         pair = e.resolve(identifier)
         if fingerprint(e.client.instruments[identifier]) != limit["market_rules"]:
