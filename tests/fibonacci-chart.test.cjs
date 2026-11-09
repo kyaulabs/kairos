@@ -13,7 +13,7 @@ function fixture() {
   const data={status:'available',scope,kind:'retracement',family:'fib-ema',phase:'armed',running:true,known_at:1700020000,observed_at:1700020900,
     low:{at:1700000000,price:'100'},high:{at:1700007200,price:'120'},
     levels:[{ratio:'0',price:'120'},{ratio:'0.382',price:'112.36'},{ratio:'0.618',price:'107.64'},{ratio:'1',price:'100'},{ratio:'1.618',price:'87.64'}]};
-  const state={exchange:scope.exchange,mode:scope.mode,settings,meta:{fibonacci:data}};
+  const state={exchange:scope.exchange,mode:scope.mode,running:true,settings,meta:{fibonacci:data}};
   const view=Object.assign(Object.create(browser.LiveChart.prototype),{intervalMs:900000,intervals:[5,15,60],node:{style:{setProperty(){}}},points:[{time:1700020900000,value:110}],indicatorPoints:[],indicators:{},fills:[{id:'existing'}],anchor:1700020000000,transform:{k:2,x:100},draw(){},follow(){this.anchor=null;}});
   const market={id:settings.pair,exchange:scope.exchange};
   return {view,state,data,market};
@@ -68,19 +68,36 @@ test('invalid geometry, duplicate levels and future knowledge fail closed rather
   }
 });
 
-test('waiting and paused captions distinguish candidates, references and saved geometry without claiming predictions',()=>{
+test('waiting captions distinguish candidates and entry plans without claiming predictions',()=>{
   const {view,state,data,market}=fixture(), status={hidden:true,textContent:''};
   view.bindFibonacciStatus(status);assert.equal(status.hidden,true);
   view.setFibonacci(state,market);assert.equal(status.hidden,false);
   assert.ok(status.textContent.includes('armed candidate, not an entry'));
   assert.ok(status.textContent.includes('not a forecast or TP orders'));
-  data.running=false;data.phase='owned';view.setFibonacci(state,market);
-  assert.ok(status.textContent.includes('paused snapshot: saved trade geometry'));
-  data.running=true;data.phase='entry-plan';view.setFibonacci(state,market);
+  data.phase='entry-plan';view.setFibonacci(state,market);
   assert.ok(status.textContent.includes('entry plan, fill confirmation pending'));
-  state.meta.fibonacci={scope:data.scope,status:'waiting'};view.setFibonacci(state,market);
+  state.meta.fibonacci={scope:data.scope,status:'waiting',running:true};view.setFibonacci(state,market);
   assert.ok(status.textContent.includes('No guessed anchors'));
   assert.equal(view.fibonacciValues([0,Date.now()]).length,0);
+});
+
+test('stopping or completing execution clears bands and captions even with stale saved geometry',()=>{
+  const {view,state,data,market}=fixture(), status={hidden:true,textContent:''}, heights=[];
+  view.node.style.setProperty=(key,value)=>heights.push(value);
+  view.bindFibonacciStatus(status);
+  for (const next of [
+    {...state,running:false}, {...state,running:undefined},
+    {...state,meta:{fibonacci:{...data,running:false}}},
+    {...state,meta:{fibonacci:null}},
+  ]) {
+    view.setFibonacci(state,market);assert.ok(view.fibonacci);assert.equal(status.hidden,false);
+    const {points,fills,indicators,transform,anchor}=view;
+    view.setFibonacci(next,market);
+    assert.equal(view.fibonacci,null);assert.equal(status.hidden,true);assert.equal(status.textContent,'');
+    assert.equal(view.fibonacciValues([0,Date.now()]).length,0);assert.equal(heights.at(-1),'17.5rem');
+    assert.equal(view.points,points);assert.equal(view.fills,fills);assert.equal(view.indicators,indicators);
+    assert.equal(view.transform,transform);assert.equal(view.anchor,anchor);
+  }
 });
 
 test('chart intervals preserve strategy geometry while market resets and equity views remove it',()=>{

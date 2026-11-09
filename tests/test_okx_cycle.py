@@ -57,6 +57,35 @@ class CycleTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.tick()
         self.assertEqual(len([c for c in self.venue.calls if c[0] == "POST"]), 2)
 
+    async def test_meta_cycle_preview_rejects_before_reads_or_settings_changes(self):
+        for strategy in ("fib-meta", "vwap-meta"):
+            with self.subTest(strategy=strategy):
+                self.engine.settings["strategy"] = strategy
+                before = dict(self.engine.settings)
+                calls = len(self.venue.calls)
+                with self.assertRaisesRegex(SafetyError, "use a finite strategy authorization"):
+                    await self.proposal()
+                self.assertEqual(self.engine.settings, before)
+                self.assertEqual(len(self.venue.calls), calls)
+                self.assertFalse(self.engine.running or self.engine.armed)
+                self.assertIsNone(self.store.get("okx-operation"))
+
+    async def test_legacy_meta_cycle_preview_cannot_be_authorized(self):
+        proposal = await self.proposal()
+        self.engine.settings["strategy"] = "fib-meta"
+        # Simulate an unused preview persisted by the old version with matching settings.
+        proposal["settings_id"] = self.engine.settings_id()
+        self.store.put("okx-preview:" + proposal["id"], proposal)
+        calls, ledger = len(self.venue.calls), self.engine.ledger()
+        with self.assertRaisesRegex(SafetyError, "use a finite strategy authorization"):
+            await self.execute(proposal)
+        self.assertEqual(len(self.venue.calls), calls)
+        self.assertEqual(self.engine.ledger(), ledger)
+        self.assertFalse(self.engine.running or self.engine.armed)
+        self.assertIsNone(self.engine.authorization)
+        self.assertIsNone(self.store.get("okx-operation"))
+        self.assertFalse(self.store.get("okx-preview:" + proposal["id"])["claimed"])
+
     async def test_actual_quote_fee_overrun_is_recorded_and_cannot_pass_the_budget_bound(self):
         original = self.venue.fill
 

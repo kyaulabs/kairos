@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlsplit
 
 from kairos.domain import SafetyError, dec
-from kairos.okx import OKX
+from kairos.okx import OKX, PendingOKX
 from kairos.okx_engine import OKXEngine, fingerprint
 from kairos.store import Store
 from tests.test_okx import OKXResponse, instrument
@@ -265,6 +265,51 @@ class OKXEngineTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         return feed.books[self.pair.id]
+
+    async def test_balance_timeout_recovers_through_bounded_read_only_reconciliation(self):
+        original = self.venue.request
+        failed = False
+
+        def timeout_once(method, url, **kwargs):
+            nonlocal failed
+            response = original(method, url, **kwargs)
+            if str(url).endswith("/account/balance") and not failed:
+                failed = True
+                response.status = 400
+                response.body = {"code": "50004", "data": []}
+            return response
+
+        scope = dict(self.engine.authorization)
+        ledger = self.engine.ledger()
+        with patch.object(self.venue, "request", side_effect=timeout_once):
+            await self.engine.settle()
+        self.assertTrue(failed)
+        self.assertEqual(self.store.get("okx-reconciliation")["status"], "matched")
+        self.assertEqual(self.engine.authorization, scope)
+        self.assertEqual(self.engine.ledger(), ledger)
+        self.assertFalse([c for c in self.venue.calls if c[0] == "POST"])
+
+    async def test_read_retries_exhaust_within_original_authorization(self):
+        for remaining_wall, remaining_monotonic in ((0.03, 60), (60, 0.03)):
+            with self.subTest(wall=remaining_wall, monotonic=remaining_monotonic):
+                self.engine.authorization["deadline"] = time.time() + remaining_wall
+                self.engine.authorization_monotonic_deadline = (
+                    time.monotonic() + remaining_monotonic
+                )
+                with patch.object(
+                    self.engine, "reconcile_account", AsyncMock(side_effect=PendingOKX("timeout"))
+                ) as reconcile:
+                    with self.assertRaisesRegex(SafetyError, "bounded reconciliation exhausted"):
+                        await self.engine.settle(seconds=45)
+                    self.assertGreaterEqual(reconcile.await_count, 1)
+        self.assertFalse([c for c in self.venue.calls if c[0] == "POST"])
+
+    async def test_expired_authorization_cannot_begin_reconciliation_retry(self):
+        self.engine.authorization["deadline"] = time.time() - 1
+        calls = len(self.venue.calls)
+        with self.assertRaisesRegex(SafetyError, "authorization expired"):
+            await self.engine.settle()
+        self.assertEqual(len(self.venue.calls), calls)
 
     async def test_normal_engine_path_uses_native_fills_fees_owned_inventory_and_no_model(self):
         buy = await self.engine.place(self.pair, "buy", dec(".0005"), dec(50000), self.book())

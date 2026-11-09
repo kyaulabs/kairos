@@ -5,8 +5,8 @@ import time
 import uuid
 from decimal import ROUND_UP
 
+from kairos import meta_strategy, programs
 from kairos import okx_account as native
-from kairos import programs
 from kairos.domain import BPS, TERMINAL, ZERO, SafetyError, dec, floor
 from kairos.fees import FeeUnavailable
 from kairos.okx_engine import fingerprint
@@ -33,6 +33,15 @@ def confirmation(e, kind):
 def idle(e):
     if e.running or e.armed or e.orders(active=True) or e.shutting_down:
         raise SafetyError("Stop and reconcile OKX before preparing another finite authorization")
+
+
+def validate_cycle_strategy(e, kind):
+    if kind == "execution_cycle" and e.settings["strategy"] in meta_strategy.FAMILIES:
+        raise SafetyError(
+            "OKX execution-cycle diagnostics cannot run with a meta strategy selected; "
+            "use a finite strategy authorization for protected meta entries, "
+            "or explicitly select a non-meta strategy before previewing a diagnostic"
+        )
 
 
 async def fees(e, pair, allowance):
@@ -72,6 +81,7 @@ async def preview(e, values):
         kind = values.get("kind", "execution_cycle")
         if kind not in {"execution_cycle", "twap"}:
             raise SafetyError("Only execution_cycle and finite TWAP are available for OKX")
+        validate_cycle_strategy(e, kind)
         if not e.client.configured:
             raise SafetyError(
                 f"OKX {e.client.environment} credentials missing; install this environment's credentials privately"
@@ -344,6 +354,7 @@ async def authorize(e, preview_id, phrase):
             raise SafetyError(
                 "OKX preview expired, changed, revoked, or server write gate disabled; prepare a new preview"
             )
+        validate_cycle_strategy(e, proposal["kind"])
         proposal["claimed"] = True
         e.store.put("okx-preview:" + proposal["id"], proposal)
         operation = {
