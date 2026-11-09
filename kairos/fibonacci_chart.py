@@ -67,7 +67,7 @@ def geometry(facts, family, phase, observed, scope, position=None):
 
 
 def view(e, state, signals):
-    if e.settings["strategy"] != "fib-meta":
+    if e.settings["strategy"] != "fib-meta" or not e.running:
         return None
     scope = {
         "exchange": e.exchange,
@@ -80,6 +80,7 @@ def view(e, state, signals):
     }
     waiting = {
         "status": "waiting",
+        "running": True,
         "scope": scope,
         "reason": "Waiting for a confirmed Fibonacci swing",
     }

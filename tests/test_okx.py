@@ -315,6 +315,24 @@ class OKXTransportTests(unittest.IsolatedAsyncioTestCase):
             if status == "50004":
                 self.assertNotIsInstance(caught.exception, OKXRejected)
 
+    async def test_timeout_code_is_transient_only_for_reads_and_never_replays_writes(self):
+        for http_status in (200, 400):
+            for writing in (False, True):
+                with self.subTest(http_status=http_status, writing=writing):
+                    client = await self.prepare()
+                    client.session.status = http_status
+                    client.session.body = {"code": "50004", "data": [], "msg": "fixture-okx-secret"}
+                    before = len(client.session.calls)
+                    with self.assertRaises(SafetyError) as caught:
+                        await client.request(
+                            "POST" if writing else "GET",
+                            "/api/v5/trade/order" if writing else "/api/v5/account/balance",
+                            payload=self.payload() if writing else None,
+                        )
+                    self.assertEqual(isinstance(caught.exception, PendingOKX), not writing)
+                    self.assertNotIn("fixture", str(caught.exception))
+                    self.assertEqual(len(client.session.calls), before + 1)
+
     async def test_account_quote_mapping_fee_groups_and_documented_signed_rates(self):
         client = await self.prepare()
         usd = client.resolve("okx-demo:BTC-USD:USD")
