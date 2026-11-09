@@ -408,7 +408,10 @@ class OKX:
                             detail = f" code {venue_code}"
                         error = (
                             SafetyError
-                            if writing or response.status < 500 and response.status != 429
+                            if writing
+                            or response.status < 500
+                            and response.status != 429
+                            and not (response.status == 400 and venue_code == "50004")
                             else PendingOKX
                         )
                         raise error(
@@ -434,6 +437,10 @@ class OKX:
                 if not writing:
                     raise PendingOKX(f"OKX rate limit {status}; wait for admission backoff")
             if status == "50004":
+                if not writing:
+                    raise PendingOKX(
+                        "OKX read timeout 50004; retry only within bounded read admission"
+                    )
                 raise SafetyError(
                     "OKX timeout 50004 has unknown outcome; reconcile original intent, never resubmit"
                 )

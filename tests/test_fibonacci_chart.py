@@ -138,10 +138,20 @@ class FibonacciChartTests(unittest.TestCase):
         )
         self.assertEqual(result["trade"]["exit_reason"], "Target")
         self.assertEqual(self.state, before)
-        self.engine.running = False
-        self.assertFalse(self.view()["running"])
         self.state["position"]["protection_sealed"] = False
         self.assertEqual(self.view()["phase"], "entry-plan")
+
+    def test_stop_hides_reference_candidate_and_owned_geometry_without_erasing_plans(self):
+        for position in (None, {"signal": self.facts(), "risk_plan": {"saved": True}}):
+            with self.subTest(position=position):
+                self.state["position"] = position
+                before = copy.deepcopy((self.state, self.signals))
+                self.engine.running = False
+                self.assertIsNone(self.view())
+                self.assertEqual((self.state, self.signals), before)
+        self.state["position"] = None
+        self.engine.running = True
+        self.assertEqual(self.view()["status"], "available")
 
     def test_waiting_stale_scope_expired_parent_and_other_strategy_never_guess_anchors(self):
         self.signals["frame"] = 240

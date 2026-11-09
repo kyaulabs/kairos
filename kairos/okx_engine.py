@@ -456,6 +456,16 @@ class OKXEngine(Engine):
         return proof
 
     async def settle(self, seconds=45):
+        if self.authorization is not None:
+            seconds = min(
+                seconds,
+                self.authorization["deadline"] - self.clock(),
+                (self.authorization_monotonic_deadline or time.monotonic()) - time.monotonic(),
+            )
+            if seconds <= 0:
+                raise SafetyError(
+                    "OKX authorization expired before reconciliation; no new submission"
+                )
         try:
             async with asyncio.timeout(seconds):
                 return await self._settle(seconds)

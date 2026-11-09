@@ -151,7 +151,7 @@ class LiveChart {
   });
   static fibonacciFor(state, market) {
     const settings = state?.settings, data = state?.meta?.fibonacci;
-    if (!settings || typeof settings.pair !== 'string' || typeof state.exchange !== 'string' || typeof state.mode !== 'string' || settings.strategy !== 'fib-meta' || settings.product !== 'spot' ||
+    if (state?.running !== true || data?.running !== true || !settings || typeof settings.pair !== 'string' || typeof state.exchange !== 'string' || typeof state.mode !== 'string' || settings.strategy !== 'fib-meta' || settings.product !== 'spot' ||
         market?.id !== settings.pair || (market?.exchange && market.exchange !== state.exchange) || !data) return null;
     const scope = {exchange: state.exchange, mode: state.mode, pair: settings.pair, strategy: settings.strategy,
       context_minutes: settings.fib_context_minutes, structure_minutes: settings.meta_structure_minutes,
@@ -191,7 +191,7 @@ class LiveChart {
     if (f?.status === 'available') {
       const family = {'fib-confluence':'Confluence','fib-ema':'EMA pullback','fib-extension':'Breakout','fib-sweep':'Sweep'}[f.family] || 'Structure reference';
       const phase = {reference:'no armed setup',armed:'armed candidate, not an entry',confirmed:'confirmed signal, not a fill','entry-plan':'entry plan, fill confirmation pending',owned:'saved trade geometry'}[f.phase];
-      text = `Auto Fib ${f.kind.toUpperCase()} · ${family} · ${f.running ? phase : `paused snapshot: ${phase}`} · ${f.scope.structure_minutes}m structure · levels known ${new Date(f.knownTime).toISOString().replace('T',' ').slice(0,19)} UTC. Reference levels, not a forecast or TP orders.`;
+      text = `Auto Fib ${f.kind.toUpperCase()} · ${family} · ${phase} · ${f.scope.structure_minutes}m structure · levels known ${new Date(f.knownTime).toISOString().replace('T',' ').slice(0,19)} UTC. Reference levels, not a forecast or TP orders.`;
     } else if (f) text = f.status === 'waiting' ? 'Auto Fib · waiting for a confirmed structure swing. No guessed anchors.' : 'Auto Fib · geometry unavailable; no stale overlay shown.';
     if (this.fibonacciStatus.textContent !== text) this.fibonacciStatus.textContent = text;
   }
